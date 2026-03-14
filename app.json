@@ -1,0 +1,11 @@
+{
+  "package_id": "com.d3hospitality.sophicon",
+  "name": "soΦcon",
+  "version": "0.1.0",
+  "description": "Philosophy on Glass",
+  "tagline": "Think / See / Know",
+  "author": "D3 Hospitality",
+  "entrypoint": "index.html",
+  "edition": "202601",
+  "min_app_version": "1.0.0"
+}
