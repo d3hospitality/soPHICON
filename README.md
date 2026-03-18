@@ -10,6 +10,16 @@
 
 soΦcon puts 2,801 philosophical quotes from 17 philosophers across 8 traditions on your glasses. Quotes auto-rotate every 33 seconds with emotion-matched pixel-art philosopher sprites. Browse by tradition and philosopher, or let wisdom find you.
 
+## QR Code / Demos
+
+<img width="450" height="450" alt="qrcode_d3hospitality github io" src="https://github.com/user-attachments/assets/1238a061-0499-4aff-b8c2-3a5c3748b947" />
+
+<img width="1576" height="1069" alt="Even Hub Community (1)" src="https://github.com/user-attachments/assets/70f9df35-104e-45a9-bc32-b06229d947a1" />
+<img width="1576" height="1069" alt="Even Hub Community (2)" src="https://github.com/user-attachments/assets/75728485-870c-415b-93da-a1442bbe8b43" />
+<img width="1576" height="1069" alt="Even Hub Community (3)" src="https://github.com/user-attachments/assets/52ddc53d-4968-41f8-bd0f-a3eb45aa66df" />
+
+
+
 ## Features
 
 - 📜 **2,801 quotes** across 32 books and 8 philosophical traditions
