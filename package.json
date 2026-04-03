@@ -8,8 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@evenrealities/even_hub_sdk": "*",
-    "@rollup/rollup-linux-arm64-gnu": "^4.60.0"
+    "@evenrealities/even_hub_sdk": "*"
   },
   "devDependencies": {
     "gh-pages": "^6.3.0",
