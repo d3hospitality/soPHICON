@@ -1,7 +1,21 @@
 // ═══════════════════════════════════════════════════════════════════
-// soΦcon — Page Builders v8
-// All pages max 4 containers. Speak conversation uses list for
-// Speak/Back buttons instead of double-tap.
+// soΦcon — Page Builders v10 (two-file split)
+//
+// Geometry for every container comes from src/pages.layout.ts, which is
+// rewritten in its entirety by the D3 Container Editor on every Save.
+// This file supplies what the editor cannot generate:
+//   • SDK wrappers (CreateStartUpPageContainer / RebuildPageContainer)
+//   • Function parameters (tradition, philosopher, quote, …)
+//   • Dynamic content (ListItemContainerProperty.itemName, text content)
+//   • Exported constants consumed by events.ts
+//     (HOME_LIST_ITEMS, SPEAK_INDEX, SPEAK_ACTION_*, SPEAK_WINDOW_SIZE)
+//   • Helper functions (rebuildHomePage, getMindstateSelections)
+//
+// SpeakConversation layout:
+//   C1 portrait  (Image)
+//   C2 response  (Text)  — sliding window of conversation history
+//   C3 controls  (List, capture=1) — [↑ Up · Speak/Stop/Thinking · ↓ Down]
+//   C4 tradition (Text)
 // ═══════════════════════════════════════════════════════════════════
 
 import {
@@ -10,29 +24,206 @@ import {
   ImageContainerProperty, ListItemContainerProperty,
 } from '@evenrealities/even_hub_sdk';
 import {
+  buildHomePage as homeLayout,
+  buildPhilosopherSelectPage as philosopherSelectLayout,
+  buildMindstatePage as mindstateLayout,
+  buildQuoteViewPage as quoteViewLayout,
+  buildSpeakTraditionPage as speakTraditionLayout,
+  buildSpeakPhilosopherPage as speakPhilosopherLayout,
+  buildSpeakConversationPage as speakConversationLayout,
+} from './pages.layout';
+import {
   TRADITIONS, Tradition, Philosopher, Quote,
   getPhilosophersByTradition,
-  getRarity, getRaritySymbol,
+  getRarity,
   capitalize, formatTag,
   getEmotionsForPhilosopher, getTagsForPhilosopher,
 } from './constants';
+
+// ═══ Constants consumed by events.ts ═══
+export const HOME_LIST_ITEMS = ["soPHICON Speaks", ...TRADITIONS];
+export const SPEAK_INDEX = 0;
+
+// Speak conversation text pagination — per glasses-ui skill, text
+// containers rebuild cleanly at ~400–500 char boundaries. Swipes fire
+// textEvent (1 = SCROLL_TOP, 2 = SCROLL_BOTTOM); events.ts pages the
+// conversation up/down and rebuilds C2 with the new slice.
+export const SPEAK_PAGE_CHARS = 420;
+
+// G2 firmware cap on text container content. SDK README says 2000 chars
+// but LVGL rejects anything over 999 BYTES (observed in simulator:
+// "TextContainerUpgrade failed: text content length 1184 exceeds limit
+// of 999 bytes"). We cap at 940 bytes to leave headroom for the status
+// prefix + page marker prepended by composeSpeakResponseContent.
+export const SPEAK_BYTE_CAP = 940;
+
+/**
+ * UTF-8 byte-aware truncate. Most philosophical English is ASCII so
+ * char count ≈ byte count, but multi-byte chars (smart quotes, em-dash)
+ * push real byte length higher. TextEncoder gives exact bytes; we walk
+ * back to a safe char boundary so we never cut mid-codepoint.
+ */
+export function capForGlass(s: string, maxBytes: number = SPEAK_BYTE_CAP): string {
+  if (typeof TextEncoder === "undefined") {
+    return s.length <= maxBytes ? s : s.slice(0, maxBytes - 3) + "...";
+  }
+  const enc = new TextEncoder();
+  const bytes = enc.encode(s);
+  if (bytes.length <= maxBytes) return s;
+  const dec = new TextDecoder("utf-8", { fatal: false });
+  let cut = maxBytes - 3;
+  while (cut > 0) {
+    const out = dec.decode(bytes.slice(0, cut));
+    if (!out.endsWith("\uFFFD")) return out + "...";
+    cut--;
+  }
+  return s.slice(0, 100) + "...";
+}
+
+/**
+ * Group history into "exchanges" — one user turn + the philosopher's
+ * reply become a single page. Any lone user turn at the end (mid-reply,
+ * i.e. while the philosopher is still thinking) becomes its own page.
+ * This produces the rolling-latest UX: each page = one round trip.
+ */
+export function rollExchanges(history: string[]): string[] {
+  const out: string[] = [];
+  let buf: string[] = [];
+  for (const line of history) {
+    buf.push(line);
+    // A line that doesn't start with "YOU:" is the philosopher closing
+    // the current exchange (user turn + reply = one rolled entry).
+    if (!line.startsWith("YOU:") && buf.length > 1) {
+      out.push(buf.join("\n\n"));
+      buf = [];
+    }
+  }
+  if (buf.length > 0) out.push(buf.join("\n\n"));
+  return out.length > 0 ? out : [""];
+}
+
+/**
+ * Word-aware pagination into fixed-char chunks. Prefers splitting at
+ * the last space within the window so we never cut mid-word. Used by
+ * buildReplyPages for the on-glass scrollable reply view.
+ */
+function paginateByChars(text: string, maxChars: number): string[] {
+  const clean = text.trim();
+  if (clean.length <= maxChars) return [clean];
+  const pages: string[] = [];
+  let cursor = 0;
+  while (cursor < clean.length) {
+    let end = Math.min(cursor + maxChars, clean.length);
+    if (end < clean.length) {
+      // Back off to the last space/newline in the window, but only if
+      // it's not way too early (> 60% through the window).
+      const window = clean.slice(cursor, end);
+      const lastNl = window.lastIndexOf("\n");
+      const lastSp = window.lastIndexOf(" ");
+      const boundary = lastNl > maxChars * 0.6 ? lastNl
+                     : lastSp > maxChars * 0.6 ? lastSp
+                     : window.length;
+      end = cursor + boundary;
+    }
+    pages.push(clean.slice(cursor, end).trim());
+    cursor = end;
+    while (cursor < clean.length && /\s/.test(clean[cursor])) cursor++;
+  }
+  return pages.length > 0 ? pages : [""];
+}
+
+/**
+ * Build the page sequence shown in the on-glass response window.
+ * Philosopher replies ONLY — your own utterances are hidden here (they
+ * live in the Journal tab on the dashboard). Each reply is split into
+ * chunks that fit under the firmware's text cap, so a long answer
+ * paginates cleanly instead of getting truncated with "...".
+ *
+ * Page order (pageIndex 0 is the first page the user lands on):
+ *   [newest reply chunk 1, newest reply chunk 2, ..., older reply chunk 1, ...]
+ *
+ * Swipe down = advance (keep reading the current reply; when you run
+ * off the end of it, swipe again moves to the previous reply). Swipe
+ * up = go backwards toward the newest.
+ */
+export function buildReplyPages(history: string[]): string[] {
+  const replies = history.filter(line => !line.startsWith("YOU:"));
+  if (replies.length === 0) return [""];
+
+  // Budget per chunk: leave ~90 chars for the status prefix + page marker
+  // ("Listening... (tap to send)  [2/5]\n") + a small safety cushion.
+  const CHUNK_CHARS = 780;
+  const pages: string[] = [];
+  // Walk newest (end of array) → oldest so pageIndex 0 = newest reply's chunk 1.
+  for (let i = replies.length - 1; i >= 0; i--) {
+    const chunks = paginateByChars(replies[i], CHUNK_CHARS);
+    for (const chunk of chunks) pages.push(chunk);
+  }
+  return pages;
+}
+
+/**
+ * Turn the running conversation into ~420-char pages, newest last.
+ * Messages are separated by a blank line ("\n\n") so the user can
+ * visually parse their own turns vs the philosopher's. Page breaks
+ * prefer newline boundaries, never mid-word unless a single message
+ * exceeds the page size.
+ *
+ * (Kept for backward compatibility with other call sites; speak-
+ * conversation now uses rollExchanges above.)
+ */
+export function paginateConversation(history: string[]): string[] {
+  if (history.length === 0) return [""];
+  const joined = history.join("\n\n");
+  if (joined.length <= SPEAK_PAGE_CHARS) return [joined];
+  const pages: string[] = [];
+  let cursor = 0;
+  while (cursor < joined.length) {
+    let end = Math.min(cursor + SPEAK_PAGE_CHARS, joined.length);
+    if (end < joined.length) {
+      // Prefer a blank-line boundary, then any newline
+      const blank = joined.lastIndexOf("\n\n", end);
+      const nl = joined.lastIndexOf("\n", end);
+      if (blank > cursor + SPEAK_PAGE_CHARS / 2) end = blank;
+      else if (nl > cursor + SPEAK_PAGE_CHARS / 2) end = nl;
+    }
+    pages.push(joined.slice(cursor, end).trimStart());
+    cursor = end;
+    // Skip separator characters at the start of the next page
+    while (cursor < joined.length && joined[cursor] === "\n") cursor += 1;
+  }
+  return pages;
+}
+
+// ═══ Geometry lookup helpers ═══
+type AnyContainer = TextContainerProperty | ListContainerProperty | ImageContainerProperty;
+type Geo = { xPosition: number; yPosition: number; width: number; height: number };
+
+function geo(layout: AnyContainer[], containerName: string): Geo {
+  const c = layout.find(x => x.containerName === containerName);
+  if (!c) throw new Error(`pages.layout: missing container '${containerName}'`);
+  return {
+    xPosition: c.xPosition ?? 0,
+    yPosition: c.yPosition ?? 0,
+    width: c.width ?? 0,
+    height: c.height ?? 0,
+  };
+}
 
 // ══════════════════════════════════════════════════════════════════
 // S1 — HOME (4 containers)
 // ══════════════════════════════════════════════════════════════════
 
-export const HOME_LIST_ITEMS = ["soPHICON Speaks", ...TRADITIONS];
-export const SPEAK_INDEX = 0;
-
 function homeContainers() {
+  const layout = homeLayout();
   const title = new TextContainerProperty({
-    xPosition: 390, yPosition: 220, width: 150, height: 50,
+    ...geo(layout, "title"),
     containerID: 1, containerName: "title",
     content: "G2 Enchiridion",
     isEventCapture: 0,
   });
   const traditions = new ListContainerProperty({
-    xPosition: 75, yPosition: 20, width: 225, height: 255,
+    ...geo(layout, "traditions"),
     containerID: 2, containerName: "traditions",
     itemContainer: new ListItemContainerProperty({
       itemCount: HOME_LIST_ITEMS.length, itemWidth: 0, isItemSelectBorderEn: 1,
@@ -41,11 +232,11 @@ function homeContainers() {
     isEventCapture: 1,
   });
   const logoTop = new ImageContainerProperty({
-    xPosition: 350, yPosition: 20, width: 200, height: 100,
+    ...geo(layout, "logo top"),
     containerID: 3, containerName: "logo top",
   });
   const logoBottom = new ImageContainerProperty({
-    xPosition: 350, yPosition: 120, width: 200, height: 100,
+    ...geo(layout, "logo bottom"),
     containerID: 10, containerName: "logo bottom",
   });
   return { title, traditions, logoTop, logoBottom };
@@ -72,19 +263,21 @@ export function rebuildHomePage(): RebuildPageContainer {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// S2 — PHILOSOPHER SELECT (4 containers)
+// S2 — PHILOSOPHER SELECT
 // ══════════════════════════════════════════════════════════════════
 
 export function buildPhilosopherSelectPage(tradition: Tradition): RebuildPageContainer {
+  const layout = philosopherSelectLayout();
   const philosophers = getPhilosophersByTradition(tradition);
+  const listItems = [...philosophers.map(p => p.name), "Back"];
+
   const header = new TextContainerProperty({
-    xPosition: 350, yPosition: 225, width: 200, height: 30,
+    ...geo(layout, "header"),
     containerID: 1, containerName: "header",
     content: tradition, isEventCapture: 0,
   });
-  const listItems = [...philosophers.map(p => p.name), "Back"];
   const philosopherList = new ListContainerProperty({
-    xPosition: 75, yPosition: 20, width: 225, height: 255,
+    ...geo(layout, "philosophers"),
     containerID: 2, containerName: "philosophers",
     itemContainer: new ListItemContainerProperty({
       itemCount: listItems.length, itemWidth: 0, isItemSelectBorderEn: 1,
@@ -93,11 +286,11 @@ export function buildPhilosopherSelectPage(tradition: Tradition): RebuildPageCon
     isEventCapture: 1,
   });
   const portraitTop = new ImageContainerProperty({
-    xPosition: 350, yPosition: 20, width: 200, height: 100,
+    ...geo(layout, "portrait"),
     containerID: 3, containerName: "portrait",
   });
   const portraitBottom = new ImageContainerProperty({
-    xPosition: 350, yPosition: 120, width: 200, height: 100,
+    ...geo(layout, "portrait-2"),
     containerID: 11, containerName: "portrait-2",
   });
   return new RebuildPageContainer({
@@ -109,19 +302,15 @@ export function buildPhilosopherSelectPage(tradition: Tradition): RebuildPageCon
 }
 
 // ══════════════════════════════════════════════════════════════════
-// S3 — MINDSTATE BROWSE (4 containers)
+// S3 — MINDSTATE BROWSE
 // ══════════════════════════════════════════════════════════════════
 
 export function buildMindstatePage(philosopher: Philosopher): RebuildPageContainer {
+  const layout = mindstateLayout();
   const emotions = getEmotionsForPhilosopher(philosopher);
   const tags = getTagsForPhilosopher(philosopher, 8);
   const allCount = philosopher.quotes.length;
 
-  const header = new TextContainerProperty({
-    xPosition: 350, yPosition: 225, width: 200, height: 30,
-    containerID: 1, containerName: "header",
-    content: philosopher.name, isEventCapture: 0,
-  });
   const listItems: string[] = [`Shuffle (${allCount})`];
   for (const e of emotions) {
     if (listItems.length >= 18) break;
@@ -135,8 +324,13 @@ export function buildMindstatePage(philosopher: Philosopher): RebuildPageContain
   }
   listItems.push("Back");
 
+  const header = new TextContainerProperty({
+    ...geo(layout, "header"),
+    containerID: 1, containerName: "header",
+    content: philosopher.name, isEventCapture: 0,
+  });
   const mindList = new ListContainerProperty({
-    xPosition: 75, yPosition: 20, width: 225, height: 255,
+    ...geo(layout, "mindstates"),
     containerID: 2, containerName: "mindstates",
     itemContainer: new ListItemContainerProperty({
       itemCount: listItems.length, itemWidth: 0, isItemSelectBorderEn: 1,
@@ -145,11 +339,11 @@ export function buildMindstatePage(philosopher: Philosopher): RebuildPageContain
     isEventCapture: 1,
   });
   const portraitTop = new ImageContainerProperty({
-    xPosition: 350, yPosition: 20, width: 200, height: 100,
+    ...geo(layout, "portrait"),
     containerID: 3, containerName: "portrait",
   });
   const portraitBottom = new ImageContainerProperty({
-    xPosition: 350, yPosition: 120, width: 200, height: 100,
+    ...geo(layout, "portrait-2"),
     containerID: 12, containerName: "portrait-2",
   });
   return new RebuildPageContainer({
@@ -175,7 +369,7 @@ export function getMindstateSelections(philosopher: Philosopher): {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// S4 — QUOTE VIEW (3 containers)
+// S4 — QUOTE VIEW (4 containers, no capturing list — uses sysEvent)
 // ══════════════════════════════════════════════════════════════════
 
 export function buildQuoteViewPage(
@@ -184,21 +378,27 @@ export function buildQuoteViewPage(
   quoteIndex: number,
   totalQuotes: number,
   isFavorite: boolean = false,
-  isShuffleMode: boolean = false,
+  _isShuffleMode: boolean = false,
 ): RebuildPageContainer {
+  const layout = quoteViewLayout();
   const rarity = quote.rarity || getRarity(quote.rating);
   const favMark = isFavorite ? " ♥" : "";
-  const titleCase = (s: string) => s.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  const titleCase = (s: string) => s.replace(/_/g, ' ')
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
 
   const quoteText = new TextContainerProperty({
-    xPosition: 180, yPosition: 55, width: 370, height: 100,
+    ...geo(layout, "quote"),
     containerID: 2, containerName: "quote",
     content: `"${quote.text}"`,
+    // Capture: text container receives swipes as textEvent(1/2) and
+    // clicks as sysEvent(0/3). Events.ts routes them for this page.
     isEventCapture: 1,
   });
 
   const sprite = new ImageContainerProperty({
-    xPosition: 75, yPosition: 55, width: 100, height: 100,
+    ...geo(layout, "sprite"),
     containerID: 3, containerName: "sprite",
   });
 
@@ -214,46 +414,45 @@ export function buildQuoteViewPage(
   const used = new Set<string>();
   if (quote.blend) { const b = titleCase(quote.blend); tagParts.push(b); used.add(b.toLowerCase()); }
   if (quote.archetype) { const a = titleCase(quote.archetype); if (!used.has(a.toLowerCase())) { tagParts.push(a); used.add(a.toLowerCase()); } }
-  for (const t of quote.tags) { const d = titleCase(t); if (!used.has(d.toLowerCase())) { tagParts.push(d); used.add(d.toLowerCase()); } if (tagParts.length >= 5) break; }
+  for (const t of quote.tags) {
+    const d = titleCase(t);
+    if (!used.has(d.toLowerCase())) { tagParts.push(d); used.add(d.toLowerCase()); }
+    if (tagParts.length >= 5) break;
+  }
   const line4 = tagParts.length > 0 ? '\u00B7 ' + tagParts.join(' \u00B7 ') : '';
-
   const labelContent = [line1, line2, line3, line4].filter(Boolean).join('\n');
 
   const infoText = new TextContainerProperty({
-    xPosition: 75, yPosition: 161, width: 475, height: 115,
+    ...geo(layout, "text-3"),
     containerID: 13, containerName: "text-3",
     content: labelContent,
     isEventCapture: 0,
   });
 
-  // Hidden spacer to keep containerTotalNum at 4
-  const spacer = new TextContainerProperty({
-    xPosition: 0, yPosition: 0, width: 20, height: 20,
-    containerID: 4, containerName: "spacer",
-    content: "", isEventCapture: 0,
-  });
-
+  // No spacer — the SDK only caps at MAX 4 containers per page, it
+  // doesn't require 4. Three real containers render cleaner.
   return new RebuildPageContainer({
-    containerTotalNum: 4,
+    containerTotalNum: 3,
     listObject: [],
-    textObject: [quoteText, infoText, spacer],
+    textObject: [quoteText, infoText],
     imageObject: [sprite],
   });
 }
 
 // ══════════════════════════════════════════════════════════════════
-// SPEAK — TRADITION SELECT (4 containers, mirrors home layout)
+// SPEAK — TRADITION SELECT
 // ══════════════════════════════════════════════════════════════════
 
 export function buildSpeakTraditionPage(): RebuildPageContainer {
+  const layout = speakTraditionLayout();
   const title = new TextContainerProperty({
-    xPosition: 390, yPosition: 220, width: 150, height: 50,
+    ...geo(layout, "title"),
     containerID: 1, containerName: "title",
     content: "soPHICON Speaks",
     isEventCapture: 0,
   });
   const tradList = new ListContainerProperty({
-    xPosition: 75, yPosition: 20, width: 225, height: 255,
+    ...geo(layout, "traditions"),
     containerID: 2, containerName: "traditions",
     itemContainer: new ListItemContainerProperty({
       itemCount: TRADITIONS.length + 1, itemWidth: 0, isItemSelectBorderEn: 1,
@@ -262,11 +461,11 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
     isEventCapture: 1,
   });
   const logoTop = new ImageContainerProperty({
-    xPosition: 350, yPosition: 20, width: 200, height: 100,
+    ...geo(layout, "logo top"),
     containerID: 3, containerName: "logo top",
   });
   const logoBottom = new ImageContainerProperty({
-    xPosition: 350, yPosition: 120, width: 200, height: 100,
+    ...geo(layout, "logo bottom"),
     containerID: 10, containerName: "logo bottom",
   });
   return new RebuildPageContainer({
@@ -278,19 +477,21 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// SPEAK — PHILOSOPHER SELECT (4 containers, IDs 1-4)
+// SPEAK — PHILOSOPHER SELECT
 // ══════════════════════════════════════════════════════════════════
 
 export function buildSpeakPhilosopherPage(tradition: Tradition): RebuildPageContainer {
+  const layout = speakPhilosopherLayout();
   const philosophers = getPhilosophersByTradition(tradition);
+  const listItems = [...philosophers.map(p => p.name), "Back"];
+
   const header = new TextContainerProperty({
-    xPosition: 350, yPosition: 225, width: 200, height: 30,
+    ...geo(layout, "header"),
     containerID: 1, containerName: "header",
     content: `Speak: ${tradition}`, isEventCapture: 0,
   });
-  const listItems = [...philosophers.map(p => p.name), "Back"];
   const philosopherList = new ListContainerProperty({
-    xPosition: 75, yPosition: 20, width: 225, height: 255,
+    ...geo(layout, "philosophers"),
     containerID: 2, containerName: "philosophers",
     itemContainer: new ListItemContainerProperty({
       itemCount: listItems.length, itemWidth: 0, isItemSelectBorderEn: 1,
@@ -299,11 +500,11 @@ export function buildSpeakPhilosopherPage(tradition: Tradition): RebuildPageCont
     isEventCapture: 1,
   });
   const portrait = new ImageContainerProperty({
-    xPosition: 400, yPosition: 70, width: 100, height: 100,
+    ...geo(layout, "portrait"),
     containerID: 3, containerName: "portrait",
   });
   const branding = new TextContainerProperty({
-    xPosition: 350, yPosition: 180, width: 200, height: 30,
+    ...geo(layout, "branding"),
     containerID: 4, containerName: "branding",
     content: "soPHICON Speaks",
     isEventCapture: 0,
@@ -317,64 +518,160 @@ export function buildSpeakPhilosopherPage(tradition: Tradition): RebuildPageCont
 }
 
 // ══════════════════════════════════════════════════════════════════
-// SPEAK — CONVERSATION (4 containers, IDs 1-4)
-//   1 = emotion portrait 100x100 (reactive)
-//   2 = response text (big, scrollable via list)
-//   3 = Speak/Stop button
-//   4 = tradition label (lower-right)
-// Double-tap = back. No back button needed.
+// SPEAK — CONVERSATION (per 2026-04-23 redesign)
+//
+// Layout (2 containers — editor-stripped 2026-04-23 to a full-screen
+// conversation view, no portrait):
+//   C2 response  (Text, isEventCapture: 1) — THE page. Swipes paginate,
+//                 single-press toggles mic, double-press → goBack().
+//   C4 tradition (Text) — tradition label in the bottom-right corner.
+//
+// Text containers receive swipe gestures as textEvent (1=SCROLL_TOP,
+// 2=SCROLL_BOTTOM) and clicks as sysEvent (0=single, 3=double).
+// Only one capturing container per page — C2 is it.
+//
+// If you re-add a portrait in the editor later (container name "portrait"),
+// also restore the ImageContainerProperty block below and bump
+// containerTotalNum; see `pushEmotionPortrait` in events.ts for how the
+// face was driven previously.
 // ══════════════════════════════════════════════════════════════════
-
-export const SPEAK_ACTION_SPEAK = 0;
 
 export function buildSpeakConversationPage(
   philosopherName: string,
   tradition: string,
   responseText: string,
   isListening: boolean = false,
+  history: string[] = [],
+  pageIndex: number = 0,
+  isThinking: boolean = false,
 ): RebuildPageContainer {
-  // 1: Emotion portrait — left side
+  const layout = speakConversationLayout();
+
+  // C1 — emotion-reactive portrait (100×100 top-left)
   const portrait = new ImageContainerProperty({
-    xPosition: 75, yPosition: 20, width: 100, height: 100,
+    ...geo(layout, "portrait"),
     containerID: 1, containerName: "portrait",
   });
 
-  // 2: Big response text
-  const displayText = isListening
-    ? "Listening..."
-    : `${philosopherName}: ${responseText}`;
+  // C2 — conversation (text, capturing)
+  // REPLY-FOCUSED: only the philosopher's words are shown here. Your
+  // own TTS text lives in the Journal tab, not on-glass. Replies are
+  // byte-paginated so a long answer becomes [1/3], [2/3], [3/3]
+  // instead of getting chopped with "...". pageIndex 0 = newest reply,
+  // first chunk (what you land on after thinking completes). Swipe
+  // down walks forward through the reply's chunks and then backward
+  // through older replies.
+  const pages = buildReplyPages(history);
+  const clampedIdx = Math.max(0, Math.min(pageIndex, pages.length - 1));
+  const shownChunk = pages.length > 0 ? pages[clampedIdx] : `${philosopherName}: ${responseText}`;
+
+  // Status prefix — ASCII-only (LVGL font on-glass doesn't have ●, ◦,
+  // ⋯ or most block/arrow characters; using them shows empty tofu boxes).
+  const status = isThinking
+    ? "... Thinking"
+    : (isListening ? "Listening... (tap to send)" : "Tap to speak");
+  const pageMarker = pages.length > 1 ? `  [${clampedIdx + 1}/${pages.length}]` : "";
+  const visibleContent = capForGlass(`${status}${pageMarker}\n${shownChunk}`);
 
   const responseBox = new TextContainerProperty({
-    xPosition: 180, yPosition: 20, width: 380, height: 210,
+    ...geo(layout, "response"),
     containerID: 2, containerName: "response",
-    content: displayText,
+    content: visibleContent,
+    isEventCapture: 1, // captures swipes + clicks for this page
+  });
+
+  // C4 — philosopher name (e.g. "Socrates")
+  const philName = new TextContainerProperty({
+    ...geo(layout, "phil-name"),
+    containerID: 4, containerName: "phil-name",
+    content: philosopherName,
     isEventCapture: 0,
   });
 
-  // 3: Speak/Stop button — bottom left
-  const speakLabel = isListening ? "Stop" : "Speak";
-  const speakButton = new ListContainerProperty({
-    xPosition: 75, yPosition: 235, width: 200, height: 30,
-    containerID: 3, containerName: "speak-btn",
-    itemContainer: new ListItemContainerProperty({
-      itemCount: 1, itemWidth: 0, isItemSelectBorderEn: 1,
-      itemName: [speakLabel],
-    }),
-    isEventCapture: 1,
-  });
-
-  // 4: Tradition label — lower right
-  const traditionLabel = new TextContainerProperty({
-    xPosition: 400, yPosition: 240, width: 160, height: 25,
-    containerID: 4, containerName: "tradition",
+  // C5 — school of philosophy / tradition (e.g. "Greek")
+  const philSchool = new TextContainerProperty({
+    ...geo(layout, "phil-school"),
+    containerID: 5, containerName: "phil-school",
     content: tradition,
     isEventCapture: 0,
   });
 
   return new RebuildPageContainer({
     containerTotalNum: 4,
-    listObject: [speakButton],
-    textObject: [responseBox, traditionLabel],
+    listObject: [],
+    textObject: [responseBox, philName, philSchool],
     imageObject: [portrait],
   });
+}
+
+/**
+ * How many "pages" the speak-conversation page exposes — one per
+ * byte-safe chunk of philosopher reply, summed across all prior replies.
+ * User turns are NOT counted (they're not shown on-glass — they live
+ * in the Journal tab on the dashboard instead).
+ */
+export function speakConversationPageCount(history: string[]): number {
+  return buildReplyPages(history).length;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MINDFULNESS MODE — two-state page: BLANK (waiting for next quote)
+// and QUOTE (showing for meditation). Pages are hand-coded, not from
+// pages.layout.ts — they're system utilities, shouldn't be repositioned.
+//
+// Flow:
+//   BLANK → (timer fires) → QUOTE → (timer fires / click) → BLANK
+//   BLANK + click = skip to next quote immediately
+//   Double-tap on either = exit mindfulness mode
+// ══════════════════════════════════════════════════════════════════
+
+/** Dark, minimal page. Full-screen transparent text container captures clicks. */
+export function buildMindfulnessBlankPage(): RebuildPageContainer {
+  const shell = new TextContainerProperty({
+    xPosition: 0, yPosition: 0, width: 576, height: 288,
+    containerID: 1, containerName: "mindful-blank",
+    content: "",       // empty = blank/dark screen
+    isEventCapture: 1, // the only container, captures ring events
+  } as any);
+  return new RebuildPageContainer({
+    containerTotalNum: 1,
+    listObject: [],
+    textObject: [shell],
+    imageObject: [],
+  });
+}
+
+// NOTE: the mindfulness QUOTE state reuses buildQuoteViewPage() directly
+// from events.ts — same layout as Browse > Quote (sprite + quote + rich
+// meta strip). No dedicated builder here; currentPage = "mindful-quote"
+// is what distinguishes it for event routing, not the page geometry.
+
+/**
+ * Compose ONLY the response-text content that would be rendered in C2.
+ * Used by events.ts for textContainerUpgrade on swipe pagination, so
+ * we don't rebuild the whole page (which would blank the portrait
+ * container and force a sprite re-push).
+ *
+ * PageIndex 0 = first chunk of the newest reply (what you see right
+ * after "Thinking..." resolves). Swipe down keeps reading.
+ */
+export function composeSpeakResponseContent(
+  philosopherName: string,
+  _tradition: string,
+  responseText: string,
+  isListening: boolean = false,
+  history: string[] = [],
+  pageIndex: number = 0,
+  isThinking: boolean = false,
+): string {
+  const pages = buildReplyPages(history);
+  const fallback = `${philosopherName}: ${responseText}`;
+  const clampedIdx = Math.max(0, Math.min(pageIndex, Math.max(0, pages.length - 1)));
+  const shown = pages.length > 0 ? pages[clampedIdx] : fallback;
+  // ASCII-safe status (LVGL font has no ●, ◦, ⋯ glyphs on-glass)
+  const status = isThinking
+    ? "... Thinking"
+    : (isListening ? "Listening... (tap to send)" : "Tap to speak");
+  const marker = pages.length > 1 ? `  [${clampedIdx + 1}/${pages.length}]` : "";
+  return capForGlass(`${status}${marker}\n${shown}`);
 }

@@ -1,3 +1,13 @@
+// ═══════════════════════════════════════════════════════════════════
+// soΦcon — WebView chrome (src/ui.ts)
+//
+// This is the HTML-side status bar visible inside the Even App's
+// WebView — NOT the on-glass UI. The on-glass UI is built from SDK
+// container rebuilds in pages.ts. This file just shows a small
+// "connected / battery / last log" strip on the phone so you can see
+// what's happening during dev. In production it's below the fold.
+// ═══════════════════════════════════════════════════════════════════
+
 const statusDot = () => document.getElementById("status-dot");
 const statusText = () => document.getElementById("status-text");
 const batteryText = () => document.getElementById("battery-text");

@@ -34,9 +34,11 @@ RULES:
 - Reference your real students, teachers, historical events, and personal struggles when relevant.
 - Be genuinely helpful with the person's real problems, not just philosophical abstractions.
 - Never break character. Never say "as a language model" or anything modern.
-- End every response with one emotion tag on its own line, from this list: [contemplative, stern, warm, passionate, amused, sorrowful, resolute, mystical]
-  Format: [EMOTION:tag]
-  Choose the emotion that best matches the energy of your response.`;
+- After your reply, append TWO meta tags on their own lines, in this exact order:
+    [USER_MOOD:word]       — one word for what you sensed in the user's message (examples: anxious, frustrated, hopeful, confused, curious, grieving, stuck, restless, overwhelmed, proud, lost, resolved, conflicted, lonely, angry, inspired, exhausted, seeking, guilty, numb)
+    [EMOTION:word]         — the face YOU should wear as you respond to this user, chosen to meet their mood with the philosophical stance of your reply. Pick from this exact list:
+      [acceptance, authority, awe, compassion, contemplation, conviction, defiance, devotion, doubt, grief, honor, joy, liberation, neutral, peace, rage, resolve, serenity, sorrow, teaching, transcendence, urgency, wonder]
+  The sprite shown to the user on their glasses is driven by [EMOTION]. Don't always pick the same one — vary based on the reply's real texture. Compassion / teaching / contemplation / serenity / authority are the most common. Reserve rage, urgency, defiance for actually urgent moments.`;
 
     // Build messages array
     const messages = [
@@ -77,12 +79,21 @@ RULES:
     const data = await response.json();
     const raw = data.choices[0].message.content.trim();
 
-    // Parse emotion tag from response
-    const emotionMatch = raw.match(/\[EMOTION:(\w+)\]\s*$/);
-    const emotion = emotionMatch ? emotionMatch[1] : 'contemplative';
-    const text = raw.replace(/\[EMOTION:\w+\]\s*$/, '').trim();
+    // Parse both meta tags (order-agnostic, either can be missing)
+    const emotionMatch  = raw.match(/\[EMOTION:(\w+)\]/i);
+    const userMoodMatch = raw.match(/\[USER_MOOD:(\w+)\]/i);
+    const emotion  = emotionMatch  ? emotionMatch[1].toLowerCase()  : 'contemplation';
+    const userMood = userMoodMatch ? userMoodMatch[1].toLowerCase() : 'neutral';
 
-    return res.status(200).json({ text, emotion });
+    // Strip both tags (and any surrounding whitespace/newlines) from the
+    // visible text — users shouldn't see [EMOTION:...] or [USER_MOOD:...]
+    const text = raw
+      .replace(/\[EMOTION:\w+\]/gi, '')
+      .replace(/\[USER_MOOD:\w+\]/gi, '')
+      .replace(/\n\s*\n/g, '\n')   // collapse empty lines left behind
+      .trim();
+
+    return res.status(200).json({ text, emotion, userMood });
 
   } catch (err) {
     console.error('Speak error:', err);

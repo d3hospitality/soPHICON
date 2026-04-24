@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   try {
-    const { audio } = req.body;
+    const { audio, language } = req.body;
 
     if (!audio) {
       return res.status(400).json({ error: 'Missing audio data' });
@@ -32,13 +32,23 @@ export default async function handler(req, res) {
       `\r\n--${boundary}\r\n`,
       `Content-Disposition: form-data; name="model"\r\n\r\n`,
       `gpt-4o-transcribe`,
-      `\r\n--${boundary}--\r\n`,
     ];
+
+    // Optional: lock transcription to a specific language (ISO 639-1 code)
+    const langPart = language ? [
+      `\r\n--${boundary}\r\n`,
+      `Content-Disposition: form-data; name="language"\r\n\r\n`,
+      language,
+    ] : [];
+
+    const endPart = [`\r\n--${boundary}--\r\n`];
 
     const formBody = Buffer.concat([
       Buffer.from(formParts.join('')),
       wavBuffer,
       Buffer.from(modelPart.join('')),
+      Buffer.from(langPart.join('')),
+      Buffer.from(endPart.join('')),
     ]);
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {

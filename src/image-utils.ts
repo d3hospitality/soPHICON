@@ -6,7 +6,35 @@
 import { EvenAppBridge, ImageRawDataUpdate } from '@evenrealities/even_hub_sdk';
 import { encodeGrayscalePng } from './pngEncoder';
 
+// ═══ Sprite encoded-PNG cache ═══
+// Keyed by "<spritePath>@<w>x<h>". Hits skip fetch + canvas + encode.
+// Typical entry is ~2–8 KB; capacity 120 covers all 391 sprites × 2 common
+// sizes without pressuring memory on the WebView.
+const SPRITE_CACHE_CAP = 120;
+const spriteCache = new Map<string, Uint8Array>();
+const pushLog: { ts: number; key: string; ms: number; ok: boolean; err?: string }[] = [];
+const PUSH_LOG_CAP = 50;
+
+export function getSpritePushLog(): ReadonlyArray<{ ts: number; key: string; ms: number; ok: boolean; err?: string }> {
+  return pushLog;
+}
+export function clearSpriteCache(): void {
+  spriteCache.clear();
+}
+function cacheSet(key: string, bytes: Uint8Array) {
+  if (spriteCache.size >= SPRITE_CACHE_CAP) {
+    // Drop oldest (insertion-ordered Map)
+    const firstKey = spriteCache.keys().next().value;
+    if (firstKey !== undefined) spriteCache.delete(firstKey);
+  }
+  spriteCache.set(key, bytes);
+}
+
 async function fetchAsGrayscalePng(source: string, w: number, h: number): Promise<Uint8Array> {
+  const key = `${source}@${w}x${h}`;
+  const hit = spriteCache.get(key);
+  if (hit) return hit;
+
   const resp = await fetch(source);
   if (!resp.ok) throw new Error(`Fetch ${resp.status}: ${source}`);
   const blob = await resp.blob();
@@ -31,7 +59,38 @@ async function fetchAsGrayscalePng(source: string, w: number, h: number): Promis
     const o = i * 4;
     gray[i] = 0.299 * px[o] + 0.587 * px[o+1] + 0.114 * px[o+2];
   }
-  return encodeGrayscalePng(w, h, gray);
+  const bytes = encodeGrayscalePng(w, h, gray);
+  cacheSet(key, bytes);
+  return bytes;
+}
+
+/**
+ * Top-level sprite push helper. Takes a sprite path relative to
+ * `public/sprites/` (e.g. "socrates/socrates-warm.png") plus target
+ * container + size. Uses the encoded-PNG cache. Logs every push to
+ * the debug ring buffer so the dashboard can display them.
+ *
+ * Caller is responsible for serialization — never call this concurrently
+ * with another image push on the same bridge.
+ */
+export async function pushSprite(
+  bridge: EvenAppBridge, baseUrl: string, spritePath: string,
+  containerID: number, containerName: string, w: number, h: number,
+): Promise<void> {
+  const key = `${spritePath}@${w}x${h} → #${containerID}`;
+  const t0 = Date.now();
+  try {
+    const bytes = await fetchAsGrayscalePng(`${baseUrl}sprites/${spritePath}`, w, h);
+    await pushImg(bridge, containerID, containerName, bytes);
+    pushLog.unshift({ ts: t0, key, ms: Date.now() - t0, ok: true });
+    if (pushLog.length > PUSH_LOG_CAP) pushLog.length = PUSH_LOG_CAP;
+    console.log(`[soΦcon] pushSprite ✓ ${key} (${Date.now() - t0}ms)`);
+  } catch (e: any) {
+    pushLog.unshift({ ts: t0, key, ms: Date.now() - t0, ok: false, err: String(e?.message || e) });
+    if (pushLog.length > PUSH_LOG_CAP) pushLog.length = PUSH_LOG_CAP;
+    console.warn(`[soΦcon] pushSprite FAILED ${key}:`, e);
+    throw e;
+  }
 }
 
 async function pushImg(bridge: EvenAppBridge, id: number, name: string, data: Uint8Array): Promise<void> {

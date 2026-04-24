@@ -1,3 +1,19 @@
+// ═══════════════════════════════════════════════════════════════════
+// soΦcon — Custom grayscale PNG encoder (src/pngEncoder.ts)
+//
+// The G2 firmware only accepts a very specific PNG variant:
+//   • 8-bit grayscale, no filter byte
+//   • Uncompressed DEFLATE blocks (type 00)
+//   • Adler32 checksum at the end of IDAT
+//   • CRC32 checksum on every chunk
+// Standard PNG encoders (sharp, pngjs, etc.) produce 24-bit RGB or
+// filtered/compressed data that silently fails to render. This ~120-line
+// encoder emits exactly the byte layout the firmware expects.
+//
+// Public API: encodeGrayscalePng(width, height, grayscalePixels) → Uint8Array
+// The returned bytes are ready to hand to bridge.updateImageRawData.
+// ═══════════════════════════════════════════════════════════════════
+
 // CRC32 Table
 const crcTable = new Uint32Array(256);
 for (let n = 0; n < 256; n++) {

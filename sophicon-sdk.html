@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>soPHICON G2 — SDK Control Center</title>
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #111116;
+    --panel-2: #16161d;
+    --line: #26262f;
+    --ink: #e9e9ef;
+    --dim: #8a8a99;
+    --accent: #c9a96e;     /* soPHICON gold */
+    --accent-2: #7a9ec4;   /* cool blue */
+    --ok: #6fcf8a;
+    --warn: #e3b341;
+    --err: #ef6a6a;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  a { color: var(--accent-2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: var(--mono); font-size: 12.5px; }
+  pre {
+    background: #07070a; border: 1px solid var(--line); border-radius: 6px;
+    padding: 12px 14px; overflow-x: auto; color: #d4d4dc;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 28px 80px; }
+
+  /* Header */
+  .hdr {
+    display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 24px;
+  }
+  .hdr h1 { font-size: 28px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  .hdr h1 .phi { color: var(--accent); }
+  .hdr .sub { color: var(--dim); font-size: 13px; }
+  .hdr .tag { margin-left: auto; color: var(--dim); font-family: var(--mono); font-size: 11px; }
+
+  /* Status strip */
+  .strip {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+    margin-bottom: 28px;
+  }
+  .stat {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .stat .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat .v { font-family: var(--mono); font-size: 16px; margin-top: 3px; }
+  .stat .v.ok  { color: var(--ok); }
+  .stat .v.dim { color: var(--dim); }
+
+  /* Section */
+  section {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px 22px; margin-bottom: 20px;
+  }
+  section > h2 {
+    margin: 0 0 4px; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600;
+  }
+  section > .lede { color: var(--dim); font-size: 13px; margin: 0 0 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3, .strip { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 620px) {
+    .grid-2, .grid-3, .strip { grid-template-columns: 1fr; }
+  }
+
+  /* Method cards */
+  .method {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .method .sig { font-family: var(--mono); font-size: 12.5px; color: #ebd9a8; }
+  .method .desc { font-size: 13px; color: #cfcfd6; margin-top: 6px; }
+  .method .used {
+    font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 8px;
+    display: block;
+  }
+
+  /* Pipeline flow */
+  .flow { display: flex; flex-direction: column; gap: 10px; }
+  .step {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px; display: grid; grid-template-columns: 28px 1fr auto; gap: 12px;
+    align-items: center;
+  }
+  .step .num {
+    width: 26px; height: 26px; border-radius: 50%; background: #1e1e26;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--accent); font-family: var(--mono); font-size: 12px;
+    border: 1px solid var(--line);
+  }
+  .step .body { }
+  .step .title { font-size: 14px; font-weight: 500; }
+  .step .title .path { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+  .step .meta { font-size: 12.5px; color: var(--dim); margin-top: 3px; }
+  .step .edit a {
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    border: 1px solid var(--line); padding: 4px 8px; border-radius: 5px;
+  }
+  .step .edit a:hover { color: var(--ink); border-color: var(--dim); text-decoration: none; }
+  .arrow {
+    align-self: center; color: var(--dim); font-size: 16px; padding: 0 0 0 40px;
+  }
+
+  /* Files list */
+  .files { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .files a {
+    font-family: var(--mono); font-size: 12.5px; padding: 6px 10px;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2);
+    color: var(--ink); display: flex; justify-content: space-between; align-items: center;
+  }
+  .files a:hover { border-color: var(--accent); text-decoration: none; }
+  .files a .sz { color: var(--dim); font-size: 11px; }
+
+  /* Update log */
+  .log-entry {
+    border-left: 2px solid var(--line); padding: 2px 0 2px 14px; margin-bottom: 14px;
+  }
+  .log-entry .when { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .log-entry .what { font-size: 13.5px; margin-top: 2px; color: var(--ink); white-space: pre-wrap; }
+  .log-new {
+    display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 6px;
+  }
+  .log-new textarea {
+    background: #07070a; border: 1px solid var(--line); border-radius: 6px;
+    color: var(--ink); padding: 10px 12px; font-family: var(--mono); font-size: 12.5px;
+    min-height: 72px; resize: vertical; width: 100%;
+  }
+  .log-new button {
+    background: var(--accent); color: #1a1a1f; border: 0; border-radius: 6px;
+    padding: 0 16px; font-weight: 600; cursor: pointer; font-family: inherit;
+    align-self: start; height: 34px;
+  }
+  .log-new button:hover { background: #d6b97d; }
+
+  /* Path banner */
+  .pathbar {
+    background: #1b1b23; border: 1px dashed var(--line); border-radius: 8px;
+    padding: 10px 14px; font-family: var(--mono); font-size: 12px; color: var(--dim);
+    margin-bottom: 24px;
+  }
+  .pathbar input {
+    background: transparent; border: 0; color: var(--accent-2); font: inherit;
+    width: 420px; max-width: 70%; outline: none;
+  }
+  .pathbar label { color: var(--dim); margin-right: 6px; }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+    background: #1e1e26; color: var(--dim); font-family: var(--mono); margin-left: 6px;
+  }
+  .pill.ok  { background: #1a2a1f; color: var(--ok); }
+  .pill.acc { background: #1a2230; color: var(--accent-2); }
+
+  h3.sub { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); margin: 14px 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="hdr">
+    <h1>so<span class="phi">Φ</span>con G2 <span style="color:var(--dim); font-weight:400">— SDK Control Center</span></h1>
+    <span class="sub">Philosophy on Glass · Even Realities G2</span>
+    <span class="tag">v0.1.0 · @evenrealities/even_hub_sdk 0.0.7</span>
+  </div>
+
+  <!-- Configurable repo path -->
+  <div class="pathbar">
+    <label>soPHICON repo path:</label>
+    <input id="repoPath" value="/Users/d3hospitality/Desktop/soPHICON ER-G2" spellcheck="false" />
+    <span class="pill acc">file:// links below rebuild from this</span>
+  </div>
+
+  <!-- ═══ STATUS STRIP ═══ -->
+  <div class="strip">
+    <div class="stat"><div class="k">Quotes</div><div class="v ok">2,801</div></div>
+    <div class="stat"><div class="k">Philosophers</div><div class="v ok">17</div></div>
+    <div class="stat"><div class="k">Traditions</div><div class="v ok">8</div></div>
+    <div class="stat"><div class="k">Sprites</div><div class="v ok">391</div></div>
+    <div class="stat"><div class="k">Emotions / phil</div><div class="v">23</div></div>
+    <div class="stat"><div class="k">Auto-rotate</div><div class="v dim">33 s</div></div>
+  </div>
+
+  <!-- ═══ SDK REFERENCE ═══ -->
+  <section>
+    <h2>Even Hub SDK — what this app actually calls</h2>
+    <p class="lede">These are the SDK surfaces exercised by <code>src/Main.ts</code> and <code>src/events.ts</code>. Anything not listed here is unused by soPHICON.</p>
+
+    <h3 class="sub">Lifecycle &amp; info</h3>
+    <div class="grid-2">
+      <div class="method">
+        <div class="sig">waitForEvenAppBridge()</div>
+        <div class="desc">Resolves when the Even App WebView bridge attaches. Called once at boot in <code>Main.ts</code>.</div>
+        <span class="used">used in: src/Main.ts</span>
+      </div>
+      <div class="method">
+        <div class="sig">bridge.getUserInfo() · getDeviceInfo()</div>
+        <div class="desc">Even App account + connected glasses (model, SN, battery, isWearing). Shown in your status bar.</div>
+        <span class="used">used in: src/Main.ts</span>
+      </div>
+      <div class="method">
+        <div class="sig">bridge.onDeviceStatusChanged(cb) → unsubscribe</div>
+        <div class="desc">Push: connect / disconnect / battery. Drives the green/red dot + "— battery 83%" log lines.</div>
+        <span class="used">used in: src/Main.ts</span>
+      </div>
+      <div class="method">
+        <div class="sig">bridge.setLocalStorage(k, v) · getLocalStorage(k)</div>
+        <div class="desc">App-side persistent KV. soPHICON writes <code>sophicon_version</code> on boot; favorites could live here too.</div>
+        <span class="used">used in: src/Main.ts · (favorites.ts currently in-memory)</span>
+      </div>
+    </div>
+
+    <h3 class="sub">Glasses UI — containers</h3>
+    <div class="grid-2">
+      <div class="method">
+        <div class="sig">bridge.createStartUpPageContainer(cfg) → 0|1|2|3</div>
+        <div class="desc">One-shot. Must be called exactly once at boot. Max 4 containers, exactly one has <code>isEventCapture:1</code>. Coord origin is top-left, X right, Y down.</div>
+        <span class="used">used in: src/Main.ts → buildHomePage()</span>
+      </div>
+      <div class="method">
+        <div class="sig">bridge.rebuildPageContainer(cfg) → boolean</div>
+        <div class="desc">Every screen after the first uses this — home, philosopher select, mindstate, quote view, speak flow.</div>
+        <span class="used">used in: src/events.ts (all navigation)</span>
+      </div>
+      <div class="method">
+        <div class="sig">bridge.updateImageRawData({ containerID, containerName, imageData })</div>
+        <div class="desc">Pushes the grayscale PNG bytes for an image container. Must be serialized — no concurrent pushes. soPHICON queues awaits.</div>
+        <span class="used">used in: src/image-utils.ts → pushImg()</span>
+      </div>
+      <div class="method">
+        <div class="sig">bridge.textContainerUpgrade({ containerID, content, contentOffset, contentLength })</div>
+        <div class="desc">Swap text in a text container without a full rebuild. <i>Not currently used</i> — soPHICON rebuilds the page on each quote; could speed up auto-rotate.</div>
+        <span class="used">potential optimization for quote rotation</span>
+      </div>
+      <div class="method">
+        <div class="sig">bridge.shutDownPageContainer(exitMode?)</div>
+        <div class="desc"><code>0</code> exits immediately, <code>1</code> shows the foreground interaction layer. Not currently wired — no explicit exit path.</div>
+        <span class="used">unused</span>
+      </div>
+    </div>
+
+    <h3 class="sub">Events &amp; audio</h3>
+    <div class="grid-2">
+      <div class="method">
+        <div class="sig">bridge.onEvenHubEvent(cb) → unsubscribe</div>
+        <div class="desc">Fires for <code>listEvent</code> (scroll / click on the ring), <code>sysEvent</code> (single / double click), and <code>audioEvent</code> (PCM stream).</div>
+        <span class="used">used in: src/events.ts → handleEvent()</span>
+      </div>
+      <div class="method">
+        <div class="sig">bridge.audioControl(isOpen)</div>
+        <div class="desc">Opens / closes the mic. PCM arrives as <code>event.audioEvent.audioPcm</code> Uint8Array: 16 kHz, 16-bit LE, 40 bytes per 10 ms frame.</div>
+        <span class="used">used in: src/speak.ts → startRecording / stopRecordingAndSend</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ QUOTE PIPELINE ═══ -->
+  <section>
+    <h2>Quote pipeline — where the 2,801 quotes come from</h2>
+    <p class="lede">Quotes are <b>generated</b>, not hand-edited. Do not edit <code>constants.ts</code> directly — regenerate from the source JSON.</p>
+
+    <div class="flow">
+      <div class="step">
+        <div class="num">1</div>
+        <div class="body">
+          <div class="title">Source JSON <span class="path">03_11_26-0004-soPHICON.json</span></div>
+          <div class="meta">Authoring file. Schema: <code>{ traditions → philosophers → books → quotes[] }</code> with per-quote emotion, rarity, tags, archetype, sprite path.</div>
+        </div>
+        <div class="edit"><span class="pill">external — path TBD</span></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">2</div>
+        <div class="body">
+          <div class="title">Generator <span class="path">scripts/generate_constants.py</span></div>
+          <div class="meta">Flattens JSON → builds <code>TRADITIONS</code>, <code>PHILOSOPHERS</code>, <code>ALL_QUOTES</code>. Run: <code>python scripts/generate_constants.py &lt;json&gt; src/constants.ts</code></div>
+        </div>
+        <div class="edit"><a class="lnk" data-rel="scripts/generate_constants.py">edit</a></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">3</div>
+        <div class="body">
+          <div class="title">Output <span class="path">src/constants.ts</span></div>
+          <div class="meta">3,061 lines · 860 KB · autogenerated. Also defines <code>Rarity</code> tiers, helper fns (<code>getPhilosophersByTradition</code>, <code>getQuotesByEmotion</code>, <code>getQuotesByTag</code>).</div>
+        </div>
+        <div class="edit"><a class="lnk" data-rel="src/constants.ts">open</a></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">4</div>
+        <div class="body">
+          <div class="title">Render <span class="path">src/pages.ts</span> → <span class="path">src/events.ts</span></div>
+          <div class="meta">Page builders turn quotes into <code>ListContainerProperty</code> / <code>TextContainerProperty</code>. Event router rotates quotes every 33 s and on scroll / click.</div>
+        </div>
+        <div class="edit"><a class="lnk" data-rel="src/pages.ts">pages</a></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">5</div>
+        <div class="body">
+          <div class="title">On glass via SDK <span class="path">rebuildPageContainer + textContainerUpgrade</span></div>
+          <div class="meta">Display: 576 × 288 px, grayscale. Max 4 containers / page. Quote screen = list (browse) + text (source) + image (sprite).</div>
+        </div>
+        <div class="edit"><span class="pill ok">runtime</span></div>
+      </div>
+    </div>
+
+    <h3 class="sub">To edit a quote</h3>
+    <pre># 1. Open the source JSON (authoring truth)
+# 2. Edit the quote in-place
+# 3. Regenerate constants.ts
+python scripts/generate_constants.py path/to/03_11_26-0004-soPHICON.json src/constants.ts
+# 4. Rebuild the web bundle
+npm run build</pre>
+  </section>
+
+  <!-- ═══ SPRITE PIPELINE ═══ -->
+  <section>
+    <h2>Sprite pipeline — how pixel-art philosophers hit the glass</h2>
+    <p class="lede">23 emotions × 17 philosophers = 391 sprites. Every sprite goes through a custom grayscale PNG encoder before the SDK will accept it — the glasses' framebuffer can't render arbitrary PNG formats.</p>
+
+    <div class="flow">
+      <div class="step">
+        <div class="num">1</div>
+        <div class="body">
+          <div class="title">Source PNGs <span class="path">public/sprites/&lt;phil_id&gt;/&lt;phil_id&gt;-&lt;emotion&gt;.png</span></div>
+          <div class="meta">e.g. <code>socrates/socrates-conviction.png</code>. Emotions used: neutral · contemplation · conviction · wonder · serenity · defiance · sorrow · urgency · joy · compassion · awe · acceptance · authority · devotion · doubt · grief · honor · liberation · peace · rage · resolve · teaching · transcendence.</div>
+        </div>
+        <div class="edit"><a class="lnk" data-rel="public/sprites/">folder</a></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">2</div>
+        <div class="body">
+          <div class="title">Fetch + canvas fit <span class="path">fetchAsGrayscalePng() in src/image-utils.ts</span></div>
+          <div class="meta">Scales into target box with letterbox, fills bg black, reads pixels, then grayscale: <code>g = 0.299·R + 0.587·G + 0.114·B</code>.</div>
+        </div>
+        <div class="edit"><a class="lnk" data-rel="src/image-utils.ts">edit</a></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">3</div>
+        <div class="body">
+          <div class="title">Encode <span class="path">encodeGrayscalePng() in src/pngEncoder.ts</span></div>
+          <div class="meta">Custom encoder: 8-bit grayscale, no filter, uncompressed DEFLATE blocks, Adler32 + CRC32 checksums. ~120 lines, no deps. The G2 firmware expects this exact shape.</div>
+        </div>
+        <div class="edit"><a class="lnk" data-rel="src/pngEncoder.ts">edit</a></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">4</div>
+        <div class="body">
+          <div class="title">Push <span class="path">pushSpriteSingle / pushSpritesSplit</span></div>
+          <div class="meta"><b>Split:</b> 200×200 sprite → two 200×100 halves for the big portrait (containers 3 top + 11/12 bottom). <b>Single:</b> 100×100 for the speak conversation face.</div>
+        </div>
+        <div class="edit"><a class="lnk" data-rel="src/image-utils.ts">same file</a></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">5</div>
+        <div class="body">
+          <div class="title">On glass <span class="path">bridge.updateImageRawData({ containerID, imageData })</span></div>
+          <div class="meta">Bytes become an <code>ImageContainerProperty</code>. <b>Rule:</b> never concurrent — always await the previous push. Memory on-glass is tight.</div>
+        </div>
+        <div class="edit"><span class="pill ok">runtime</span></div>
+      </div>
+    </div>
+
+    <h3 class="sub">To add or swap sprites</h3>
+    <pre># 1. Drop PNGs into public/sprites/&lt;phil_id&gt;/&lt;phil_id&gt;-&lt;emotion&gt;.png
+#    — any source size works; encoder downscales to target (100x100 or 200x200)
+#    — prefer simple, high-contrast pixel art (grayscale collapse is lossy)
+# 2. If the emotion is new, add it to:
+#    src/speak.ts → emotionToSprite() valid[] array
+#    sophicon-api/api/speak.js system prompt emotion list
+# 3. Wire a quote to it by setting the `sprite` field in the source JSON,
+#    then regenerate constants.ts (see Quote pipeline above).</pre>
+  </section>
+
+  <!-- ═══ API / KEYS ═══ -->
+  <section>
+    <h2>API keys &amp; the Speak pipeline</h2>
+    <p class="lede">The SDK does not store keys. All keys live server-side on Vercel as env vars — they must never enter the web bundle.</p>
+    <div class="grid-2">
+      <div class="method">
+        <div class="sig">POST https://sophicon-api.vercel.app/api/speak</div>
+        <div class="desc">Calls GPT-4o with the persona + history. Reads <code>process.env.OPENAI_API_KEY</code>. System prompt builds from <code>public/personas.json</code>. Returns <code>{ text, emotion }</code> (emotion parsed from <code>[EMOTION:tag]</code> line).</div>
+        <span class="used">file: sophicon-api/api/speak.js</span>
+      </div>
+      <div class="method">
+        <div class="sig">POST https://sophicon-api.vercel.app/api/transcribe</div>
+        <div class="desc">Takes base64 PCM from the glasses mic, wraps it in a WAV header (16 kHz, 16-bit, mono), forwards to <code>gpt-4o-transcribe</code>. Optional <code>language</code> (ISO 639-1).</div>
+        <span class="used">file: sophicon-api/api/transcribe.js · <span class="pill">uncommitted diff: language param added</span></span>
+      </div>
+    </div>
+    <h3 class="sub">Rotating / adding keys</h3>
+    <pre># On Vercel (sophicon-api project):
+vercel env add OPENAI_API_KEY production
+vercel --prod                  # redeploy so the function picks it up
+
+# Do NOT put the key in .env bundled with the Vite app — everything in src/ ships to the client.</pre>
+  </section>
+
+  <!-- ═══ FILE QUICK LINKS ═══ -->
+  <section>
+    <h2>Quick open — every source file</h2>
+    <p class="lede">Clicks open in the default handler for <code>file://</code>. Change the repo path at the top if your tree lives elsewhere.</p>
+    <div class="files" id="fileList">
+      <a class="lnk" data-rel="src/Main.ts"><span>src/Main.ts</span><span class="sz">boot · 70 lines</span></a>
+      <a class="lnk" data-rel="src/events.ts"><span>src/events.ts</span><span class="sz">event router · 427 lines</span></a>
+      <a class="lnk" data-rel="src/pages.ts"><span>src/pages.ts</span><span class="sz">page builders</span></a>
+      <a class="lnk" data-rel="src/constants.ts"><span>src/constants.ts</span><span class="sz">generated · 860 KB</span></a>
+      <a class="lnk" data-rel="src/image-utils.ts"><span>src/image-utils.ts</span><span class="sz">sprite push</span></a>
+      <a class="lnk" data-rel="src/pngEncoder.ts"><span>src/pngEncoder.ts</span><span class="sz">custom PNG encoder</span></a>
+      <a class="lnk" data-rel="src/speak.ts"><span>src/speak.ts</span><span class="sz">voice / GPT-4o client</span></a>
+      <a class="lnk" data-rel="src/favorites.ts"><span>src/favorites.ts</span><span class="sz">in-memory favs</span></a>
+      <a class="lnk" data-rel="src/ui.ts"><span>src/ui.ts</span><span class="sz">WebView status bar</span></a>
+      <a class="lnk" data-rel="src/style.css"><span>src/style.css</span><span class="sz">WebView styles</span></a>
+      <a class="lnk" data-rel="scripts/generate_constants.py"><span>scripts/generate_constants.py</span><span class="sz">quote generator</span></a>
+      <a class="lnk" data-rel="sophicon-api/api/speak.js"><span>sophicon-api/api/speak.js</span><span class="sz">Vercel · GPT-4o</span></a>
+      <a class="lnk" data-rel="sophicon-api/api/transcribe.js"><span>sophicon-api/api/transcribe.js</span><span class="sz">Vercel · Whisper</span></a>
+      <a class="lnk" data-rel="public/personas.json"><span>public/personas.json</span><span class="sz">persona sheets · 52 KB</span></a>
+      <a class="lnk" data-rel="public/sprites/"><span>public/sprites/</span><span class="sz">391 PNGs</span></a>
+      <a class="lnk" data-rel="index.html"><span>index.html</span><span class="sz">WebView host</span></a>
+      <a class="lnk" data-rel="package.json"><span>package.json</span><span class="sz">deps · scripts</span></a>
+      <a class="lnk" data-rel="deploy.sh"><span>deploy.sh</span><span class="sz">build &amp; publish</span></a>
+      <a class="lnk" data-rel="README.md"><span>README.md</span><span class="sz">project overview</span></a>
+      <a class="lnk" data-rel="node_modules/@evenrealities/even_hub_sdk/README.md"><span>SDK README</span><span class="sz">full API ref</span></a>
+    </div>
+  </section>
+
+  <!-- ═══ UPDATE LOG ═══ -->
+  <section>
+    <h2>Update log</h2>
+    <p class="lede">Notes persist locally in this page via <code>localStorage</code>. Not synced anywhere — this is your scratchpad for what shipped.</p>
+    <div id="logEntries"></div>
+    <div class="log-new">
+      <textarea id="logInput" placeholder="What changed? (Cmd+Enter to save)"></textarea>
+      <button id="logSave">Save</button>
+    </div>
+  </section>
+
+  <div style="color:var(--dim); font-size:11px; font-family:var(--mono); text-align:center; margin-top:40px;">
+    soPHICON G2 · built with @evenrealities/even_hub_sdk · D3 Hospitality
+  </div>
+</div>
+
+<script>
+  // ═══ Path rewrite ═══
+  const pathInput = document.getElementById('repoPath');
+  function rewriteLinks() {
+    const base = pathInput.value.replace(/\/+$/, '');
+    document.querySelectorAll('a.lnk').forEach(a => {
+      const rel = a.dataset.rel || '';
+      a.href = 'file://' + encodeURI(base + '/' + rel).replace(/%2F/g, '/');
+    });
+  }
+  pathInput.addEventListener('input', () => {
+    localStorage.setItem('sophicon_sdk_repo_path', pathInput.value);
+    rewriteLinks();
+  });
+  const savedPath = localStorage.getItem('sophicon_sdk_repo_path');
+  if (savedPath) pathInput.value = savedPath;
+  rewriteLinks();
+
+  // ═══ Update log ═══
+  const LOG_KEY = 'sophicon_sdk_log';
+  const entriesEl = document.getElementById('logEntries');
+  const input = document.getElementById('logInput');
+  const saveBtn = document.getElementById('logSave');
+  function loadLog() {
+    try { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); }
+    catch { return []; }
+  }
+  function saveLog(l) { localStorage.setItem(LOG_KEY, JSON.stringify(l)); }
+  function fmt(ts) {
+    const d = new Date(ts);
+    return d.toLocaleString(undefined, { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+  function render() {
+    const log = loadLog();
+    if (!log.length) {
+      entriesEl.innerHTML = '<div style="color:var(--dim); font-size:13px; font-style:italic;">No entries yet. First one&apos;s free.</div>';
+      return;
+    }
+    entriesEl.innerHTML = log.slice().reverse().map((e, i) => `
+      <div class="log-entry">
+        <div class="when">${fmt(e.ts)} <a href="#" data-del="${log.length - 1 - i}" style="margin-left:8px;color:var(--dim);">delete</a></div>
+        <div class="what">${e.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+      </div>
+    `).join('');
+    entriesEl.querySelectorAll('a[data-del]').forEach(a => {
+      a.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const idx = parseInt(a.dataset.del);
+        const l = loadLog(); l.splice(idx, 1); saveLog(l); render();
+      });
+    });
+  }
+  function add() {
+    const text = input.value.trim();
+    if (!text) return;
+    const l = loadLog();
+    l.push({ ts: Date.now(), text });
+    saveLog(l); input.value = ''; render();
+  }
+  saveBtn.addEventListener('click', add);
+  input.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') add();
+  });
+  render();
+</script>
+</body>
+</html>

@@ -1,9 +1,27 @@
+// ═══════════════════════════════════════════════════════════════════
+// soΦcon — Boot (src/Main.ts)
+//
+// The single entry point called from index.html. Responsibilities:
+//   1. Wait for the Even App WebView bridge to attach
+//   2. Pull user + device info, subscribe to connect/battery changes
+//   3. Call createStartUpPageContainer ONCE with the home page
+//      (SDK contract — subsequent page changes use rebuildPageContainer
+//      inside events.ts)
+//   4. Push the splash logo images to the glass
+//   5. Register event handlers (routing lives in events.ts)
+//   6. Write a version marker to bridge.setLocalStorage
+//
+// Keep this file small. Anything more complex belongs in a focused
+// module so reviewers can read the boot sequence at a glance.
+// ═══════════════════════════════════════════════════════════════════
+
 import { waitForEvenAppBridge, DeviceConnectType } from '@evenrealities/even_hub_sdk';
 import { buildHomePage } from './pages';
 import { pushLogoToGlasses } from './image-utils';
 import { registerEventHandlers } from './events';
 import { setStatus, setBattery, log } from './ui';
 import { TOTAL_QUOTES, TOTAL_PHILOSOPHERS, TOTAL_TRADITIONS } from './constants';
+import { initDashboard } from './dashboard';
 
 async function main(): Promise<void> {
   log("Initializing...");
@@ -58,6 +76,9 @@ async function main(): Promise<void> {
 
   registerEventHandlers(bridge, baseUrl);
   log("Events active", "success");
+
+  // Phone-side dashboard (tabs, live glass-state mirror, sprite debug)
+  await initDashboard(bridge, baseUrl);
 
   await bridge.setLocalStorage("sophicon_version", "0.1.0");
   log(`soΦcon v0.1.0 — ${TOTAL_QUOTES} quotes · ${TOTAL_PHILOSOPHERS} philosophers · ${TOTAL_TRADITIONS} traditions`, "success");

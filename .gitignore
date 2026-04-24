@@ -3,3 +3,9 @@ dist/
 .DS_Store
 *.log
 .env
+.env.*
+.vercel/
+.d3-backups/
+files.zip
+*.zip
+sophicon-g2-for-review.zip
