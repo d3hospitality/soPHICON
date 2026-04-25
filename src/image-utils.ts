@@ -1,10 +1,38 @@
 // ═══════════════════════════════════════════════════════════════════
 // soΦcon — Image Utilities v6
 // Logo: container IDs 3 (top) and 10 (bottom)
+//
+// ▸ ASSETS_CDN — every binary asset (sprites + logos) is pulled from an
+//   absolute URL, NOT from the runtime baseUrl. This sidesteps WebView
+//   origin / packaging weirdness on the deployed app: regardless of
+//   where index.html is served from (GitHub Pages, file://, Even Hub's
+//   internal sandbox, etc.), the fetch URL is the same fixed CDN URL.
+//
+//   In dev (npm run dev) we still pull from local Vite via BASE_URL so
+//   you can iterate on sprite changes without re-publishing.
+//
+//   To swap CDNs (e.g. point at a Vercel static deploy or a new repo),
+//   change the one PROD branch below — every sprite/logo call site goes
+//   through assetUrl().
 // ═══════════════════════════════════════════════════════════════════
 
 import { EvenAppBridge, ImageRawDataUpdate } from '@evenrealities/even_hub_sdk';
 import { encodeGrayscalePng } from './pngEncoder';
+
+// ═══ Asset CDN ═══
+// PROD: GitHub Pages absolute URL — bypasses WebView base-path issues.
+// DEV : Vite dev server via BASE_URL — keeps hot-reload and offline dev working.
+const ASSETS_CDN: string = import.meta.env.PROD
+  ? 'https://d3hospitality.github.io/soPHICON/'
+  : import.meta.env.BASE_URL;
+
+/** Build a full asset URL. `relPath` should NOT start with a slash
+ * (e.g. 'sprites/socrates/socrates-neutral.png', 'assets/foo.png'). */
+function assetUrl(relPath: string): string {
+  const base = ASSETS_CDN.endsWith('/') ? ASSETS_CDN : ASSETS_CDN + '/';
+  const rel = relPath.startsWith('/') ? relPath.slice(1) : relPath;
+  return base + rel;
+}
 
 // ═══ Sprite encoded-PNG cache ═══
 // Keyed by "<spritePath>@<w>x<h>". Hits skip fetch + canvas + encode.
@@ -80,7 +108,7 @@ export async function pushSprite(
   const key = `${spritePath}@${w}x${h} → #${containerID}`;
   const t0 = Date.now();
   try {
-    const bytes = await fetchAsGrayscalePng(`${baseUrl}sprites/${spritePath}`, w, h);
+    const bytes = await fetchAsGrayscalePng(assetUrl(`sprites/${spritePath}`), w, h);
     await pushImg(bridge, containerID, containerName, bytes);
     pushLog.unshift({ ts: t0, key, ms: Date.now() - t0, ok: true });
     if (pushLog.length > PUSH_LOG_CAP) pushLog.length = PUSH_LOG_CAP;
@@ -102,13 +130,13 @@ async function pushImg(bridge: EvenAppBridge, id: number, name: string, data: Ui
 /** Logo: container 3 = top, container 10 = bottom */
 export async function pushLogoToGlasses(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   try {
-    const topPng = await fetchAsGrayscalePng(baseUrl + "assets/soPHICON-Top-Logo-200x100.png", 200, 100);
+    const topPng = await fetchAsGrayscalePng(assetUrl("assets/soPHICON-Top-Logo-200x100.png"), 200, 100);
     await pushImg(bridge, 3, "logo top", topPng);
     console.log("[soΦcon] Logo top ✓");
   } catch (e) { console.error("[soΦcon] Logo top FAILED:", e); }
 
   try {
-    const botPng = await fetchAsGrayscalePng(baseUrl + "assets/soPHICON-Bottom-Logo-200x100.png", 200, 100);
+    const botPng = await fetchAsGrayscalePng(assetUrl("assets/soPHICON-Bottom-Logo-200x100.png"), 200, 100);
     await pushImg(bridge, 10, "logo bottom", botPng);
     console.log("[soΦcon] Logo bottom ✓");
   } catch (e) { console.error("[soΦcon] Logo bottom FAILED:", e); }
@@ -119,7 +147,7 @@ export async function pushSpritesSplit(
   bridge: EvenAppBridge, baseUrl: string, spritePath: string,
   topID: number, topName: string, botID: number, botName: string,
 ): Promise<void> {
-  const url = `${baseUrl}sprites/${spritePath}`;
+  const url = assetUrl(`sprites/${spritePath}`);
   try {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`${resp.status}`);
@@ -157,7 +185,7 @@ export async function pushSpriteSingle(
   containerID: number, containerName: string, w: number, h: number,
 ): Promise<void> {
   try {
-    const png = await fetchAsGrayscalePng(`${baseUrl}sprites/${spritePath}`, w, h);
+    const png = await fetchAsGrayscalePng(assetUrl(`sprites/${spritePath}`), w, h);
     await pushImg(bridge, containerID, containerName, png);
     console.log(`[soΦcon] Sprite ✓ ${spritePath}`);
   } catch (e) { console.warn(`[soΦcon] Sprite FAILED: ${spritePath}`, e); }

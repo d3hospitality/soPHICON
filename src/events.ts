@@ -172,9 +172,10 @@ async function showMindfulQuote(bridge: EvenAppBridge): Promise<void> {
   currentPage = "mindful-quote";
 
   // Push the emotion sprite to the QuoteView page's sprite slot
-  // (containerID 3, "sprite", 100×100)
+  // (containerID 3, "sprite", 120×120 per pages.layout.ts:191 — must match
+  // exactly or the G2 firmware silently rejects the image)
   if (pick.quote.sprite) {
-    try { await pushSpriteSingle(bridge, baseUrlRef, pick.quote.sprite, 3, "sprite", 100, 100); }
+    try { await pushSpriteSingle(bridge, baseUrlRef, pick.quote.sprite, 3, "sprite", 120, 120); }
     catch (e) { console.warn("[MINDFUL] sprite push failed", e); }
   }
 
@@ -328,12 +329,15 @@ async function pushPhilPortrait(
   await pushSpritesSplit(bridge, baseUrl, `${phil.philId}/${phil.philId}-neutral.png`, topID, topName, botID, botName);
 }
 
-// ═══ PUSH EMOTION PORTRAIT (single 100x100 for speak conversation) ═══
+// ═══ PUSH EMOTION PORTRAIT (single 120x120 for speak conversation) ═══
+// Container size MUST match pages.layout.ts buildSpeakConversationPage —
+// containerID 1 'portrait' is declared 120×120. If we push a 100×100 PNG
+// the G2 firmware silently rejects it (simulator is more permissive).
 async function pushEmotionPortrait(
   bridge: EvenAppBridge, baseUrl: string, philId: string, emotion: string,
 ): Promise<void> {
   const sprite = emotionToSprite(philId, emotion);
-  await pushSpriteSingle(bridge, baseUrl, sprite, 1, "portrait", 100, 100);
+  await pushSpriteSingle(bridge, baseUrl, sprite, 1, "portrait", 120, 120);
 }
 
 // ═══ SHOW CURRENT QUOTE ═══
@@ -345,7 +349,8 @@ async function showCurrentQuote(bridge: EvenAppBridge, baseUrl: string): Promise
     buildQuoteViewPage(currentPhilosopher, quote, currentQuoteIndex, currentQuotes.length, fav, shuffleMode)
   );
   if (quote.sprite) {
-    await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 100, 100);
+    // QuoteView container 3 'sprite' is 120×120 (pages.layout.ts:191) — push must match
+    await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 120, 120);
   }
   log(`[${currentQuoteIndex + 1}/${currentQuotes.length}] ${capitalize(quote.emotion)} — "${quote.text.slice(0, 40)}..."`);
   publishState({ spritePath: quote.sprite });
