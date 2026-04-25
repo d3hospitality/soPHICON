@@ -2,34 +2,27 @@
 // soΦcon — Image Utilities v6
 // Logo: container IDs 3 (top) and 10 (bottom)
 //
-// ▸ ASSETS_CDN — every binary asset (sprites + logos) is pulled from an
-//   absolute URL, NOT from the runtime baseUrl. This sidesteps WebView
-//   origin / packaging weirdness on the deployed app: regardless of
-//   where index.html is served from (GitHub Pages, file://, Even Hub's
-//   internal sandbox, etc.), the fetch URL is the same fixed CDN URL.
-//
-//   In dev (npm run dev) we still pull from local Vite via BASE_URL so
-//   you can iterate on sprite changes without re-publishing.
-//
-//   To swap CDNs (e.g. point at a Vercel static deploy or a new repo),
-//   change the one PROD branch below — every sprite/logo call site goes
-//   through assetUrl().
+// ▸ Sprite + logo fetches go through assetUrl() which resolves paths
+//   RELATIVE to the current document URL via import.meta.env.BASE_URL.
+//   With vite.config.ts `base: './'`, BASE_URL is `./` everywhere, so
+//   `./sprites/socrates/socrates-neutral.png` resolves against whatever
+//   origin the page was loaded from:
+//     • GitHub Pages     → https://d3hospitality.github.io/soPHICON/sprites/...
+//     • Phone WebView    → file://(packaged-app-dir)/sprites/...
+//     • Vite dev server  → http://localhost:5173/sprites/...
+//   This means the phone WebView fetches the LOCALLY-bundled sprites
+//   (copied from public/sprites/ → dist/sprites/ → installed on the
+//   phone alongside index.html) — no external network hop required.
 // ═══════════════════════════════════════════════════════════════════
 
 import { EvenAppBridge, ImageRawDataUpdate } from '@evenrealities/even_hub_sdk';
 import { encodeGrayscalePng } from './pngEncoder';
 
-// ═══ Asset CDN ═══
-// PROD: GitHub Pages absolute URL — bypasses WebView base-path issues.
-// DEV : Vite dev server via BASE_URL — keeps hot-reload and offline dev working.
-const ASSETS_CDN: string = import.meta.env.PROD
-  ? 'https://d3hospitality.github.io/soPHICON/'
-  : import.meta.env.BASE_URL;
-
-/** Build a full asset URL. `relPath` should NOT start with a slash
- * (e.g. 'sprites/socrates/socrates-neutral.png', 'assets/foo.png'). */
+/** Build an asset URL relative to the document. `relPath` should NOT
+ * start with a slash (e.g. 'sprites/socrates/socrates-neutral.png'). */
 function assetUrl(relPath: string): string {
-  const base = ASSETS_CDN.endsWith('/') ? ASSETS_CDN : ASSETS_CDN + '/';
+  const baseUrl = import.meta.env.BASE_URL || './';
+  const base = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
   const rel = relPath.startsWith('/') ? relPath.slice(1) : relPath;
   return base + rel;
 }
