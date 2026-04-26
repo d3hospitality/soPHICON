@@ -41,6 +41,31 @@
 
     <!-- HOME -->
     <div class="tab-panel active" data-panel="home">
+
+      <!-- Weekly Action Plan -->
+      <div class="card weekly-card">
+        <div class="card-header weekly-header">
+          <button class="weekly-nav" id="weekly-prev" title="Previous week" aria-label="Previous week">‹</button>
+          <div class="weekly-week-label">
+            <div class="weekly-week-title" id="weekly-week-title">This week</div>
+            <div class="weekly-week-key muted" id="weekly-week-key">—</div>
+          </div>
+          <button class="weekly-nav" id="weekly-next" title="Next week" aria-label="Next week">›</button>
+        </div>
+        <div class="card-body">
+          <div class="weekly-toolbar">
+            <button class="btn btn-primary" id="btn-weekly-generate">Generate this week</button>
+            <button class="btn" id="btn-weekly-rollover" style="display:none">Roll over open problems</button>
+            <span class="weekly-status muted" id="weekly-status"></span>
+          </div>
+          <ul class="problem-list" id="problem-list"></ul>
+          <div class="weekly-empty muted" id="weekly-empty">
+            No action plan for this week yet. Have a few Speak conversations,
+            then click <em>Generate this week</em>.
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <span class="glasses-live-dot" id="glasses-live-dot" style="display:none"></span>
@@ -267,6 +292,30 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- Problem Detail Modal (Eisenhower grid + tethered quotes) -->
+  <div class="modal-overlay" id="problem-modal" aria-hidden="true">
+    <div class="modal-sheet" role="dialog" aria-labelledby="problem-modal-title">
+      <div class="modal-head">
+        <div>
+          <span class="cat-badge" id="problem-modal-cat">—</span>
+          <h2 id="problem-modal-title">—</h2>
+          <p class="modal-summary muted" id="problem-modal-summary"></p>
+        </div>
+        <button class="modal-close" id="problem-modal-close" aria-label="Close">×</button>
+      </div>
+      <div class="eisenhower-grid">
+        <div class="quad" data-q="Q1"><div class="quad-head"><strong>Do First</strong><span>Urgent + Important</span></div><ul class="action-list" data-q="Q1"></ul></div>
+        <div class="quad" data-q="Q2"><div class="quad-head"><strong>Schedule</strong><span>Important, not urgent</span></div><ul class="action-list" data-q="Q2"></ul></div>
+        <div class="quad" data-q="Q3"><div class="quad-head"><strong>Delegate</strong><span>Urgent, not important</span></div><ul class="action-list" data-q="Q3"></ul></div>
+        <div class="quad" data-q="Q4"><div class="quad-head"><strong>Eliminate</strong><span>Not urgent, not important</span></div><ul class="action-list" data-q="Q4"></ul></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="problem-modal-rollover">Roll over to next week</button>
+        <button class="btn btn-primary" id="problem-modal-addressed">Mark addressed</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="/src/Main.ts"></script>

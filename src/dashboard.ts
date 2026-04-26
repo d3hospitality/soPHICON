@@ -29,6 +29,13 @@ import {
 } from './events';
 import { pushSprite, getSpritePushLog, clearSpriteCache } from './image-utils';
 import { loadJournal, JournalSession, SpeakMessage } from './speak';
+import {
+  WeeklyOverview, WeeklyProblem, WeeklyAction, Category, Quadrant, QUADRANTS,
+  isoWeekKey, weekRangeLabel, shiftWeek,
+  loadOverview, saveOverview, generateOverview, pickRolloverCandidates,
+  setActionDone, setProblemStatus,
+  pickQuotesForAction, setWeeklyBridge,
+} from './weekly';
 import { log } from './ui';
 
 // ─── Handles we fill in initDashboard ─────────────────────────────
@@ -589,10 +596,295 @@ async function initMindfulPanel(): Promise<void> {
   setInterval(updateMindfulStatus, 1000);
 }
 
+// ─── WEEKLY ACTION PLAN ───────────────────────────────────────────
+// Surfaces clusters of problems on the Home tab. Each problem opens a
+// modal showing 3-5 actions grouped by Eisenhower quadrant, each action
+// tethered to a small carousel of quotes pulled from constants.ts that
+// match the action's emotion-theme tags. Storage is per ISO week so the
+// user can navigate prev/next weeks and roll-over open problems.
+let currentWeekKey: string = isoWeekKey();
+let currentOverview: WeeklyOverview | null = null;
+let activeProblemId: string | null = null;
+let quoteShuffleTimer: number | null = null;
+
+async function initWeeklyPanel(): Promise<void> {
+  $('btn-weekly-generate')?.addEventListener('click', async () => {
+    await generateForCurrentWeek(false);
+  });
+
+  $('btn-weekly-rollover')?.addEventListener('click', async () => {
+    if (!confirm('Generate next week from this week\'s open problems?')) return;
+    const nextWeek = shiftWeek(currentWeekKey, 1);
+    const rolledOver = await pickRolloverCandidates(currentWeekKey);
+    setWeeklyStatus(`Rolling ${rolledOver.length} into ${nextWeek}…`);
+    try {
+      const journal = await loadJournal();
+      const inWindow = filterJournalToWeek(journal, nextWeek);
+      const ov = await generateOverview({ weekKey: nextWeek, journal: inWindow, rolledOver });
+      currentWeekKey = nextWeek;
+      currentOverview = ov;
+      await renderWeekly();
+      setWeeklyStatus(`Generated ${ov.problems.length} problems for ${nextWeek}.`);
+    } catch (e: any) {
+      setWeeklyStatus(`Rollover failed: ${e?.message || e}`);
+    }
+  });
+
+  $('weekly-prev')?.addEventListener('click', async () => {
+    currentWeekKey = shiftWeek(currentWeekKey, -1);
+    await loadAndRenderCurrentWeek();
+  });
+  $('weekly-next')?.addEventListener('click', async () => {
+    currentWeekKey = shiftWeek(currentWeekKey, +1);
+    await loadAndRenderCurrentWeek();
+  });
+
+  // Modal close + actions
+  $('problem-modal-close')?.addEventListener('click', closeProblemModal);
+  $('problem-modal')?.addEventListener('click', (ev) => {
+    if ((ev.target as HTMLElement).id === 'problem-modal') closeProblemModal();
+  });
+  $('problem-modal-addressed')?.addEventListener('click', async () => {
+    if (!activeProblemId) return;
+    await setProblemStatus(currentWeekKey, activeProblemId, 'addressed');
+    currentOverview = await loadOverview(currentWeekKey);
+    await renderWeekly();
+    closeProblemModal();
+  });
+  $('problem-modal-rollover')?.addEventListener('click', async () => {
+    if (!activeProblemId) return;
+    await setProblemStatus(currentWeekKey, activeProblemId, 'rolled-over');
+    currentOverview = await loadOverview(currentWeekKey);
+    await renderWeekly();
+    closeProblemModal();
+  });
+
+  // ESC closes modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeProblemModal();
+  });
+
+  await loadAndRenderCurrentWeek();
+}
+
+function setWeeklyStatus(msg: string): void {
+  const el = $('weekly-status');
+  if (el) el.textContent = msg;
+}
+
+/** Filter journal to sessions within the same ISO week. */
+function filterJournalToWeek(journal: JournalSession[], weekKey: string): JournalSession[] {
+  return journal.filter(s => {
+    try {
+      const d = new Date(s.startTs);
+      return isoWeekKey(d) === weekKey;
+    } catch { return false; }
+  });
+}
+
+async function loadAndRenderCurrentWeek(): Promise<void> {
+  currentOverview = await loadOverview(currentWeekKey);
+  await renderWeekly();
+}
+
+async function generateForCurrentWeek(force: boolean): Promise<void> {
+  setWeeklyStatus('Generating…');
+  const generateBtn = $('btn-weekly-generate') as HTMLButtonElement | null;
+  if (generateBtn) generateBtn.disabled = true;
+  try {
+    const journal = await loadJournal();
+    const inWindow = filterJournalToWeek(journal, currentWeekKey);
+    if (inWindow.length === 0 && !force) {
+      setWeeklyStatus('No conversations in this week. Have a Speak session first.');
+      return;
+    }
+    const ov = await generateOverview({ weekKey: currentWeekKey, journal: inWindow });
+    currentOverview = ov;
+    await renderWeekly();
+    setWeeklyStatus(`Generated ${ov.problems.length} problem${ov.problems.length === 1 ? '' : 's'}.`);
+  } catch (e: any) {
+    setWeeklyStatus(`Failed: ${e?.message || e}`);
+  } finally {
+    if (generateBtn) generateBtn.disabled = false;
+  }
+}
+
+async function renderWeekly(): Promise<void> {
+  const titleEl = $('weekly-week-title');
+  const keyEl   = $('weekly-week-key');
+  const list    = $('problem-list');
+  const empty   = $('weekly-empty');
+  const rollBtn = $('btn-weekly-rollover');
+  const genBtn  = $('btn-weekly-generate');
+  if (!titleEl || !keyEl || !list || !empty || !rollBtn || !genBtn) return;
+
+  // Header
+  const isThisWeek = currentWeekKey === isoWeekKey();
+  titleEl.textContent = isThisWeek ? 'This week' : 'Week of';
+  keyEl.textContent = `${weekRangeLabel(currentWeekKey)} · ${currentWeekKey}`;
+
+  // Body
+  if (!currentOverview || currentOverview.problems.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    genBtn.textContent = 'Generate this week';
+    rollBtn.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  genBtn.textContent = 'Regenerate';
+
+  // If any problems are still open, offer rollover (relevant near end of week)
+  const hasOpen = currentOverview.problems.some(p => p.status === 'open');
+  rollBtn.style.display = hasOpen ? '' : 'none';
+
+  list.innerHTML = currentOverview.problems.map(p => {
+    const total = p.actions.length;
+    const done  = p.actions.filter(a => a.done).length;
+    const progressClass = done === total && total > 0 ? 'complete' : '';
+    const rolledClass = p.status === 'rolled-over' ? 'rolled' : '';
+    const addressedClass = p.status === 'addressed' ? 'addressed' : '';
+    const philsLine = p.philosophers.slice(0, 3).join(' · ');
+    const moreCount = Math.max(0, p.philosophers.length - 3);
+    return `
+      <li class="problem-row ${addressedClass} ${rolledClass}" data-pid="${escapeAttr(p.id)}">
+        <span class="cat-badge" data-cat="${p.category}">${p.category}</span>
+        <div class="problem-info">
+          <div class="problem-title">${escapeHtml(p.title)}</div>
+          <div class="problem-meta">
+            <span>${escapeHtml(philsLine)}${moreCount ? ` +${moreCount}` : ''}</span>
+            <span class="status-pill ${p.status}">${p.status}</span>
+          </div>
+        </div>
+        <div class="problem-progress ${progressClass}">${done}/${total}</div>
+      </li>`;
+  }).join('');
+
+  // Wire row clicks
+  list.querySelectorAll<HTMLElement>('.problem-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const pid = row.dataset.pid || '';
+      openProblemModal(pid);
+    });
+  });
+}
+
+function openProblemModal(problemId: string): void {
+  if (!currentOverview) return;
+  const p = currentOverview.problems.find(p => p.id === problemId);
+  if (!p) return;
+  activeProblemId = problemId;
+
+  const modal = $('problem-modal');
+  if (!modal) return;
+
+  ($('problem-modal-cat')!).textContent = p.category;
+  ($('problem-modal-cat')!).setAttribute('data-cat', p.category);
+  ($('problem-modal-title')!).textContent = p.title;
+  ($('problem-modal-summary')!).textContent = p.summary;
+
+  // Render actions into their respective quadrants
+  for (const q of QUADRANTS) {
+    const ul = modal.querySelector<HTMLElement>(`.action-list[data-q="${q}"]`);
+    if (!ul) continue;
+    const actions = p.actions.filter(a => a.quadrant === q);
+    if (actions.length === 0) {
+      ul.innerHTML = '<li class="muted" style="font-size:11.5px;padding:6px;">—</li>';
+      continue;
+    }
+    ul.innerHTML = actions.map(a => renderActionRow(p.id, a)).join('');
+  }
+
+  // Wire checkboxes
+  modal.querySelectorAll<HTMLElement>('.action-check').forEach(check => {
+    check.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const pid = check.dataset.pid || '';
+      const aid = check.dataset.aid || '';
+      const next = !check.classList.contains('checked');
+      await setActionDone(currentWeekKey, pid, aid, next);
+      // Mutate in-memory for instant feedback
+      const prob = currentOverview?.problems.find(p => p.id === pid);
+      const act = prob?.actions.find(a => a.id === aid);
+      if (act) act.done = next;
+      check.classList.toggle('checked', next);
+      check.innerHTML = next ? '✓' : '';
+      check.closest('.action-row')?.classList.toggle('done', next);
+      await renderWeekly();   // updates the X/Y count on the row underneath
+    });
+  });
+
+  startQuoteShuffle();
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function renderActionRow(pid: string, a: WeeklyAction): string {
+  return `
+    <li class="action-row ${a.done ? 'done' : ''}" data-aid="${escapeAttr(a.id)}">
+      <div class="action-head">
+        <span class="action-check ${a.done ? 'checked' : ''}" data-pid="${escapeAttr(pid)}" data-aid="${escapeAttr(a.id)}">${a.done ? '✓' : ''}</span>
+        <div style="flex:1;min-width:0;">
+          <div class="action-title">${escapeHtml(a.title)}</div>
+          ${a.source ? `<div class="action-source">${escapeHtml(a.source)}</div>` : ''}
+        </div>
+      </div>
+      <div class="action-detail">${escapeHtml(a.detail)}</div>
+      <div class="tethered-quote" data-aid="${escapeAttr(a.id)}"></div>
+    </li>`;
+}
+
+/** Cycle a fresh quote into each .tethered-quote slot every ~7s. */
+function startQuoteShuffle(): void {
+  stopQuoteShuffle();
+  const cycle = () => {
+    if (!currentOverview || !activeProblemId) return;
+    const problem = currentOverview.problems.find(p => p.id === activeProblemId);
+    if (!problem) return;
+    const modal = $('problem-modal');
+    if (!modal) return;
+    for (const a of problem.actions) {
+      const slot = modal.querySelector<HTMLElement>(`.tethered-quote[data-aid="${cssEscape(a.id)}"]`);
+      if (!slot) continue;
+      const quotes = pickQuotesForAction(a, 1);
+      if (quotes.length === 0) { slot.style.display = 'none'; continue; }
+      const fq = quotes[0];
+      slot.style.opacity = '0';
+      setTimeout(() => {
+        slot.innerHTML = `${escapeHtml(fq.q.text)}<span class="q-attrib">— ${escapeHtml(fq.phil)}, ${escapeHtml(fq.q.source || fq.tradition)}</span>`;
+        slot.style.opacity = '1';
+      }, 200);
+    }
+  };
+  cycle();
+  quoteShuffleTimer = window.setInterval(cycle, 7000);
+}
+function stopQuoteShuffle(): void {
+  if (quoteShuffleTimer != null) { clearInterval(quoteShuffleTimer); quoteShuffleTimer = null; }
+}
+
+function closeProblemModal(): void {
+  const modal = $('problem-modal');
+  if (!modal) return;
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden', 'true');
+  activeProblemId = null;
+  stopQuoteShuffle();
+}
+
+// ── attribute + CSS-attribute-selector helpers (escapeHtml already
+//    exists in this file at line ~413) ──
+function escapeAttr(s: string): string { return escapeHtml(s); }
+function cssEscape(s: string): string {
+  // Minimal CSS attribute-value escape: covers what stable kebab-case ids need.
+  return s.replace(/["\\]/g, '\\$&');
+}
+
 // ─── PUBLIC ENTRY ─────────────────────────────────────────────────
 export async function initDashboard(b: EvenAppBridge, base: string): Promise<void> {
   bridge = b;
   baseUrl = base;
+  setWeeklyBridge(b);
 
   initTabs();
   initHomeStats();
@@ -602,6 +894,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   await initMindfulPanel();
   await initSettings();
   await refreshJournal();
+  await initWeeklyPanel();
 
   // Subscribe to live glass-state updates; also refresh journal when
   // user exits speak-conversation (checkpoint just fired)
