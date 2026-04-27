@@ -66,6 +66,22 @@
         </div>
       </div>
 
+      <!-- Daily Habits (Solo-Leveling layer) -->
+      <div class="card habits-card">
+        <div class="card-header">
+          <span class="habits-flame">🔥</span>
+          Daily Habits
+          <span class="badge" id="habit-count"></span>
+        </div>
+        <div class="card-body">
+          <ul class="habit-list" id="habit-list"></ul>
+          <div class="habits-empty muted" id="habits-empty">
+            Long-press any action in the weekly plan to commit to it as a daily habit.
+            Each morning, your philosopher will check in on your streak.
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <span class="glasses-live-dot" id="glasses-live-dot" style="display:none"></span>
@@ -278,6 +294,81 @@
         </div>
       </div>
 
+      <!-- USER PROFILE — flows through every AI endpoint as context-aware guidelines -->
+      <div class="card">
+        <div class="card-header">Your Profile <span class="badge" id="profile-saved-badge"></span></div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:12px;font-size:12px;">
+            Used by every philosopher conversation. Locks the Whisper transcription
+            language, and your context is injected as quiet awareness so the
+            philosophers can answer with what they know about your life — without
+            ever listing it back at you.
+          </p>
+          <div class="field">
+            <label>Name</label>
+            <input id="prof-name" type="text" placeholder="What should they call you?" />
+          </div>
+          <div class="field">
+            <label>Pronouns <span class="hint">optional</span></label>
+            <input id="prof-pronouns" type="text" placeholder="he/him, she/her, they/them..." />
+          </div>
+          <div class="field">
+            <label>Speech language <span class="hint">locks transcription — STOPS the language drift bug</span></label>
+            <select id="prof-language"></select>
+          </div>
+          <div class="field">
+            <label>Life role / context</label>
+            <input id="prof-role" type="text" placeholder="e.g. founder · hospitality, student, parent of two..." />
+          </div>
+          <div class="field">
+            <label>Currently working through <span class="hint">one line</span></label>
+            <input id="prof-focus" type="text" placeholder="e.g. launching a new restaurant concept" />
+          </div>
+          <div class="field">
+            <label>Recurring challenges <span class="hint">comma-separated, up to 5</span></label>
+            <input id="prof-challenges" type="text" placeholder="e.g. burnout, decision fatigue, sleep" />
+          </div>
+          <div class="field">
+            <label>What you care about <span class="hint">comma-separated, up to 5</span></label>
+            <input id="prof-values" type="text" placeholder="e.g. craft, presence, family, honesty" />
+          </div>
+          <div class="field">
+            <label>Advice style</label>
+            <select id="prof-advice-style">
+              <option value="mixed">Mixed — read the room</option>
+              <option value="direct">Direct — give me the answer</option>
+              <option value="socratic">Socratic — ask me back</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Tone preference</label>
+            <select id="prof-tone">
+              <option value="mixed">Mixed</option>
+              <option value="warm">Warm</option>
+              <option value="austere">Austere</option>
+              <option value="playful">Playful</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Reply length</label>
+            <select id="prof-reply-length">
+              <option value="mixed">Mixed</option>
+              <option value="short">Short</option>
+              <option value="medium">Medium</option>
+              <option value="long">Long</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Custom guidelines <span class="hint">one per line, up to 20</span></label>
+            <textarea id="prof-guidelines" rows="3" placeholder="e.g.&#10;don't assume I'm religious&#10;skip the disclaimers"></textarea>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btn-save-profile">Save profile</button>
+            <button class="btn" id="btn-reset-profile">Reset to defaults</button>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">Settings</div>
         <div class="field">
@@ -292,6 +383,21 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- Daily Check-In Modal (Solo Leveling: philosophers verify yesterday) -->
+  <div class="modal-overlay checkin-overlay" id="checkin-modal" aria-hidden="true">
+    <div class="modal-sheet checkin-sheet" role="dialog" aria-labelledby="checkin-title">
+      <div class="modal-head checkin-head">
+        <div>
+          <div class="checkin-eyebrow">Daily Check-In</div>
+          <h2 id="checkin-title">Your philosophers want a word.</h2>
+          <p class="modal-summary muted" id="checkin-subtitle">—</p>
+        </div>
+        <button class="modal-close" id="checkin-close" aria-label="Close">×</button>
+      </div>
+      <ul class="checkin-list" id="checkin-list"></ul>
+    </div>
   </div>
 
   <!-- Problem Detail Modal (Eisenhower grid + tethered quotes) -->

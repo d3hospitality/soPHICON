@@ -28,6 +28,7 @@
 
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 import { log } from './ui';
+import { loadProfile, profileForApi } from './profile';
 
 // ═══ TYPES ═══
 export interface Persona {
@@ -53,6 +54,10 @@ export interface SpeakMessage {
 // ═══ CONFIG ═══
 const SPEAK_API_URL = "https://sophicon-api.vercel.app/api/speak";
 const TRANSCRIBE_API_URL = "https://sophicon-api.vercel.app/api/transcribe";
+const ACTIONS_API_URL = "https://sophicon-api.vercel.app/api/actions";
+
+const ACTION_ITEMS_KEY = "speak_action_items";   // append-only, all-time
+const CROSS_CONTEXT_KEY = "speak_cross_context"; // cached per-session preamble
 
 // ═══ STATE ═══
 let personas: Record<string, Persona> = {};
@@ -145,8 +150,11 @@ async function saveJournal(all: JournalSession[]): Promise<void> {
 
 /**
  * Finalize the current session: snapshot the in-memory history as a
- * JournalSession under today's date and append it to the journal.
- * Called when the user double-taps back out of speak-conversation.
+ * JournalSession under today's date, append it to the journal, then
+ * fire-and-forget /api/actions to surface concrete TODOs from this
+ * session and stack them onto a running action-item store. Each Speak
+ * conversation produces fresh actions; the journal accumulates over
+ * time without replacing prior entries.
  */
 export async function checkpointSession(philName: string, tradition: string): Promise<void> {
   if (!currentPhilId || conversationHistory.length === 0) return;
@@ -167,6 +175,155 @@ export async function checkpointSession(philName: string, tradition: string): Pr
   all.push(session);
   await saveJournal(all);
   log(`[JOURNAL] checkpointed ${session.exchanges.length}-turn session with ${philName}`);
+
+  // Fire-and-forget: extract action items from JUST this session and stack
+  // onto the all-time action-items store. Errors are swallowed; we don't
+  // want a network blip to block the user from leaving the convo.
+  extractActionsFromSession(session).catch(e => console.warn("[ACTIONS] auto-extract failed", e));
+
+  // Invalidate the cross-context cache so the NEXT conversation rebuilds
+  // a preamble that includes this session.
+  if (bridgeRef) bridgeRef.setLocalStorage(CROSS_CONTEXT_KEY, "").catch(() => {});
+}
+
+// ═══ AUTO ACTION-ITEM EXTRACTION ═════════════════════════════════════
+// Called from checkpointSession to pull concrete TODOs from the session
+// that just ended. Items stack onto speak_action_items keyed by sessionId
+// so the dashboard / weekly overview can show them per-session over time.
+
+export interface ActionItem {
+  id: string;
+  sessionId: string;       // <philId>@<startTs>
+  philName: string;
+  tradition: string;
+  date: string;            // YYYY-MM-DD
+  ts: number;
+  title: string;
+  detail: string;
+  source: string;
+  theme: string;
+  done: boolean;
+}
+
+export async function loadActionItems(): Promise<ActionItem[]> {
+  if (!bridgeRef) return [];
+  try {
+    const raw = await bridgeRef.getLocalStorage(ACTION_ITEMS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+async function saveActionItems(items: ActionItem[]): Promise<void> {
+  if (!bridgeRef) return;
+  try { await bridgeRef.setLocalStorage(ACTION_ITEMS_KEY, JSON.stringify(items)); }
+  catch (e) { console.error("[ACTIONS] save failed", e); }
+}
+
+export async function setActionItemDone(id: string, done: boolean): Promise<void> {
+  const items = await loadActionItems();
+  const it = items.find(x => x.id === id);
+  if (!it) return;
+  it.done = done;
+  await saveActionItems(items);
+}
+
+async function extractActionsFromSession(session: JournalSession): Promise<void> {
+  const sessionId = `${session.philId}@${session.startTs}`;
+  try {
+    const resp = await fetch(ACTIONS_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversations: [session], scope: "session" }),
+    });
+    if (!resp.ok) {
+      console.warn("[ACTIONS] api error", resp.status);
+      return;
+    }
+    const data = await resp.json();
+    const fresh: ActionItem[] = (data.actions || []).map((a: any, i: number) => ({
+      id: `${sessionId}-${i}`,
+      sessionId,
+      philName: session.philName,
+      tradition: session.tradition,
+      date: session.date,
+      ts: session.endTs,
+      title: String(a.title || "").slice(0, 200),
+      detail: String(a.detail || "").slice(0, 600),
+      source: String(a.source || `${session.philName} (${session.tradition})`),
+      theme: String(a.theme || ""),
+      done: false,
+    }));
+    if (fresh.length === 0) return;
+    const existing = await loadActionItems();
+    // Stack: dedupe by id (sessionId + index keeps each session's items together)
+    const byId = new Map(existing.map(x => [x.id, x]));
+    for (const it of fresh) byId.set(it.id, it);
+    await saveActionItems([...byId.values()]);
+    log(`[ACTIONS] +${fresh.length} from ${session.philName} session`);
+  } catch (e) {
+    console.warn("[ACTIONS] extract error", e);
+  }
+}
+
+// ═══ CROSS-PHILOSOPHER CONTEXT PREAMBLE ══════════════════════════════
+// On startConversation, we build a compact summary of what the user has
+// been working through with OTHER philosophers recently. This gets passed
+// to /api/speak as `crossContext` and injected into the system prompt
+// with explicit instructions: the philosopher KNOWS this background but
+// shouldn't volunteer it — only acknowledge if directly relevant.
+//
+// The preamble is purely string-formatted from existing journal data —
+// no GPT call required, so it costs nothing and is fast at session start.
+
+let activeCrossContext: string = "";
+
+export function getCrossContext(): string { return activeCrossContext; }
+
+async function buildCrossContext(currentPhilId: string): Promise<string> {
+  const journal = await loadJournal();
+  if (journal.length === 0) return "";
+
+  // Look at the past 14 days only — older context is unlikely to be load-bearing
+  const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const recent = journal.filter(s => s.endTs >= cutoff);
+  if (recent.length === 0) return "";
+
+  // Group by philosopher, with mood + earliest date + sample utterance
+  const byPhil = new Map<string, { philName: string; sessions: number; turns: number; moods: Set<string>; sample: string; lastDate: string }>();
+  for (const s of recent) {
+    const e = byPhil.get(s.philId) || { philName: s.philName, sessions: 0, turns: 0, moods: new Set<string>(), sample: "", lastDate: s.date };
+    e.sessions += 1;
+    for (const m of s.exchanges) {
+      if (m.role === "user") {
+        e.turns += 1;
+        if (m.userMood && m.userMood !== "neutral") e.moods.add(m.userMood);
+        if (!e.sample && m.content.length > 20) e.sample = m.content.slice(0, 140);
+      }
+    }
+    if (s.date > e.lastDate) e.lastDate = s.date;
+    byPhil.set(s.philId, e);
+  }
+
+  const otherPhils = [...byPhil.entries()].filter(([id]) => id !== currentPhilId);
+  if (otherPhils.length === 0) return "";
+
+  const lines: string[] = [];
+  for (const [, e] of otherPhils.slice(0, 5)) {
+    const moods = [...e.moods].slice(0, 3).join(", ") || "various moods";
+    lines.push(`- With ${e.philName}: ${e.sessions} session${e.sessions === 1 ? "" : "s"} (${e.turns} turn${e.turns === 1 ? "" : "s"}), themes: ${moods}. Last: ${e.lastDate}.`);
+    if (e.sample) lines.push(`    They said: "${e.sample}"`);
+  }
+
+  // Also note prior history with current philosopher if any
+  const ownHistory = byPhil.get(currentPhilId);
+  let ownLine = "";
+  if (ownHistory) {
+    ownLine = `\nThis is session #${ownHistory.sessions + 1} with you. Past moods: ${[...ownHistory.moods].slice(0, 3).join(", ") || "varied"}.`;
+  }
+
+  return `PRIOR USER CONTEXT (last 14 days, across other philosophers):\n${lines.join("\n")}${ownLine}`;
 }
 
 async function loadHistory(philId: string): Promise<SpeakMessage[]> {
@@ -208,6 +365,14 @@ export async function startConversation(philId: string): Promise<{ opening: stri
 
   // Restore prior history (if any)
   conversationHistory = await loadHistory(philId);
+
+  // Build a cross-philosopher context preamble from the last 14 days of
+  // journal — the philosopher will receive this in their system prompt
+  // but is instructed not to volunteer it. Stored in module state so
+  // every sendMessage() in this conversation reuses it.
+  try { activeCrossContext = await buildCrossContext(philId); }
+  catch (e) { console.warn("[SPEAK] crossContext build failed", e); activeCrossContext = ""; }
+  if (activeCrossContext) log(`[SPEAK] crossContext: ${activeCrossContext.length} chars loaded`);
 
   // Append a fresh opening so users always get a greeting on entry
   const opening = p.openings[Math.floor(Math.random() * p.openings.length)];
@@ -312,13 +477,20 @@ export async function stopRecordingAndSend(): Promise<{ text: string; emotion: s
   }
   const base64 = btoa(binary);
 
-  // Transcribe via Vercel proxy
+  // Transcribe via Vercel proxy. Pass the user's preferred language
+  // from their profile to lock Whisper — otherwise it auto-detects and
+  // can flip to Spanish/German/etc. on unclear audio.
+  let lang = 'en';
+  try {
+    const prof = await loadProfile();
+    lang = prof.language || 'en';
+  } catch {}
   let userText = "";
   try {
     const resp = await fetch(TRANSCRIBE_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ audio: base64 }),
+      body: JSON.stringify({ audio: base64, language: lang }),
     });
     if (!resp.ok) throw new Error(`Transcribe ${resp.status}`);
     const data = await resp.json();
@@ -348,12 +520,21 @@ export async function sendMessage(userText: string): Promise<{ text: string; emo
 
   conversationHistory.push({ role: "user", content: userText, ts: Date.now() });
 
+  // Pull user profile so /api/speak can inject ABOUT THIS PERSON
+  let userProfilePayload: ReturnType<typeof profileForApi> = null;
+  try {
+    const prof = await loadProfile();
+    userProfilePayload = profileForApi(prof);
+  } catch {}
+
   try {
     log(`[SPEAK] Calling API...`);
     const body = JSON.stringify({
       persona: currentPersona,
       history: conversationHistory,
       userMessage: userText,
+      crossContext: activeCrossContext || undefined,
+      userProfile: userProfilePayload || undefined,
     });
     log(`[SPEAK] Body size: ${body.length} chars`);
 

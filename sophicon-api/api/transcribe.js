@@ -13,6 +13,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing audio data' });
     }
 
+    // CRITICAL: lock Whisper to a known language. Without an explicit
+    // 'language' parameter Whisper auto-detects from the audio, which
+    // silently flips to Spanish / German / Japanese on unclear, short,
+    // or noisy clips. The philosopher then faithfully replies in the
+    // mis-detected language and the user thinks the model is broken.
+    // Default to English; client can override via UserProfile.language.
+    const lockedLang = (typeof language === 'string' && /^[a-z]{2}$/.test(language))
+      ? language
+      : 'en';
+
     // Decode base64 PCM to buffer
     const pcmBuffer = Buffer.from(audio, 'base64');
 
@@ -34,12 +44,14 @@ export default async function handler(req, res) {
       `gpt-4o-transcribe`,
     ];
 
-    // Optional: lock transcription to a specific language (ISO 639-1 code)
-    const langPart = language ? [
+    // Always send language — defaults to 'en' to prevent auto-detect drift.
+    const langPart = [
       `\r\n--${boundary}\r\n`,
       `Content-Disposition: form-data; name="language"\r\n\r\n`,
-      language,
-    ] : [];
+      lockedLang,
+    ];
+
+    console.log('[/api/transcribe] language locked to:', lockedLang, '| audio bytes:', pcmBuffer.length);
 
     const endPart = [`\r\n--${boundary}--\r\n`];
 
