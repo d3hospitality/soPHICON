@@ -443,6 +443,282 @@ vercel --prod                  # redeploy so the function picks it up
     </div>
   </section>
 
+  <!-- ═══ BACKEND & ACCOUNTS — ROADMAP ═══ -->
+  <section>
+    <h2>Backend &amp; accounts — Supabase roadmap</h2>
+    <p class="lede">Plan for moving soPHICON from on-device-only to a multi-device platform with auth, tier-gated entitlements, and journal sync. Living doc — update phases as they ship.</p>
+
+    <h3 class="sub">Enki — the foundational philosopher</h3>
+    <p class="lede"><b>Enki</b> is the one philosopher every user meets first. Sumerian god of wisdom, water, knowledge, and craft — predates Greek philosophy by millennia, single syllable, distinctive. He's the user's <i>personal</i> companion; the other 17 historical philosophers are figures Enki can introduce them to. Enki's <b>capacity scales with tier</b> (same character, deepening relationship), which is the primary tier mechanic — not just "more philosophers unlocked".</p>
+    <div class="grid-2">
+      <div class="method">
+        <div class="sig">Free Enki <span style="color:var(--dim);font-weight:400;">— Seeker tier</span></div>
+        <div class="desc">Friendly, helpful base persona. Soft cap on context depth. Reads only the surface fields of <code>UserProfile</code> (name, language, life role). Conversation history capped at last 10 turns sent to GPT. No cross-philosopher awareness.</div>
+        <span class="used">entry experience · "where do I start?" answered</span>
+      </div>
+      <div class="method">
+        <div class="sig">Deep Enki <span style="color:var(--dim);font-weight:400;">— Examined tier</span></div>
+        <div class="desc">Full <code>UserProfile</code> injected as ABOUT THIS PERSON. Last 14 days of cross-philosopher journal as quiet awareness. User's <code>guidelines</code> are followed verbatim. History extended to last 40 turns. Personalized within the user's frame.</div>
+        <span class="used">primary value of paid tier · the relationship deepens</span>
+      </div>
+      <div class="method">
+        <div class="sig">Uncapped Enki <span style="color:var(--dim);font-weight:400;">— Sage tier</span></div>
+        <div class="desc">Persistent semantic memory across all conversations (RAG over full journal, not just 14 days). Cross-philosopher narrative awareness — Enki references your conversations with Marcus, Buddha, Seneca by name when it serves you. User can shape Enki's tone/voice/values via long-term <code>guidelines</code> Enki actively negotiates.</div>
+        <span class="used">power tier · Enki as a true second mind</span>
+      </div>
+      <div class="method">
+        <div class="sig">Implementation hooks</div>
+        <div class="desc">Enki lives in <code>personas.json</code> with <code>philId: "enki"</code>. Server-side <code>/api/speak</code> reads <code>userProfile.tier</code> and adjusts Enki's system prompt — depth caps, cross-context inclusion, guideline weight. Sprite set: needs commission for 23 emotion variations matching the canonical list. Visual: Sumerian/Mesopotamian aesthetic, GBA-era pixel art.</div>
+        <span class="used">TODO: persona text · TODO: sprite art</span>
+      </div>
+    </div>
+
+    <h3 class="sub">Tier structure</h3>
+    <div class="grid-2">
+      <div class="method">
+        <div class="sig">Seeker <span style="color:var(--dim);font-weight:400;">— free</span></div>
+        <div class="desc">Quotes-on-glass full corpus stays free. Speak with <b>Free Enki</b> only. 5 conversations/day. 1 active habit. 30-day journal retention. No cross-device sync.</div>
+        <span class="used">entry tier · friction-to-first-value preserved</span>
+      </div>
+      <div class="method">
+        <div class="sig">Examined <span style="color:var(--dim);font-weight:400;">— monthly</span></div>
+        <div class="desc">From Socrates: <i>"the unexamined life is not worth living"</i>. Speak with all 17 historical philosophers. Enki upgrades to <b>Deep</b> mode. Unlimited Speak. Weekly action plan. 5 active habits. Full journal sync across iOS / Android / G2. 1-year retention.</div>
+        <span class="used">primary paid tier · target ~$8/mo</span>
+      </div>
+      <div class="method">
+        <div class="sig">Sage <span style="color:var(--dim);font-weight:400;">— annual or lifetime</span></div>
+        <div class="desc">Adds custom user-added philosophers. Enki upgrades to <b>Uncapped</b> mode. Mini-philosopher fine-tuned voice models when they ship. Priority transcription. Unlimited journal retention.</div>
+        <span class="used">power tier · target ~$60/yr or lifetime</span>
+      </div>
+      <div class="method">
+        <div class="sig">Naming alternatives considered</div>
+        <div class="desc">Pupil / Companion / Disciple (relational) · Logos / Phronēsis / Sophia (pure Greek, on-brand but intimidating). Locked in <b>Seeker / Examined / Sage</b> for accessibility + aspirational positioning. Foundational philosopher named <b>Enki</b> on 2026-04-27.</div>
+        <span class="used">decision · 2026-04-27</span>
+      </div>
+    </div>
+
+    <h3 class="sub">Architecture</h3>
+    <pre style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 16px;overflow-x:auto;line-height:1.5;color:var(--ink);">
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  iOS app    │    │ Android app │    │  G2 glasses │
+│ (companion) │    │ (companion) │    │  (WebView)  │
+└──────┬──────┘    └──────┬──────┘    └──────┬──────┘
+       │                  │                  │
+       │   Supabase Auth: magic link, Apple, Google
+       │                  │                  │
+       └────────┬─────────┴──────────────────┘
+                │  (JWT bearer token)
+                ▼
+       ┌──────────────────┐
+       │  Vercel proxy    │  ← OPENAI_API_KEY + SUPABASE_SERVICE_ROLE
+       │  /api/speak      │     stay server-side; G2 never sees them
+       │  /api/transcribe │
+       │  /api/sync/*     │  ← NEW: pull/push journal+habits+profile
+       │  /api/tier       │  ← NEW: returns user tier + entitlements
+       └────────┬─────────┘
+                │
+                ▼
+       ┌──────────────────┐
+       │  Supabase        │
+       │  • auth.users    │
+       │  • profiles      │
+       │  • subscriptions │
+       │  • journal_sessions │
+       │  • action_items  │
+       │  • habits        │
+       │  • habit_check_ins  │
+       │  • weekly_overviews │
+       └──────────────────┘</pre>
+    <p class="lede">Auth happens on the companion phone app (G2 has no keyboard). Session token gets written to <code>bridge.localStorage</code> as <code>auth_token</code> and the glasses code reads it on every backend call. Phone app + glasses share the same backend account because they share the same token.</p>
+
+    <h3 class="sub">Schema (run once in Supabase SQL editor)</h3>
+    <pre style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 16px;overflow-x:auto;line-height:1.45;color:var(--ink);font-size:11.5px;">
+-- profiles (1:1 with auth.users)
+create table profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  name text, language text default 'en', pronouns text,
+  life_role text, current_focus text,
+  challenges jsonb default '[]', values jsonb default '[]',
+  preferences jsonb default '{}', guidelines jsonb default '[]',
+  tier text not null default 'seeker',     -- seeker | examined | sage
+  tier_until timestamptz,
+  stripe_customer_id text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  tier text not null,
+  status text not null,                    -- active | past_due | canceled | trialing
+  stripe_sub_id text unique,
+  current_period_start timestamptz,
+  current_period_end timestamptz,
+  created_at timestamptz default now()
+);
+
+create table journal_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  date date not null,
+  phil_id text not null, phil_name text not null, tradition text,
+  start_ts timestamptz not null, end_ts timestamptz not null,
+  exchanges jsonb not null,
+  cross_context_used text, device_id text,
+  created_at timestamptz default now()
+);
+create index on journal_sessions(user_id, date desc);
+create index on journal_sessions(user_id, phil_id);
+
+create table action_items (
+  id text primary key,                     -- &lt;session_id&gt;-&lt;idx&gt;
+  user_id uuid not null references auth.users(id) on delete cascade,
+  session_id text, phil_name text, tradition text,
+  date date not null,
+  title text not null, detail text, source text, theme text,
+  done boolean default false, done_at timestamptz,
+  created_at timestamptz default now()
+);
+create index on action_items(user_id, date desc);
+
+create table habits (
+  id text primary key,                     -- matches favorited action.id
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null, detail text, source text,
+  phil_name text, phil_id text, tradition text,
+  themes jsonb default '[]', tag_hints jsonb default '[]',
+  quote jsonb,
+  active boolean default true,
+  streak int default 0, best_streak int default 0,
+  last_done_date date, last_check_in_date date,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table habit_check_ins (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  habit_id text not null references habits(id) on delete cascade,
+  for_date date not null,                  -- the day being reviewed
+  status text not null,                    -- done | missed | skipped
+  ts timestamptz not null,
+  unique(habit_id, for_date)
+);
+
+create table weekly_overviews (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  week_key text not null,                  -- YYYY-WW
+  problems jsonb not null,
+  generated_at timestamptz default now(),
+  primary key(user_id, week_key)
+);
+
+-- Row-level security: every table is users-can-only-see-their-own
+alter table profiles            enable row level security;
+alter table journal_sessions    enable row level security;
+alter table action_items        enable row level security;
+alter table habits              enable row level security;
+alter table habit_check_ins     enable row level security;
+alter table weekly_overviews    enable row level security;
+
+create policy "own profile"  on profiles            using (user_id = auth.uid());
+create policy "own journal"  on journal_sessions    using (user_id = auth.uid());
+create policy "own actions"  on action_items        using (user_id = auth.uid());
+create policy "own habits"   on habits              using (user_id = auth.uid());
+create policy "own checkins" on habit_check_ins     using (user_id = auth.uid());
+create policy "own weekly"   on weekly_overviews    using (user_id = auth.uid());
+</pre>
+
+    <h3 class="sub">Entitlement matrix (server-enforced in /api/speak + /api/transcribe)</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--gold);">
+          <th style="padding:8px 10px;">Entitlement</th>
+          <th style="padding:8px 10px;">Seeker</th>
+          <th style="padding:8px 10px;">Examined</th>
+          <th style="padding:8px 10px;">Sage</th>
+        </tr>
+      </thead>
+      <tbody style="color:var(--ink);">
+        <tr style="border-bottom:1px solid var(--border);background:rgba(212,175,55,0.06);"><td style="padding:6px 10px;"><b>Enki</b> (foundational)</td><td style="padding:6px 10px;">Free Enki</td><td style="padding:6px 10px;">Deep Enki</td><td style="padding:6px 10px;">Uncapped Enki</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Other historical philosophers (17)</td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">All 17</td><td style="padding:6px 10px;">All 17 + custom</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Quotes-on-glass corpus</td><td style="padding:6px 10px;">Full</td><td style="padding:6px 10px;">Full</td><td style="padding:6px 10px;">Full</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Speak / day</td><td style="padding:6px 10px;">5</td><td style="padding:6px 10px;">∞</td><td style="padding:6px 10px;">∞</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Conversation history depth (turns sent to GPT)</td><td style="padding:6px 10px;">10</td><td style="padding:6px 10px;">40</td><td style="padding:6px 10px;">RAG over full journal</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">UserProfile depth in prompt</td><td style="padding:6px 10px;">Surface only</td><td style="padding:6px 10px;">Full ABOUT THIS PERSON</td><td style="padding:6px 10px;">Full + persistent semantic memory</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Cross-philosopher awareness</td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">14-day quiet awareness</td><td style="padding:6px 10px;">Full narrative across all convos</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Weekly action plan</td><td style="padding:6px 10px;">1 problem max</td><td style="padding:6px 10px;">∞</td><td style="padding:6px 10px;">∞</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Habits (active)</td><td style="padding:6px 10px;">1</td><td style="padding:6px 10px;">5</td><td style="padding:6px 10px;">∞</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Cross-device sync</td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">✓</td><td style="padding:6px 10px;">✓</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Journal retention</td><td style="padding:6px 10px;">30 days</td><td style="padding:6px 10px;">1 year</td><td style="padding:6px 10px;">∞</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Stock GPT-4o voice</td><td style="padding:6px 10px;">✓</td><td style="padding:6px 10px;">✓</td><td style="padding:6px 10px;">✓</td></tr>
+        <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 10px;">Book-RAG voice (Tier 2)</td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">✓</td><td style="padding:6px 10px;">✓</td></tr>
+        <tr><td style="padding:6px 10px;">Mini-philosopher fine-tunes (Tier 3)</td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">✓</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:11.5px;color:var(--dim);margin-top:6px;">Always enforce server-side. Client-side checks are UX only — trivially bypassed. Hardcode the matrix in a Vercel function or seed a <code>tier_entitlements</code> table.</p>
+
+    <h3 class="sub">Sync strategy (local-first, last-write-wins)</h3>
+    <div class="grid-2">
+      <div class="method">
+        <div class="sig">On app open</div>
+        <div class="desc">Pull last 30 days of journal + all habits + active week's overview + profile. Hydrate local stores. Cloud wins on conflict.</div>
+        <span class="used">single round trip · roughly &lt; 100 KB for typical user</span>
+      </div>
+      <div class="method">
+        <div class="sig">On every write</div>
+        <div class="desc">UI updates instantly from local state. Background fire-and-forget upsert to <code>/api/sync/push</code>. Failed writes queue locally and drain on reconnect.</div>
+        <span class="used">checkpointSession · favoriteAsHabit · setActionDone · saveProfile</span>
+      </div>
+      <div class="method">
+        <div class="sig">Conflict resolution</div>
+        <div class="desc">Journal sessions are append-only with stable UUIDs — no real conflict. Profile + habits use last-write-wins by <code>updated_at</code>.</div>
+        <span class="used">acceptable for personal-journal app · rarely two simultaneous devices</span>
+      </div>
+      <div class="method">
+        <div class="sig">Offline mode</div>
+        <div class="desc">Existing <code>bridge.localStorage</code> is the local cache. App functions fully offline; queued writes drain on reconnect.</div>
+        <span class="used">no extra work — local-first is already how everything is wired</span>
+      </div>
+    </div>
+
+    <h3 class="sub">Build phases (smallest valuable cuts first)</h3>
+    <div class="grid-2">
+      <div class="method">
+        <div class="sig">Phase 1 — Auth scaffolding</div>
+        <div class="desc">Spin up Supabase project. Add Sign-in screen to companion dashboard. Apple + Google OAuth + magic link via Supabase JS. Store tokens in bridge.localStorage. New <code>/api/me</code> validates token. All other endpoints require bearer.</div>
+        <span class="used">no tier gating yet · auth alone</span>
+      </div>
+      <div class="method">
+        <div class="sig">Phase 2 — Backup-only sync</div>
+        <div class="desc">Schema + RLS in Supabase. <code>/api/sync/push</code> upserts journal/habits/profile. Client pushes on every checkpoint + state change (debounced). Cloud now safely shadows local.</div>
+        <span class="used">ship value: cloud backup · no UI change yet</span>
+      </div>
+      <div class="method">
+        <div class="sig">Phase 3 — Hydrate from cloud</div>
+        <div class="desc"><code>/api/sync/pull</code> returns full user state. Client merges on app open (cloud wins for all fields). This is when cross-device actually works.</div>
+        <span class="used">ship value: log in on iOS, see Android's journal</span>
+      </div>
+      <div class="method">
+        <div class="sig">Phase 4 — Tier system + Stripe</div>
+        <div class="desc"><code>tier</code> column + entitlement checks in <code>/api/speak</code> + <code>/api/transcribe</code>. Stripe webhook updates <code>subscriptions</code> + <code>profiles.tier</code>. Locked-philosopher UI hint.</div>
+        <span class="used">ship value: revenue</span>
+      </div>
+      <div class="method">
+        <div class="sig">Phase 5 — Polish</div>
+        <div class="desc">Subscription management UI (cancel, change plan, restore). Retention enforcement (delete &gt; 30 days for Seekers). Conflict-resolution edge cases. Receipt validation for App Store / Play.</div>
+        <span class="used">last-mile work · post-launch</span>
+      </div>
+    </div>
+
+    <h3 class="sub">UX decision: Speak is gated, quotes-on-glass stays free</h3>
+    <p>The original product — philosophy quotes auto-rotating on the G2 — should remain available without an account. That's the friction-to-first-value hook. Account creation is only required when a user opens Speak (the philosopher conversation feature). All Seeker-tier features are advertised; locked features show a "Examined or Sage required" hint with a one-tap upgrade flow.</p>
+
+    <h3 class="sub">When ready to start Phase 1</h3>
+    <p>Create the Supabase project, run the schema SQL above, enable Apple + Google OAuth providers. Drop the project URL + anon key (both are public-safe — only the <code>service_role</code> key is secret) into the team chat or paste into Claude. Then we scaffold the Sign-in screen, token storage, <code>/api/me</code>, and auth-header injection across the existing endpoints.</p>
+  </section>
+
   <!-- ═══ UPDATE LOG ═══ -->
   <section>
     <h2>Update log</h2>

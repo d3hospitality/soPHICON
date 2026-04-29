@@ -73,18 +73,46 @@ export function isoWeekKey(d: Date = new Date()): string {
   return `${date.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }
 
-/** Human-friendly week label: "Apr 27 → May 3" */
-export function weekRangeLabel(weekKey: string): string {
+/** Compute the Monday of an ISO week-key as a UTC Date. */
+function isoWeekMonday(weekKey: string): Date | null {
   const m = /^(\d{4})-W(\d{2})$/.exec(weekKey);
-  if (!m) return weekKey;
-  const [_, y, w] = m;
-  // ISO week 1 contains Jan 4. Find Monday of that week, then offset.
-  const jan4 = new Date(Date.UTC(+y, 0, 4));
+  if (!m) return null;
+  const jan4 = new Date(Date.UTC(+m[1], 0, 4));
   const jan4Day = jan4.getUTCDay() || 7;
   const monW1 = new Date(jan4);
   monW1.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
   const mon = new Date(monW1);
-  mon.setUTCDate(monW1.getUTCDate() + (parseInt(w) - 1) * 7);
+  mon.setUTCDate(monW1.getUTCDate() + (parseInt(m[2]) - 1) * 7);
+  return mon;
+}
+
+/** Calendar-month-relative week label: "2026 // APRIL // W1".
+ * The month is whichever calendar month contains the Thursday of the
+ * ISO week (matches how most people informally talk about "the first
+ * week of April"). The W-number is the count of Mondays of that month
+ * up to and including this week's Monday. */
+export function weekDisplayLabel(weekKey: string): string {
+  const mon = isoWeekMonday(weekKey);
+  if (!mon) return weekKey;
+  const thu = new Date(mon);
+  thu.setUTCDate(mon.getUTCDate() + 3);
+  const year = thu.getUTCFullYear();
+  const monthName = thu.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' }).toUpperCase();
+  // Count Mondays in month up to and including this week's Monday.
+  const monthIdx = thu.getUTCMonth();
+  const firstOfMonth = new Date(Date.UTC(year, monthIdx, 1));
+  const firstDow = firstOfMonth.getUTCDay() || 7;            // 1..7 (Mon..Sun)
+  const firstMondayDay = 1 + ((8 - firstDow) % 7);            // day-of-month of 1st Mon
+  // Monday of THIS week falls on which Monday-of-month?
+  const monThuDay = mon.getUTCDate();
+  const wInMonth = Math.floor((monThuDay - firstMondayDay) / 7) + 1;
+  return `${year} // ${monthName} // W${wInMonth}`;
+}
+
+/** Date-range form, kept for any UI surface that wants it: "Apr 27 → May 3" */
+export function weekRangeLabel(weekKey: string): string {
+  const mon = isoWeekMonday(weekKey);
+  if (!mon) return weekKey;
   const sun = new Date(mon);
   sun.setUTCDate(mon.getUTCDate() + 6);
   const fmt = (d: Date) =>

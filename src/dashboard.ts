@@ -28,7 +28,7 @@ import {
   startMindfulness, stopMindfulness, loadMindfulConfig, getMindfulConfig,
 } from './events';
 import { pushSprite, getSpritePushLog, clearSpriteCache } from './image-utils';
-import { loadJournal, JournalSession, SpeakMessage } from './speak';
+import { loadJournal, JournalSession, SpeakMessage, loadActionItems } from './speak';
 import {
   WeeklyOverview, WeeklyProblem, WeeklyAction, Category, Quadrant, QUADRANTS,
   isoWeekKey, weekRangeLabel, weekDisplayLabel, shiftWeek,
@@ -95,7 +95,15 @@ function initTabs(): void {
       });
       // Refresh debug view whenever debug tab opened
       if (tab === 'debug') refreshPushLog();
+      // Force-refresh the journal whenever Journal tab is opened so newly-
+      // checkpointed conversations always appear without the user needing
+      // to reload the dashboard.
       if (tab === 'journal') refreshJournal().catch(() => {});
+      // Home tab → refresh Today card + habits card (both pull from journal)
+      if (tab === 'home') {
+        renderTodayCard().catch(() => {});
+        renderHabits().catch(() => {});
+      }
     });
   });
 
@@ -375,17 +383,17 @@ function renderCalendar(): void {
   $('cal-next')?.addEventListener('click', () => { calCursor = new Date(year, month + 1, 1); renderCalendar(); });
 
   host.querySelectorAll<HTMLElement>('.cal-cell[data-date]').forEach(cell => {
-    cell.addEventListener('click', () => {
+    cell.addEventListener('click', async () => {
       const k = cell.dataset.date;
       if (!k || !byDate.has(k)) return;
       selectedDate = k;
       renderCalendar();
-      renderSessionDetail(k, byDate.get(k) || []);
+      await renderSessionDetail(k, byDate.get(k) || []);
     });
   });
 }
 
-function renderSessionDetail(date: string, sessions: JournalSession[]): void {
+async function renderSessionDetail(date: string, sessions: JournalSession[]): Promise<void> {
   const host = $('session-detail');
   const badge = $('session-detail-badge');
   if (!host) return;
@@ -396,7 +404,74 @@ function renderSessionDetail(date: string, sessions: JournalSession[]): void {
     return;
   }
 
-  const html = sessions.map(s => {
+  // ── Daily overview rollup ────────────────────────────────────────
+  const sortedSessions = [...sessions].sort((a, b) => a.startTs - b.startTs);
+  const totalTurns = sessions.reduce((sum, s) => sum + s.exchanges.length, 0);
+  const userTurns = sessions.reduce((sum, s) => sum + s.exchanges.filter(m => m.role === 'user').length, 0);
+  const philsCount = new Map<string, number>();
+  for (const s of sessions) {
+    philsCount.set(s.philName, (philsCount.get(s.philName) || 0) + 1);
+  }
+  const philsList = [...philsCount.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([n, c]) => c > 1 ? `${n} (×${c})` : n);
+
+  // Mood distribution across user turns
+  const moodCount = new Map<string, number>();
+  for (const s of sessions) {
+    for (const m of s.exchanges) {
+      if (m.role === 'user' && m.userMood && m.userMood !== 'neutral') {
+        moodCount.set(m.userMood, (moodCount.get(m.userMood) || 0) + 1);
+      }
+    }
+  }
+  const topMoods = [...moodCount.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([m, c]) => c > 1 ? `${m} (${c})` : m);
+
+  // Action items extracted on this date (across all today's sessions)
+  let actionsToday: any[] = [];
+  try {
+    const items = await loadActionItems();
+    actionsToday = items.filter(it => it.date === date);
+  } catch {}
+
+  const firstTime = new Date(sortedSessions[0].startTs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const lastTime = new Date(sortedSessions[sortedSessions.length - 1].endTs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const range = sessions.length > 1 ? `${firstTime} → ${lastTime}` : firstTime;
+
+  const overviewHtml = `
+    <div class="day-overview">
+      <div class="day-overview-row">
+        <div class="day-stat"><div class="day-stat-v">${sessions.length}</div><div class="day-stat-k">session${sessions.length === 1 ? '' : 's'}</div></div>
+        <div class="day-stat"><div class="day-stat-v">${philsCount.size}</div><div class="day-stat-k">philosopher${philsCount.size === 1 ? '' : 's'}</div></div>
+        <div class="day-stat"><div class="day-stat-v">${userTurns}</div><div class="day-stat-k">your turn${userTurns === 1 ? '' : 's'}</div></div>
+        <div class="day-stat"><div class="day-stat-v">${actionsToday.length}</div><div class="day-stat-k">action${actionsToday.length === 1 ? '' : 's'}</div></div>
+      </div>
+      <div class="day-overview-meta">
+        <div><span class="meta-k">Time:</span> ${range}</div>
+        <div><span class="meta-k">With:</span> ${philsList.join(' · ')}</div>
+        ${topMoods.length ? `<div><span class="meta-k">Moods:</span> ${topMoods.join(' · ')}</div>` : ''}
+      </div>
+      ${actionsToday.length ? `
+        <details class="day-actions">
+          <summary>${actionsToday.length} action item${actionsToday.length === 1 ? '' : 's'} extracted today</summary>
+          <ul class="day-actions-list">
+            ${actionsToday.slice(0, 8).map(a => `
+              <li>
+                <div class="day-action-title">${escapeHtml(a.title)}</div>
+                <div class="day-action-meta">${escapeHtml(a.philName)} · ${escapeHtml(a.theme || '')}</div>
+              </li>
+            `).join('')}
+          </ul>
+        </details>
+      ` : ''}
+    </div>
+  `;
+
+  // ── Sessions: collapsible per-philosopher blocks ──────────────────
+  const sessionsHtml = sortedSessions.map((s, i) => {
     const time = new Date(s.startTs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     const turnsHtml = s.exchanges.map((m: SpeakMessage) => {
       const who = m.role === 'user' ? 'You' : s.philName;
@@ -408,14 +483,20 @@ function renderSessionDetail(date: string, sessions: JournalSession[]): void {
         <div class="content">${escapeHtml(m.content)}</div>
       </div>`;
     }).join('');
-    return `<div class="mt-md">
-      <div style="font-size:12px; color: var(--dim); font-family: var(--mono); margin-bottom: 6px;">
-        ${s.philName} (${s.tradition}) · ${time} · ${s.exchanges.length} turn${s.exchanges.length === 1 ? '' : 's'}
-      </div>
-      ${turnsHtml}
-    </div>`;
+    // Only the most recent session opens by default
+    const openAttr = i === sortedSessions.length - 1 ? ' open' : '';
+    return `<details class="session-block"${openAttr}>
+      <summary class="session-summary">
+        <span class="session-phil">${escapeHtml(s.philName)}</span>
+        <span class="session-trad">${escapeHtml(s.tradition)}</span>
+        <span class="session-time">${time}</span>
+        <span class="session-turns">${s.exchanges.length} turn${s.exchanges.length === 1 ? '' : 's'}</span>
+      </summary>
+      <div class="session-body">${turnsHtml}</div>
+    </details>`;
   }).join('');
-  host.innerHTML = html;
+
+  host.innerHTML = overviewHtml + sessionsHtml;
 }
 
 function escapeHtml(s: string): string {
@@ -637,13 +718,50 @@ async function initWeeklyPanel(): Promise<void> {
     }
   });
 
+  // Prev/next week navigation. We cap forward navigation at +4 weeks
+  // past the current ISO week — generating action plans for 3+ months
+  // out is meaningless and the empty-state UI starts to feel broken.
+  // Backward is uncapped (can scroll into past indefinitely).
+  const MAX_FUTURE_WEEKS = 4;
+
   $('weekly-prev')?.addEventListener('click', async () => {
-    currentWeekKey = shiftWeek(currentWeekKey, -1);
-    await loadAndRenderCurrentWeek();
+    try {
+      const next = shiftWeek(currentWeekKey, -1);
+      console.log('[WEEKLY] ‹ prev', currentWeekKey, '→', next);
+      if (next === currentWeekKey) return;  // safety: shiftWeek failed
+      currentWeekKey = next;
+      await loadAndRenderCurrentWeek();
+    } catch (e) {
+      console.error('[WEEKLY] prev failed', e);
+      setWeeklyStatus(`prev failed: ${(e as any)?.message || e}`);
+    }
   });
   $('weekly-next')?.addEventListener('click', async () => {
-    currentWeekKey = shiftWeek(currentWeekKey, +1);
-    await loadAndRenderCurrentWeek();
+    try {
+      const next = shiftWeek(currentWeekKey, +1);
+      console.log('[WEEKLY] › next', currentWeekKey, '→', next);
+      if (next === currentWeekKey) {
+        console.warn('[WEEKLY] shiftWeek returned same key — invalid weekKey?', currentWeekKey);
+        setWeeklyStatus(`Can't advance — weekKey malformed: ${currentWeekKey}`);
+        return;
+      }
+      // Enforce forward cap relative to TODAY's ISO week
+      const today = isoWeekKey();
+      const todayMon = isoWeekMondayLocal(today);
+      const nextMon  = isoWeekMondayLocal(next);
+      if (todayMon && nextMon) {
+        const weeksAhead = Math.round((+nextMon - +todayMon) / (7 * 86400000));
+        if (weeksAhead > MAX_FUTURE_WEEKS) {
+          setWeeklyStatus(`Forward capped at +${MAX_FUTURE_WEEKS} weeks. Plan further out by living it first.`);
+          return;
+        }
+      }
+      currentWeekKey = next;
+      await loadAndRenderCurrentWeek();
+    } catch (e) {
+      console.error('[WEEKLY] next failed', e);
+      setWeeklyStatus(`next failed: ${(e as any)?.message || e}`);
+    }
   });
 
   // Modal close + actions
@@ -677,6 +795,44 @@ async function initWeeklyPanel(): Promise<void> {
 function setWeeklyStatus(msg: string): void {
   const el = $('weekly-status');
   if (el) el.textContent = msg;
+}
+
+/** Monday of an ISO weekKey as a UTC Date (local-only mirror of weekly.ts
+ * isoWeekMonday — kept here so dashboard doesn't need that internal). */
+function isoWeekMondayLocal(weekKey: string): Date | null {
+  const m = /^(\d{4})-W(\d{2})$/.exec(weekKey);
+  if (!m) return null;
+  const jan4 = new Date(Date.UTC(+m[1], 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const monW1 = new Date(jan4);
+  monW1.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+  const mon = new Date(monW1);
+  mon.setUTCDate(monW1.getUTCDate() + (parseInt(m[2]) - 1) * 7);
+  return mon;
+}
+
+/** Disable prev/next buttons at sensible bounds + show visual state. */
+function updateWeekNavBounds(): void {
+  const prevBtn = $('weekly-prev') as HTMLButtonElement | null;
+  const nextBtn = $('weekly-next') as HTMLButtonElement | null;
+  if (!prevBtn || !nextBtn) return;
+  // Prev: never disabled (you can always look back)
+  prevBtn.disabled = false;
+  prevBtn.title = 'Previous week';
+  // Next: disabled if we're already 4+ weeks ahead of current week
+  const today = isoWeekKey();
+  const cur   = isoWeekMondayLocal(currentWeekKey);
+  const tod   = isoWeekMondayLocal(today);
+  if (cur && tod) {
+    const ahead = Math.round((+cur - +tod) / (7 * 86400000));
+    if (ahead >= 4) {
+      nextBtn.disabled = true;
+      nextBtn.title = 'Forward capped at +4 weeks';
+      return;
+    }
+  }
+  nextBtn.disabled = false;
+  nextBtn.title = 'Next week';
 }
 
 /** Filter journal to sessions within the same ISO week. */
@@ -729,6 +885,7 @@ async function renderWeekly(): Promise<void> {
   const isThisWeek = currentWeekKey === isoWeekKey();
   titleEl.textContent = weekDisplayLabel(currentWeekKey);
   keyEl.textContent = `${weekRangeLabel(currentWeekKey)}${isThisWeek ? ' · current' : ''}`;
+  updateWeekNavBounds();
 
   // Body
   if (!currentOverview || currentOverview.problems.length === 0) {
@@ -933,6 +1090,72 @@ function closeProblemModal(): void {
   modal.classList.remove('show');
   modal.setAttribute('aria-hidden', 'true');
   activeProblemId = null;
+}
+
+// ─── TODAY CARD (Home tab) ───────────────────────────────────────────
+// Compact "what's already happened today" card — tap it to jump to the
+// Journal tab with today selected. Updates whenever Home reopens or a
+// new session lands.
+async function renderTodayCard(): Promise<void> {
+  const card = $('today-card');
+  const body = $('today-body');
+  const empty = $('today-empty');
+  if (!card || !body || !empty) return;
+
+  const journal = await loadJournal();
+  const todayKeyStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  })();
+  const todays = journal.filter(s => s.date === todayKeyStr).sort((a, b) => a.startTs - b.startTs);
+
+  if (todays.length === 0) {
+    body.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const totalTurns = todays.reduce((sum, s) => sum + s.exchanges.length, 0);
+  const userTurns = todays.reduce((sum, s) => sum + s.exchanges.filter(m => m.role === 'user').length, 0);
+  const philsCount = new Map<string, number>();
+  for (const s of todays) philsCount.set(s.philName, (philsCount.get(s.philName) || 0) + 1);
+  const last = todays[todays.length - 1];
+  const lastTime = new Date(last.endTs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const minsAgo = Math.max(1, Math.round((Date.now() - last.endTs) / 60000));
+  const ago = minsAgo < 60 ? `${minsAgo}m ago` : minsAgo < 1440 ? `${Math.round(minsAgo/60)}h ago` : 'earlier today';
+
+  // Pull today's actions count
+  let actionsCount = 0;
+  try {
+    const items = await loadActionItems();
+    actionsCount = items.filter(it => it.date === todayKeyStr).length;
+  } catch {}
+
+  body.innerHTML = `
+    <div class="today-stats">
+      <div class="today-stat"><div class="v">${todays.length}</div><div class="k">session${todays.length === 1 ? '' : 's'}</div></div>
+      <div class="today-stat"><div class="v">${philsCount.size}</div><div class="k">philosopher${philsCount.size === 1 ? '' : 's'}</div></div>
+      <div class="today-stat"><div class="v">${userTurns}</div><div class="k">turns</div></div>
+      <div class="today-stat"><div class="v">${actionsCount}</div><div class="k">action${actionsCount === 1 ? '' : 's'}</div></div>
+    </div>
+    <div class="today-last">
+      <span class="today-last-label">Last:</span>
+      <span class="today-last-phil">${escapeHtml(last.philName)}</span>
+      <span class="today-last-time">${lastTime} · ${ago}</span>
+    </div>
+    <div class="today-cta muted">Tap to open today's journal →</div>
+  `;
+  // Card click → jump to journal tab and select today
+  card.onclick = () => {
+    const journalBtn = document.querySelector<HTMLElement>('.tab-btn[data-tab="journal"]');
+    journalBtn?.click();
+    // After the journal tab refreshes, click today's cell
+    setTimeout(() => {
+      const todayCell = document.querySelector<HTMLElement>(`.cal-cell[data-date="${todayKeyStr}"]`);
+      todayCell?.click();
+    }, 80);
+  };
 }
 
 // ─── HABITS CARD + DAILY CHECK-IN ───────────────────────────────────
@@ -1162,6 +1385,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   await refreshJournal();
   await initWeeklyPanel();
   await renderHabits();
+  await renderTodayCard();
 
   // Daily check-in modal — surfaces when the user has habits whose
   // last check-in is older than yesterday. Wire close affordance once.
@@ -1175,8 +1399,13 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   // user exits speak-conversation (checkpoint just fired)
   onGlassesStateChange((s) => {
     applyGlassState(s);
-    // Any transition OUT of speak-conversation → journal likely changed
-    if (s.page !== 'speak-conversation') refreshJournal().catch(() => {});
+    // Any transition OUT of speak-conversation → journal likely changed.
+    // Also refresh the Today card + Habits since both pull from the journal.
+    if (s.page !== 'speak-conversation') {
+      refreshJournal().catch(() => {});
+      renderTodayCard().catch(() => {});
+      renderHabits().catch(() => {});
+    }
   });
   log('[DASHBOARD] Ready', 'success');
 }

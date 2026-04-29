@@ -67,6 +67,12 @@ let currentPersona: Persona | null = null;
 let currentPhilId: string = "";
 let conversationHistory: SpeakMessage[] = [];
 let isRecording = false;
+// Tracks whether the current in-flight conversation has already been
+// flushed to speak_journal. Set true after the first successful
+// saveJournal in checkpointSession; reset to false in startConversation.
+// Prevents lifecycle handlers (FOREGROUND_EXIT etc.) from double-writing
+// when the user ALSO explicitly double-taps back later, or vice versa.
+let currentSessionCheckpointed: boolean = false;
 
 // Audio
 let audioChunks: Uint8Array[] = [];
@@ -140,10 +146,16 @@ export async function loadJournal(): Promise<JournalSession[]> {
 }
 
 async function saveJournal(all: JournalSession[]): Promise<void> {
-  if (!bridgeRef) return;
+  if (!bridgeRef) {
+    log("[JOURNAL] saveJournal skipped — bridgeRef is null", "error");
+    return;
+  }
   try {
-    await bridgeRef.setLocalStorage(JOURNAL_KEY, JSON.stringify(all));
+    const payload = JSON.stringify(all);
+    await bridgeRef.setLocalStorage(JOURNAL_KEY, payload);
+    log(`[JOURNAL] saved ${all.length} sessions (${payload.length} chars)`);
   } catch (e) {
+    log(`[JOURNAL] saveJournal FAILED: ${(e as any)?.message || e}`, "error");
     console.error("[SPEAK] saveJournal failed:", e);
   }
 }
@@ -157,7 +169,17 @@ async function saveJournal(all: JournalSession[]): Promise<void> {
  * time without replacing prior entries.
  */
 export async function checkpointSession(philName: string, tradition: string): Promise<void> {
-  if (!currentPhilId || conversationHistory.length === 0) return;
+  if (!currentPhilId || conversationHistory.length === 0) {
+    log(`[JOURNAL] skip checkpoint — pid='${currentPhilId}', turns=${conversationHistory.length}`);
+    return;
+  }
+  // Idempotency: same conversation may be checkpointed by multiple paths
+  // (explicit double-tap-back AND a subsequent FOREGROUND_EXIT lifecycle
+  // event, for example). Don't double-write.
+  if (currentSessionCheckpointed) {
+    log(`[JOURNAL] skip checkpoint — already saved this session`);
+    return;
+  }
   const now = Date.now();
   const firstTurn = conversationHistory.find(m => m.ts)?.ts ?? now;
   const today = new Date(firstTurn);
@@ -174,7 +196,8 @@ export async function checkpointSession(philName: string, tradition: string): Pr
   const all = await loadJournal();
   all.push(session);
   await saveJournal(all);
-  log(`[JOURNAL] checkpointed ${session.exchanges.length}-turn session with ${philName}`);
+  currentSessionCheckpointed = true;
+  log(`[JOURNAL] ✓ checkpointed ${session.exchanges.length}-turn session with ${philName} (journal now ${all.length} sessions)`);
 
   // Fire-and-forget: extract action items from JUST this session and stack
   // onto the all-time action-items store. Errors are swallowed; we don't
@@ -362,6 +385,7 @@ export async function startConversation(philId: string): Promise<{ opening: stri
   currentPersona = p;
   currentPhilId = philId;
   isRecording = false;
+  currentSessionCheckpointed = false;   // fresh conversation, can be journaled once
 
   // Restore prior history (if any)
   conversationHistory = await loadHistory(philId);
@@ -727,5 +751,6 @@ export function endConversation(): void {
   currentPhilId = "";
   conversationHistory = [];
   isRecording = false;
+  currentSessionCheckpointed = false;
   log("[SPEAK] Conversation ended");
 }

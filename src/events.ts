@@ -783,9 +783,21 @@ async function handleQuoteScroll(bridge: EvenAppBridge, baseUrl: string, dir: "u
 }
 
 // ═══ LIFECYCLE CLEANUP (wired from sysEvent 5/6/7) ═══
+//
+// CRITICAL: any time we exit a Speak conversation we MUST checkpoint
+// the session into the dated journal (speak_journal). Without this, only
+// explicit "double-tap-back" exits get journaled — backgrounding the app,
+// abnormal exits, system kills, glasses powering off all leave the
+// conversation stranded in the per-philosopher running buffer and the
+// journal never sees it. checkpointSession is idempotent (guarded by
+// currentSessionCheckpointed) so calling it from multiple paths is safe.
 async function onAppBackgrounded(): Promise<void> {
   cancelPendingResponseSprite();
   cancelMindfulTimers();
+  if (speakPhilosopher && speakTradition) {
+    try { await checkpointSession(speakPhilosopher.name, speakTradition); }
+    catch (e) { console.error("[LIFECYCLE] checkpoint failed", e); }
+  }
   try { await flushHistory(); } catch (e) { console.error("[LIFECYCLE] flush failed", e); }
   stopAutoRotate();
 }
@@ -794,6 +806,10 @@ async function onAppExiting(bridge: EvenAppBridge): Promise<void> {
   cancelPendingResponseSprite();
   cancelMindfulTimers();
   try { if (isCurrentlyRecording()) await bridge.audioControl(false); } catch {}
+  if (speakPhilosopher && speakTradition) {
+    try { await checkpointSession(speakPhilosopher.name, speakTradition); }
+    catch (e) { console.error("[LIFECYCLE] checkpoint failed", e); }
+  }
   try { await flushHistory(); } catch {}
   stopAutoRotate();
 }
