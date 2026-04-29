@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>soΦcon</title>
-  <script type="module" crossorigin src="./assets/index-CdKEJHHv.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-DpG9UUo5.css">
+  <script type="module" crossorigin src="./assets/index-DnCSkrUi.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BOyER3bQ.css">
 </head>
 <body>
   <div id="app">
@@ -64,6 +64,19 @@
             No action plan for this week yet. Have a few Speak conversations,
             then click <em>Generate this week</em>.
           </div>
+        </div>
+      </div>
+
+      <!-- Today's Activity — tap to jump to Journal at today -->
+      <div class="card today-card" id="today-card" role="button" tabindex="0" aria-label="Open today's journal">
+        <div class="card-header">
+          <span class="today-dot"></span>
+          Today
+          <span class="badge muted" id="today-date-badge"></span>
+        </div>
+        <div class="card-body">
+          <div id="today-body"></div>
+          <div class="muted" id="today-empty">No conversations yet today. Open Speak on the glasses to start one.</div>
         </div>
       </div>
 
