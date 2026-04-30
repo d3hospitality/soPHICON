@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>soΦcon</title>
-  <script type="module" crossorigin src="./assets/index-DnCSkrUi.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-BOyER3bQ.css">
+  <title>enkiSPEAKS</title>
+  <script type="module" crossorigin src="./assets/index-Bckee1x6.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BESR6d0t.css">
 </head>
 <body>
   <div id="app">
@@ -13,7 +13,7 @@
     <!-- Header -->
     <div class="header">
       <div>
-        <h1>so<span class="phi">Φ</span>con</h1>
+        <h1>enki<span class="speaks">SPEAKS</span></h1>
         <div class="tagline">Philosophy / On Glass</div>
       </div>
       <div class="header-spacer"></div>
@@ -64,6 +64,22 @@
             No action plan for this week yet. Have a few Speak conversations,
             then click <em>Generate this week</em>.
           </div>
+        </div>
+      </div>
+
+      <!-- Philosopher Select Mirror — only visible while on a philosopher-select page on glasses -->
+      <div class="card phil-mirror-card" id="phil-mirror-card" style="display:none">
+        <div class="card-header">
+          <span class="phil-mirror-dot"></span>
+          <span id="phil-mirror-title">Selecting philosopher</span>
+          <span class="badge muted" id="phil-mirror-tradition">—</span>
+        </div>
+        <div class="card-body">
+          <div class="phil-mirror-row">
+            <ul class="phil-mirror-list" id="phil-mirror-list"></ul>
+            <div class="phil-mirror-sprite" id="phil-mirror-sprite"></div>
+          </div>
+          <div class="phil-mirror-hint muted">Scroll the ring on your glasses or click here — they sync.</div>
         </div>
       </div>
 
@@ -301,7 +317,7 @@
     <!-- ABOUT -->
     <div class="tab-panel" data-panel="about">
       <div class="card">
-        <div class="card-header">soΦcon G2</div>
+        <div class="card-header">enkiSPEAKS</div>
         <div class="card-body">
           <p>Philosophy on Glass. <strong>2,801 quotes</strong> across 17 philosophers and 8 traditions.</p>
           <p class="mt-md muted">Built with Vite + TypeScript + <code>@evenrealities/even_hub_sdk</code>.</p>
