@@ -632,11 +632,14 @@ export function buildSpeakConversationPage(
   const clampedIdx = Math.max(0, Math.min(pageIndex, pages.length - 1));
   const shownChunk = pages.length > 0 ? pages[clampedIdx] : `${philosopherName}: ${responseText}`;
 
-  // Status prefix — ASCII-only (LVGL font on-glass doesn't have ●, ◦,
-  // ⋯ or most block/arrow characters; using them shows empty tofu boxes).
+  // Status prefix — visual mic states (LVGL font does render these
+  // geometric glyphs; our earlier ASCII-only theory was wrong).
+  //   ● Listening   — mic open, capturing
+  //   ■ Thinking    — request in flight to /api/speak
+  //   □ Tap to speak — idle, mic closed, waiting for user
   const status = isThinking
-    ? "... Thinking"
-    : (isListening ? "Listening... (tap to send)" : "Tap to speak");
+    ? "■ Thinking"
+    : (isListening ? "● Listening (tap to send)" : "□ Tap to speak");
   const pageMarker = pages.length > 1 ? `  [${clampedIdx + 1}/${pages.length}]` : "";
   const visibleContent = capForGlass(`${status}${pageMarker}\n${shownChunk}`);
 
@@ -735,10 +738,11 @@ export function composeSpeakResponseContent(
   const fallback = `${philosopherName}: ${responseText}`;
   const clampedIdx = Math.max(0, Math.min(pageIndex, Math.max(0, pages.length - 1)));
   const shown = pages.length > 0 ? pages[clampedIdx] : fallback;
-  // ASCII-safe status (LVGL font has no ●, ◦, ⋯ glyphs on-glass)
+  // Visual mic states — same as buildSpeakConversationPage.
+  //   ● Listening   ■ Thinking   □ Tap to speak
   const status = isThinking
-    ? "... Thinking"
-    : (isListening ? "Listening... (tap to send)" : "Tap to speak");
+    ? "■ Thinking"
+    : (isListening ? "● Listening (tap to send)" : "□ Tap to speak");
   const marker = pages.length > 1 ? `  [${clampedIdx + 1}/${pages.length}]` : "";
   return capForGlass(`${status}${marker}\n${shown}`);
 }
