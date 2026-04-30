@@ -14,6 +14,22 @@ set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
+# Defensive: clear any stale git index lock left over from a crashed
+# git operation in a previous shell. Only deletes if it's older than
+# 30 seconds AND zero-byte (a real running git op would have a fresh
+# non-empty lock). Prevents the "fatal: Unable to create .git/index.lock"
+# trap that bites every time the previous publish was interrupted.
+if [ -f .git/index.lock ]; then
+  if [ ! -s .git/index.lock ] && [ -z "$(find .git/index.lock -mmin -0.5 2>/dev/null)" ]; then
+    echo "  ⚠  removing stale .git/index.lock (zero-byte, older than 30s)"
+    rm -f .git/index.lock
+  else
+    echo "  ⚠  .git/index.lock exists and looks active — bailing out"
+    echo "     If you're sure no git is running:  rm -f .git/index.lock"
+    exit 1
+  fi
+fi
+
 echo ""
 echo "========================================"
 echo "  1/4  push main to origin"

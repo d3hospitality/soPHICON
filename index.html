@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>soΦcon</title>
+  <title>enkiSPEAKS</title>
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -12,7 +12,7 @@
     <!-- Header -->
     <div class="header">
       <div>
-        <h1>so<span class="phi">Φ</span>con</h1>
+        <h1>enki<span class="speaks">SPEAKS</span></h1>
         <div class="tagline">Philosophy / On Glass</div>
       </div>
       <div class="header-spacer"></div>
@@ -66,6 +66,22 @@
         </div>
       </div>
 
+      <!-- Philosopher Select Mirror — only visible while on a philosopher-select page on glasses -->
+      <div class="card phil-mirror-card" id="phil-mirror-card" style="display:none">
+        <div class="card-header">
+          <span class="phil-mirror-dot"></span>
+          <span id="phil-mirror-title">Selecting philosopher</span>
+          <span class="badge muted" id="phil-mirror-tradition">—</span>
+        </div>
+        <div class="card-body">
+          <div class="phil-mirror-row">
+            <ul class="phil-mirror-list" id="phil-mirror-list"></ul>
+            <div class="phil-mirror-sprite" id="phil-mirror-sprite"></div>
+          </div>
+          <div class="phil-mirror-hint muted">Scroll the ring on your glasses or click here — they sync.</div>
+        </div>
+      </div>
+
       <!-- Today's Activity — tap to jump to Journal at today -->
       <div class="card today-card" id="today-card" role="button" tabindex="0" aria-label="Open today's journal">
         <div class="card-header">
@@ -76,6 +92,47 @@
         <div class="card-body">
           <div id="today-body"></div>
           <div class="muted" id="today-empty">No conversations yet today. Open Speak on the glasses to start one.</div>
+        </div>
+      </div>
+
+      <!-- Today's 1-3-5 — daily action cockpit (1 big + 3 medium + 5 small).
+           Lenses: size, domain, Eisenhower quadrant, stoic control axis.
+           Reflection loop, quote attachment, and calendar integration come
+           in follow-up steps; this is the foundational data + add/check UI. -->
+      <div class="card checklist-card" id="today-checklist">
+        <div class="card-header">
+          <span class="checklist-mark">⊙</span>
+          Today's 1-3-5
+          <span class="badge muted" id="checklist-progress">0 / 0</span>
+        </div>
+        <div class="card-body">
+          <div class="checklist-section" data-size="big">
+            <div class="checklist-section-head">
+              <span class="checklist-bucket-label">1 BIG</span>
+              <span class="checklist-section-hint muted">your one heavyweight</span>
+            </div>
+            <ul class="checklist-list" id="checklist-big"></ul>
+            <button class="checklist-add" data-size="big">+ add a big focus</button>
+            <div class="checklist-add-form" data-size="big" hidden></div>
+          </div>
+          <div class="checklist-section" data-size="medium">
+            <div class="checklist-section-head">
+              <span class="checklist-bucket-label">3 MEDIUM</span>
+              <span class="checklist-section-hint muted">substantial blocks</span>
+            </div>
+            <ul class="checklist-list" id="checklist-medium"></ul>
+            <button class="checklist-add" data-size="medium">+ add a medium task</button>
+            <div class="checklist-add-form" data-size="medium" hidden></div>
+          </div>
+          <div class="checklist-section" data-size="small">
+            <div class="checklist-section-head">
+              <span class="checklist-bucket-label">5 SMALL</span>
+              <span class="checklist-section-hint muted">quick wins</span>
+            </div>
+            <ul class="checklist-list" id="checklist-small"></ul>
+            <button class="checklist-add" data-size="small">+ add a small win</button>
+            <div class="checklist-add-form" data-size="small" hidden></div>
+          </div>
         </div>
       </div>
 
@@ -300,7 +357,7 @@
     <!-- ABOUT -->
     <div class="tab-panel" data-panel="about">
       <div class="card">
-        <div class="card-header">soΦcon G2</div>
+        <div class="card-header">enkiSPEAKS</div>
         <div class="card-body">
           <p>Philosophy on Glass. <strong>2,801 quotes</strong> across 17 philosophers and 8 traditions.</p>
           <p class="mt-md muted">Built with Vite + TypeScript + <code>@evenrealities/even_hub_sdk</code>.</p>

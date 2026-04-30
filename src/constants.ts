@@ -7,7 +7,7 @@
 
 export const DISPLAY = { WIDTH: 576, HEIGHT: 288 } as const;
 
-export const TRADITIONS = ["Greek", "Stoicism", "Epicureanism", "Taoism", "Confucianism", "Buddhist", "Vedanta", "Islamic"] as const;
+export const TRADITIONS = ["Primordial", "Greek", "Stoicism", "Epicureanism", "Taoism", "Confucianism", "Buddhist", "Vedanta", "Islamic"] as const;
 export type Tradition = typeof TRADITIONS[number];
 
 export const EMOTIONS = ["conviction", "wonder", "serenity", "defiance", "sorrow", "urgency", "contemplation", "joy", "compassion", "awe"] as const;
@@ -47,6 +47,13 @@ export interface Philosopher {
 }
 
 export const PHILOSOPHERS: Philosopher[] = [
+  {
+    name: "Enki",
+    tradition: "Primordial",
+    philId: "enki",
+    dominantEmotions: ["contemplation", "compassion", "teaching"],
+    quotes: [],
+  },
   {
     name: "Socrates",
     tradition: "Greek",
@@ -2992,6 +2999,15 @@ export const PHILOSOPHERS: Philosopher[] = [
 
 export function getPhilosophersByTradition(tradition: Tradition): Philosopher[] {
   return PHILOSOPHERS.filter(p => p.tradition === tradition);
+}
+
+/** Like getPhilosophersByTradition, but filters out philosophers who have
+ * no quotes (e.g. Enki — he's the AI companion, not a quote source).
+ * Use this in BROWSE / PICKS / quote-viewer paths so empty-quote
+ * philosophers don't appear there. Speak paths keep using the unfiltered
+ * version so Enki still shows up on the Speak philosopher list. */
+export function getQuotePhilosophersByTradition(tradition: Tradition): Philosopher[] {
+  return PHILOSOPHERS.filter(p => p.tradition === tradition && p.quotes.length > 0);
 }
 
 export function getAllQuotes(philosopher: Philosopher): Quote[] {

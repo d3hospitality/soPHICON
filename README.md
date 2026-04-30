@@ -1,4 +1,6 @@
-# soΦcon — soPHICON
+# enkiSPEAKS — soPHICON G2
+
+> _Consumer-facing brand: **enkiSPEAKS**. Internal codebase, repo, and platform layer remain **soPHICON**._
 
 **Philosophy on Glass** — a conversational quote experience for Even Realities G2 smart glasses.
 
@@ -11,7 +13,7 @@
 Two modes on a single Even Hub app:
 
 1. **Browse** — ring-navigate tradition → philosopher → mindstate → quote, with emotion-reactive pixel-art philosopher sprites. 2,801 quotes auto-rotate every 33 seconds.
-2. **soPHICON Speaks** — voice conversations with any philosopher via GPT-4o. Transcribed from the on-glass mic, persona-driven responses, emotion parsed out of each reply. Conversation history persists per philosopher in `bridge.setLocalStorage`, so you resume mid-thought next time.
+2. **enkiSPEAKS** — voice conversations with any philosopher via GPT-4o. Transcribed from the on-glass mic, persona-driven responses, emotion parsed out of each reply. Conversation history persists per philosopher in `bridge.setLocalStorage`, so you resume mid-thought next time.
 
 ## Demos
 

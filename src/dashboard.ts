@@ -25,6 +25,7 @@ import {
 } from './constants';
 import {
   onGlassesStateChange, GlassesState,
+  getPhilsForCurrentSelectPage, setHoveredPhilosopherFromDashboard,
   startMindfulness, stopMindfulness, loadMindfulConfig, getMindfulConfig,
 } from './events';
 import { pushSprite, getSpritePushLog, clearSpriteCache } from './image-utils';
@@ -44,6 +45,13 @@ import {
 import {
   UserProfile, LANGUAGES, setProfileBridge, loadProfile, saveProfile,
 } from './profile';
+import {
+  ChecklistItem, Size, Domain, Quadrant as ChecklistQuadrant, ControlAxis,
+  DOMAINS, QUADRANTS as CHECKLIST_QUADRANTS, CONTROL_AXES,
+  setChecklistBridge, loadToday, addItem, completeItem, uncompleteItem,
+  deleteItem,
+} from './checklist';
+import { CATEGORY_HUE } from './weekly';
 import { log } from './ui';
 
 // ─── Handles we fill in initDashboard ─────────────────────────────
@@ -78,6 +86,12 @@ function pageSubtext(s: GlassesState): string {
     if (s.speakListening) bits.push('● listening');
     return bits.join(' · ');
   }
+  // Mirror the live ring-scroll on philosopher-select pages:
+  // "Marcus Aurelius · 5/7 in Stoicism"
+  if ((s.page === 'philosophers' || s.page === 'speak-philosophers') && s.hoveredPhilosopher) {
+    const h = s.hoveredPhilosopher;
+    return `${h.name} · ${h.index + 1}/${h.total} in ${h.tradition}`;
+  }
   if (s.philosopher) return s.philosopher.name;
   if (s.tradition) return s.tradition;
   return '';
@@ -103,6 +117,7 @@ function initTabs(): void {
       if (tab === 'home') {
         renderTodayCard().catch(() => {});
         renderHabits().catch(() => {});
+        renderChecklist().catch(() => {});
       }
     });
   });
@@ -131,7 +146,88 @@ const PLACEHOLDER_SVG = `
     <line x1="16" y1="6" x2="16" y2="26"/>
   </svg>`;
 
+// ─── PHILOSOPHER SELECT MIRROR (Home tab card) ───────────────────────
+// Live-mirrors the philosopher-select page on the glasses: shows the
+// same list the glasses are showing, highlights the hovered item as the
+// user scrolls the ring, displays a 200×200 sprite preview alongside.
+// Clicking an item in this list pushes the corresponding philosopher's
+// sprite to the glasses' sprite container (best-effort — we can't
+// programmatically scroll the glass list highlighter, just the sprite).
+
+let lastMirrorTradition: string | null = null;
+let lastMirrorPhilCount: number = 0;
+
+function renderPhilSelectMirror(s: GlassesState): void {
+  const card  = $('phil-mirror-card');
+  const list  = $('phil-mirror-list');
+  const sprite = $('phil-mirror-sprite');
+  const trad  = $('phil-mirror-tradition');
+  const title = $('phil-mirror-title');
+  if (!card || !list || !sprite || !trad || !title) return;
+
+  const onSelect = s.page === 'philosophers' || s.page === 'speak-philosophers';
+  if (!onSelect) {
+    card.style.display = 'none';
+    lastMirrorTradition = null;
+    lastMirrorPhilCount = 0;
+    return;
+  }
+  card.style.display = '';
+
+  // Header
+  title.textContent = s.page === 'philosophers' ? 'Browsing philosophers' : 'Speak — pick a philosopher';
+  trad.textContent = (s.tradition || s.hoveredPhilosopher?.tradition || '—');
+
+  // Re-render the list only when tradition or list-size changes (avoids
+  // wiping/rebuilding click handlers on every scroll event)
+  const traditionChanged = lastMirrorTradition !== s.tradition;
+  const totalNow = s.hoveredPhilosopher?.total || 0;
+  const sizeChanged = lastMirrorPhilCount !== totalNow;
+  if (traditionChanged || sizeChanged) {
+    const meta = getPhilsForCurrentSelectPage();
+    if (meta) {
+      list.innerHTML = meta.phils.map((p, i) => `
+        <li class="phil-mirror-item" data-i="${i}" data-phil-id="${p.philId}">
+          <span class="phil-mirror-num">${i + 1}</span>
+          <span class="phil-mirror-name">${escapeHtml(p.name)}</span>
+        </li>
+      `).join('');
+      // Wire clicks once
+      list.querySelectorAll<HTMLElement>('.phil-mirror-item').forEach(item => {
+        item.addEventListener('click', async () => {
+          const i = parseInt(item.dataset.i || '0', 10);
+          await setHoveredPhilosopherFromDashboard(i);
+        });
+      });
+    }
+    lastMirrorTradition = s.tradition;
+    lastMirrorPhilCount = totalNow;
+  }
+
+  // Highlight currently-hovered item
+  const hi = s.hoveredPhilosopher?.index ?? -1;
+  list.querySelectorAll<HTMLElement>('.phil-mirror-item').forEach((item, i) => {
+    item.classList.toggle('active', i === hi);
+  });
+
+  // Big sprite alongside the list — uses the same spritePath the glasses
+  // pushed (per-philosopher neutral). 200×200 so it actually reads.
+  if (s.spritePath) {
+    const url = spriteUrl(s.spritePath);
+    sprite.innerHTML = `<img src="${url}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'phil-mirror-fallback\\'>·</span>'"/>`;
+  } else if (s.hoveredPhilosopher) {
+    const fallbackPath = `${s.hoveredPhilosopher.philId}/${s.hoveredPhilosopher.philId}-neutral.png`;
+    const url = spriteUrl(fallbackPath);
+    sprite.innerHTML = `<img src="${url}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'phil-mirror-fallback\\'>·</span>'"/>`;
+  } else {
+    sprite.innerHTML = `<span class="phil-mirror-fallback">·</span>`;
+  }
+}
+
 function applyGlassState(s: GlassesState): void {
+  // Keep the philosopher-select mirror in sync first (it's prominent)
+  renderPhilSelectMirror(s);
+
   const badge = $('glasses-page-badge');
   const name = $('glasses-page-name');
   const sub = $('glasses-page-sub');
@@ -185,7 +281,9 @@ function renderPhilosopherGrid(): void {
 
   let html = '';
   for (const tradition of TRADITIONS) {
-    const phils = getPhilosophersByTradition(tradition as Tradition);
+    // Picks tab is the quote-browse path — filter out empty-quote
+    // philosophers (Enki etc.) so we don't show "0 quotes" cards.
+    const phils = getPhilosophersByTradition(tradition as Tradition).filter(p => p.quotes.length > 0);
     if (phils.length === 0) continue;
     html += `<div class="tradition-group">
       <div class="tradition-label">${tradition}</div>
@@ -1167,6 +1265,190 @@ async function renderTodayCard(): Promise<void> {
 // [habit] yesterday?" — yes / no / skip. Streaks are kept locally;
 // this is the Solo-Leveling daily-quest layer.
 
+// ─── TODAY'S 1-3-5 CHECKLIST PANEL ────────────────────────────────
+// Cockpit on the Home tab. Three buckets (1 BIG / 3 MEDIUM / 5 SMALL)
+// each rendered as <ul>; a dashed "+ add" button per bucket reveals an
+// inline form. All metadata lenses (size/domain/quadrant/controlAxis)
+// live on the same ChecklistItem object — for v1 we only surface
+// title + size + domain + quadrant + control axis at add-time.
+// Reflection loop, quote attachment, and calendar integration come
+// in follow-up steps once this foundation is solid.
+
+async function initChecklistPanel(): Promise<void> {
+  const card = $('today-checklist');
+  if (!card) return;
+
+  // Wire each bucket's "+ add" toggle once. The form hides itself after
+  // a successful save and on cancel.
+  card.querySelectorAll<HTMLElement>('.checklist-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const size = (btn.dataset.size || 'medium') as Size;
+      const form = card.querySelector<HTMLElement>(`.checklist-add-form[data-size="${size}"]`);
+      if (!form) return;
+      const isOpen = !form.hidden;
+      // Close all other forms first so only one is open at a time
+      card.querySelectorAll<HTMLElement>('.checklist-add-form').forEach(f => f.hidden = true);
+      if (isOpen) return;                  // toggle off
+      renderChecklistForm(form, size);
+    });
+  });
+
+  await renderChecklist();
+}
+
+/** Render the inline add-form for a given size bucket. */
+function renderChecklistForm(form: HTMLElement, size: Size): void {
+  form.hidden = false;
+  form.innerHTML = `
+    <input type="text" class="cl-add-title" placeholder="${
+      size === 'big' ? 'Your one heavyweight…' :
+      size === 'medium' ? 'A substantial block…' :
+      'A quick win…'
+    }" autocomplete="off" maxlength="160" />
+    <div class="checklist-add-form-row">
+      <select class="cl-add-domain" aria-label="domain">
+        ${DOMAINS.map(d => `<option value="${d}">${d}</option>`).join('')}
+      </select>
+      <select class="cl-add-quadrant" aria-label="quadrant">
+        ${CHECKLIST_QUADRANTS.map(q => {
+          const labels: Record<string, string> = {
+            Q1: 'Q1 · do first', Q2: 'Q2 · schedule',
+            Q3: 'Q3 · ask a philosopher', Q4: 'Q4 · question it',
+          };
+          return `<option value="${q}" ${q === 'Q2' ? 'selected' : ''}>${labels[q]}</option>`;
+        }).join('')}
+      </select>
+      <select class="cl-add-control" aria-label="control axis">
+        ${CONTROL_AXES.map(c => {
+          const labels: Record<string, string> = {
+            within: 'within control', influence: 'can influence', release: 'release',
+          };
+          return `<option value="${c}" ${c === 'within' ? 'selected' : ''}>${labels[c]}</option>`;
+        }).join('')}
+      </select>
+    </div>
+    <div class="checklist-add-form-actions">
+      <button class="cl-add-cancel" type="button">cancel</button>
+      <button class="cl-add-save primary" type="button">add</button>
+    </div>
+  `;
+
+  const titleInput = form.querySelector<HTMLInputElement>('.cl-add-title');
+  const domainSel = form.querySelector<HTMLSelectElement>('.cl-add-domain');
+  const quadSel = form.querySelector<HTMLSelectElement>('.cl-add-quadrant');
+  const ctrlSel = form.querySelector<HTMLSelectElement>('.cl-add-control');
+  const cancelBtn = form.querySelector<HTMLButtonElement>('.cl-add-cancel');
+  const saveBtn = form.querySelector<HTMLButtonElement>('.cl-add-save');
+
+  setTimeout(() => titleInput?.focus(), 30);  // post-paint focus
+
+  cancelBtn?.addEventListener('click', () => { form.hidden = true; });
+
+  const submit = async () => {
+    const title = (titleInput?.value || '').trim();
+    if (!title) { titleInput?.focus(); return; }
+    if (saveBtn) saveBtn.disabled = true;
+    try {
+      await addItem({
+        title,
+        size,
+        domain: (domainSel?.value || 'Other') as Domain,
+        quadrant: (quadSel?.value || 'Q2') as ChecklistQuadrant,
+        controlAxis: (ctrlSel?.value || 'within') as ControlAxis,
+        source: 'manual',
+      });
+      form.hidden = true;
+      await renderChecklist();
+    } catch (e) {
+      console.error('[CHECKLIST] add failed', e);
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  };
+
+  saveBtn?.addEventListener('click', submit);
+  titleInput?.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); submit(); }
+    if (ev.key === 'Escape') { form.hidden = true; }
+  });
+}
+
+/** Pull today's items from storage and re-render the three buckets. */
+async function renderChecklist(): Promise<void> {
+  const items = await loadToday();
+  const big    = items.filter(it => it.size === 'big');
+  const medium = items.filter(it => it.size === 'medium');
+  const small  = items.filter(it => it.size === 'small');
+
+  renderChecklistBucket('big', big, 1);
+  renderChecklistBucket('medium', medium, 3);
+  renderChecklistBucket('small', small, 5);
+
+  const progress = $('checklist-progress');
+  if (progress) {
+    const done = items.filter(it => it.completed).length;
+    progress.textContent = items.length === 0 ? '— / —' : `${done} / ${items.length}`;
+  }
+}
+
+function renderChecklistBucket(size: Size, items: ChecklistItem[], cap: number): void {
+  const list = $(`checklist-${size}`);
+  const addBtn = document.querySelector<HTMLButtonElement>(`.checklist-add[data-size="${size}"]`);
+  if (!list) return;
+
+  // Soft cap — disable the +add button when full but don't hide rows the
+  // user already created above the cap.
+  if (addBtn) {
+    addBtn.disabled = items.length >= cap;
+    addBtn.textContent = items.length >= cap
+      ? `${size} bucket full (${items.length}/${cap})`
+      : `+ add a ${size === 'big' ? 'big focus' : size === 'medium' ? 'medium task' : 'small win'}`;
+  }
+
+  if (items.length === 0) {
+    list.innerHTML = `<li class="checklist-empty">— nothing yet —</li>`;
+    return;
+  }
+  list.innerHTML = items.map(it => renderChecklistRow(it)).join('');
+  // Wire row event delegation
+  list.querySelectorAll<HTMLElement>('.checklist-row').forEach(row => {
+    const id = row.dataset.id || '';
+    const date = row.dataset.date || '';
+    if (!id || !date) return;
+    row.querySelector<HTMLElement>('.checklist-check')?.addEventListener('click', async () => {
+      const isChecked = row.classList.contains('is-done');
+      try {
+        if (isChecked) await uncompleteItem(date, id);
+        else           await completeItem(date, id);
+        await renderChecklist();
+      } catch (e) { console.error('[CHECKLIST] toggle failed', e); }
+    });
+    row.querySelector<HTMLElement>('.checklist-delete')?.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      try { await deleteItem(date, id); await renderChecklist(); }
+      catch (e) { console.error('[CHECKLIST] delete failed', e); }
+    });
+  });
+}
+
+function renderChecklistRow(it: ChecklistItem): string {
+  // Domain stripe color: reuse weekly's CATEGORY_HUE, fall back to gold
+  const stripe = (CATEGORY_HUE as any)[it.domain] || '#d6c45a';
+  const checkChar = it.completed ? '✓' : '';
+  const titleSafe = escapeHtml(it.title);
+  return `
+    <li class="checklist-row${it.completed ? ' is-done' : ''}"
+        data-id="${it.id}" data-date="${it.date}"
+        style="border-left-color: ${stripe};">
+      <div class="checklist-check${it.completed ? ' is-checked' : ''}"
+           role="checkbox" aria-checked="${it.completed}" tabindex="0">${checkChar}</div>
+      <div class="checklist-title" title="${titleSafe}">${titleSafe}</div>
+      <span class="checklist-domain-mini">${it.domain}</span>
+      <span class="checklist-q-badge q-${it.quadrant.toLowerCase()}">${it.quadrant}</span>
+      <button class="checklist-delete" type="button" aria-label="delete">×</button>
+    </li>
+  `;
+}
+
 async function renderHabits(): Promise<void> {
   const list = $('habit-list');
   const empty = $('habits-empty');
@@ -1373,6 +1655,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   setWeeklyBridge(b);
   setHabitsBridge(b);
   setProfileBridge(b);
+  setChecklistBridge(b);
 
   initTabs();
   initHomeStats();
@@ -1386,6 +1669,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   await initWeeklyPanel();
   await renderHabits();
   await renderTodayCard();
+  await initChecklistPanel();
 
   // Daily check-in modal — surfaces when the user has habits whose
   // last check-in is older than yesterday. Wire close affordance once.
