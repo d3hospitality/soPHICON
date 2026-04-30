@@ -34,14 +34,22 @@ import {
 } from './pages.layout';
 import {
   TRADITIONS, Tradition, Philosopher, Quote,
-  getPhilosophersByTradition,
+  getPhilosophersByTradition, getQuotePhilosophersByTradition,
   getRarity,
   capitalize, formatTag,
   getEmotionsForPhilosopher, getTagsForPhilosopher,
 } from './constants';
 
 // ═══ Constants consumed by events.ts ═══
-export const HOME_LIST_ITEMS = ["soPHICON Speaks", ...TRADITIONS];
+// Home page lists enkiSPEAKS first (the entry to voice conversations),
+// then ONLY traditions that have at least one quote-philosopher. Primordial
+// (Enki's tradition) is filtered out here because Enki has no quotes —
+// the home page is the quote-browse entry point. Enki stays reachable via
+// Speak → Primordial which uses an unfiltered list.
+export const BROWSABLE_TRADITIONS = TRADITIONS.filter(t =>
+  getQuotePhilosophersByTradition(t).length > 0
+);
+export const HOME_LIST_ITEMS = ["enkiSPEAKS", ...BROWSABLE_TRADITIONS];
 export const SPEAK_INDEX = 0;
 
 // Speak conversation text pagination — per glasses-ui skill, text
@@ -219,7 +227,7 @@ function homeContainers() {
   const title = new TextContainerProperty({
     ...geo(layout, "title"),
     containerID: 1, containerName: "title",
-    content: "G2 Enchiridion",
+    content: "enkiSPEAKS",
     isEventCapture: 0,
   });
   const traditions = new ListContainerProperty({
@@ -266,23 +274,33 @@ export function rebuildHomePage(): RebuildPageContainer {
 // S2 — PHILOSOPHER SELECT
 // ══════════════════════════════════════════════════════════════════
 
-export function buildPhilosopherSelectPage(tradition: Tradition): RebuildPageContainer {
+/** Picks/Browse philosopher-select page.
+ * Same navpad pattern as Speak — single TEXT container with capture,
+ * `► NAME ◄` cursor on the active philosopher, plain mixed-case for the
+ * rest. Filters out empty-quote philosophers (Enki etc.) so the
+ * quote-viewer flow doesn't surface them. */
+export function buildPhilosopherSelectPage(tradition: Tradition, index: number = 0): RebuildPageContainer {
   const layout = philosopherSelectLayout();
-  const philosophers = getPhilosophersByTradition(tradition);
-  const listItems = [...philosophers.map(p => p.name), "Back"];
+  const philosophers = getQuotePhilosophersByTradition(tradition);
+  const total = philosophers.length;
+  const idx = Math.max(0, Math.min(index, total - 1));
+
+  // Use renderNavpad: ASCII >  < cursor (G2 LVGL font lacks ► ◄ glyphs),
+  // windowed to 7 items so all rendered text fits in the 255px container
+  // and the firmware's internal scroll never competes with our textEvent.
+  const navText = total === 0
+    ? '(no philosophers)'
+    : renderNavpad(philosophers.map(p => p.name), idx, 7);
 
   const header = new TextContainerProperty({
     ...geo(layout, "header"),
     containerID: 1, containerName: "header",
     content: tradition, isEventCapture: 0,
   });
-  const philosopherList = new ListContainerProperty({
+  const navpad = new TextContainerProperty({
     ...geo(layout, "philosophers"),
     containerID: 2, containerName: "philosophers",
-    itemContainer: new ListItemContainerProperty({
-      itemCount: listItems.length, itemWidth: 0, isItemSelectBorderEn: 1,
-      itemName: listItems,
-    }),
+    content: navText,
     isEventCapture: 1,
   });
   const portraitTop = new ImageContainerProperty({
@@ -295,8 +313,8 @@ export function buildPhilosopherSelectPage(tradition: Tradition): RebuildPageCon
   });
   return new RebuildPageContainer({
     containerTotalNum: 4,
-    listObject: [philosopherList],
-    textObject: [header],
+    listObject: [],
+    textObject: [header, navpad],
     imageObject: [portraitTop, portraitBottom],
   });
 }
@@ -305,37 +323,35 @@ export function buildPhilosopherSelectPage(tradition: Tradition): RebuildPageCon
 // S3 — MINDSTATE BROWSE
 // ══════════════════════════════════════════════════════════════════
 
-export function buildMindstatePage(philosopher: Philosopher): RebuildPageContainer {
+/** Mindstate filter selection for a philosopher.
+ * Same navpad pattern as Picks/Speak — but the item set is rich
+ * (Shuffle + emotions + tags + Back). The currently-selected item
+ * gets the `► NAME ◄` cursor, and as the user scrolls onto an EMOTION
+ * item, the philosopher's sprite shifts to that emotion variant —
+ * scrolling becomes a live preview of the philosopher in that mood. */
+export function buildMindstatePage(philosopher: Philosopher, index: number = 0): RebuildPageContainer {
   const layout = mindstateLayout();
-  const emotions = getEmotionsForPhilosopher(philosopher);
-  const tags = getTagsForPhilosopher(philosopher, 8);
-  const allCount = philosopher.quotes.length;
+  const items = mindstateItemLabels(philosopher);
+  const total = items.length;
+  const idx = Math.max(0, Math.min(index, total - 1));
 
-  const listItems: string[] = [`Shuffle (${allCount})`];
-  for (const e of emotions) {
-    if (listItems.length >= 18) break;
-    const count = philosopher.quotes.filter(q => q.emotion === e).length;
-    listItems.push(`${capitalize(e)} (${count})`);
-  }
-  for (const t of tags) {
-    if (listItems.length >= 18) break;
-    const count = philosopher.quotes.filter(q => q.tags.includes(t)).length;
-    listItems.push(`On ${formatTag(t)} (${count})`);
-  }
-  listItems.push("Back");
+  // Use renderNavpad: ASCII >  < cursor (G2 LVGL font lacks ► ◄ glyphs),
+  // windowed to 7 items so emotion list fits in the 255px container and
+  // the firmware's internal scroll never competes with our textEvent —
+  // each ring scroll advances the cursor by exactly one item.
+  const navText = total === 0
+    ? '(no emotions)'
+    : renderNavpad(items, idx, 7);
 
   const header = new TextContainerProperty({
     ...geo(layout, "header"),
     containerID: 1, containerName: "header",
     content: philosopher.name, isEventCapture: 0,
   });
-  const mindList = new ListContainerProperty({
+  const navpad = new TextContainerProperty({
     ...geo(layout, "mindstates"),
     containerID: 2, containerName: "mindstates",
-    itemContainer: new ListItemContainerProperty({
-      itemCount: listItems.length, itemWidth: 0, isItemSelectBorderEn: 1,
-      itemName: listItems,
-    }),
+    content: navText,
     isEventCapture: 1,
   });
   const portraitTop = new ImageContainerProperty({
@@ -348,24 +364,53 @@ export function buildMindstatePage(philosopher: Philosopher): RebuildPageContain
   });
   return new RebuildPageContainer({
     containerTotalNum: 4,
-    listObject: [mindList],
-    textObject: [header],
+    listObject: [],
+    textObject: [header, navpad],
     imageObject: [portraitTop, portraitBottom],
   });
 }
 
+/** Mindstate page labels — emotions with quote counts. Matches the simple
+ * philosopher-navpad pattern. Click commits, double-click goes back. */
+export function mindstateItemLabels(philosopher: Philosopher): string[] {
+  const emotions = getEmotionsForPhilosopher(philosopher);
+  return emotions.map(e => {
+    const count = philosopher.quotes.filter(q => q.emotion === e).length;
+    return `${capitalize(e)} (${count})`;
+  });
+}
+
+/** Render a navpad-style list: cursor on `idx`, windowed so the
+ * rendered text always fits in the 255px text container (otherwise
+ * the firmware's internal scroll competes with our textEvent handling
+ * and the user has to scroll past invisible content before the cursor
+ * advances). Windows around the cursor, clamped at list edges. */
+function renderNavpad(items: string[], idx: number, windowSize: number = 7): string {
+  const total = items.length;
+  if (total === 0) return '';
+  const win = Math.min(windowSize, total);
+  const half = Math.floor(win / 2);
+  // Clamp window so cursor stays as centered as possible without going
+  // off-list at top or bottom.
+  let start = Math.max(0, Math.min(idx - half, total - win));
+  let end = start + win;
+  const lines: string[] = [];
+  for (let i = start; i < end; i++) {
+    if (i === idx) lines.push(`•  ${items[i].toUpperCase()}  •`);
+    else           lines.push(items[i]);
+  }
+  return lines.join('\n');
+}
+
+/** Just emotions now — same simple pattern as the philosopher navpads.
+ * Click on the navpad commits the highlighted emotion to the quote
+ * filter; double-click goes back. No more shuffle/tags/back items in
+ * the list itself. */
 export function getMindstateSelections(philosopher: Philosopher): {
-  type: "shuffle" | "emotion" | "tag" | "back";
+  type: "emotion";
   value: string;
 }[] {
-  const emotions = getEmotionsForPhilosopher(philosopher);
-  const tags = getTagsForPhilosopher(philosopher, 8);
-  const sel: { type: "shuffle" | "emotion" | "tag" | "back"; value: string }[] = [];
-  sel.push({ type: "shuffle", value: "" });
-  for (const e of emotions) { if (sel.length >= 18) break; sel.push({ type: "emotion", value: e }); }
-  for (const t of tags) { if (sel.length >= 18) break; sel.push({ type: "tag", value: t }); }
-  sel.push({ type: "back", value: "" });
-  return sel;
+  return getEmotionsForPhilosopher(philosopher).map(e => ({ type: "emotion" as const, value: e }));
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -448,7 +493,7 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
   const title = new TextContainerProperty({
     ...geo(layout, "title"),
     containerID: 1, containerName: "title",
-    content: "soPHICON Speaks",
+    content: "enkiSPEAKS",
     isEventCapture: 0,
   });
   const tradList = new ListContainerProperty({
@@ -480,23 +525,45 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
 // SPEAK — PHILOSOPHER SELECT
 // ══════════════════════════════════════════════════════════════════
 
-export function buildSpeakPhilosopherPage(tradition: Tradition): RebuildPageContainer {
+/** Speak — Philosopher Select.
+ * Renders the full philosopher list with a cursor (`►`) on the currently-
+ * selected one, framed by ↑/↓ glyphs hinting at the swipe gesture. The
+ * text container captures swipes (navigate up/down through the list)
+ * and clicks (commit selection / double-click to go back).
+ * State is owned by events.ts (see speakSelectedIndex). Webapp drives
+ * the same state via setSpeakSelectedIndex. */
+export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 0): RebuildPageContainer {
   const layout = speakPhilosopherLayout();
   const philosophers = getPhilosophersByTradition(tradition);
-  const listItems = [...philosophers.map(p => p.name), "Back"];
+  const total = philosophers.length;
+  const idx = Math.max(0, Math.min(index, total - 1));
+
+  // Compose the navpad text via renderNavpad. Shape:
+  //
+  //      Socrates
+  //   >  PLATO  <
+  //      Aristotle
+  //
+  // Selected item gets ASCII `>  NAME  <` cursor + uppercase (G2 LVGL
+  // font has no ► ◄ glyphs — they render as tofu boxes). Unselected
+  // items stay plain mixed-case. Block is centered both axes (line
+  // gravity + container gravity) so it aligns with the sprite at x=400.
+  // Windowed to 7 items so the rendered text fits in the 255px container
+  // and the firmware's internal scroll never competes with our textEvent.
+  const navText = total === 0
+    ? '(no philosophers)'
+    : renderNavpad(philosophers.map(p => p.name), idx, 7);
 
   const header = new TextContainerProperty({
     ...geo(layout, "header"),
     containerID: 1, containerName: "header",
     content: `Speak: ${tradition}`, isEventCapture: 0,
   });
-  const philosopherList = new ListContainerProperty({
-    ...geo(layout, "philosophers"),
-    containerID: 2, containerName: "philosophers",
-    itemContainer: new ListItemContainerProperty({
-      itemCount: listItems.length, itemWidth: 0, isItemSelectBorderEn: 1,
-      itemName: listItems,
-    }),
+  // Replaces the previous firmware-managed list. We control the cursor.
+  const navpad = new TextContainerProperty({
+    ...geo(layout, "navpad"),
+    containerID: 2, containerName: "navpad",
+    content: navText,
     isEventCapture: 1,
   });
   const portrait = new ImageContainerProperty({
@@ -506,13 +573,13 @@ export function buildSpeakPhilosopherPage(tradition: Tradition): RebuildPageCont
   const branding = new TextContainerProperty({
     ...geo(layout, "branding"),
     containerID: 4, containerName: "branding",
-    content: "soPHICON Speaks",
+    content: "enkiSPEAKS",
     isEventCapture: 0,
   });
   return new RebuildPageContainer({
     containerTotalNum: 4,
-    listObject: [philosopherList],
-    textObject: [header, branding],
+    listObject: [],
+    textObject: [header, navpad, branding],
     imageObject: [portrait],
   });
 }

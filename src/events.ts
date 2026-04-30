@@ -23,14 +23,14 @@
 import { EvenAppBridge, EvenHubEvent, OsEventTypeList } from '@evenrealities/even_hub_sdk';
 import {
   TRADITIONS, Tradition, Philosopher, Quote, PHILOSOPHERS,
-  getPhilosophersByTradition, getAllQuotes,
+  getPhilosophersByTradition, getQuotePhilosophersByTradition, getAllQuotes,
   getQuotesByEmotion, getQuotesByTag, capitalize, formatTag,
 } from './constants';
 import {
   rebuildHomePage, buildPhilosopherSelectPage,
   buildMindstatePage, getMindstateSelections,
   buildQuoteViewPage,
-  HOME_LIST_ITEMS, SPEAK_INDEX,
+  HOME_LIST_ITEMS, BROWSABLE_TRADITIONS, SPEAK_INDEX,
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
   buildSpeakConversationPage,
   speakConversationPageCount,
@@ -64,6 +64,17 @@ let shuffleMode: boolean = false;
 let speakTradition: Tradition | null = null;
 let speakPhilosopher: Philosopher | null = null;
 let speakPhilId: string = "";
+// Selected-index for the speak philosopher-select page. We own this state
+// since the page is no longer firmware-managed list — it's a TEXT-with-
+// capture nav-pad we render. Cycled by ring swipes (textEvent) AND by
+// webapp clicks. publishState mirrors it to the dashboard.
+let speakSelectedIndex: number = 0;
+// Same model for the Picks/Browse philosopher-select page.
+let picksSelectedIndex: number = 0;
+// Same model for the Mindstate emotion/tag-filter page. As the user
+// scrolls, the philosopher's sprite shifts to whichever emotion variant
+// matches the current item.
+let mindstateSelectedIndex: number = 0;
 let lastResponseText: string = "";
 // Paginated page index for the speak-conversation text window.
 // 0 = first page (oldest visible content); swipe down advances, swipe up reverses.
@@ -172,10 +183,10 @@ async function showMindfulQuote(bridge: EvenAppBridge): Promise<void> {
   currentPage = "mindful-quote";
 
   // Push the emotion sprite to the QuoteView page's sprite slot
-  // (containerID 3, "sprite", 120×120 per pages.layout.ts:191 — must match
+  // (containerID 3, "sprite", 100×100 per pages.layout.ts — must match
   // exactly or the G2 firmware silently rejects the image)
   if (pick.quote.sprite) {
-    try { await pushSpriteSingle(bridge, baseUrlRef, pick.quote.sprite, 3, "sprite", 120, 120); }
+    try { await pushSpriteSingle(bridge, baseUrlRef, pick.quote.sprite, 3, "sprite", 100, 100); }
     catch (e) { console.warn("[MINDFUL] sprite push failed", e); }
   }
 
@@ -246,6 +257,11 @@ export interface GlassesState {
   page: Page;
   tradition: string | null;
   philosopher: { name: string; philId: string } | null;
+  /** During philosopher-select pages (Picks browse OR Speak): the
+   * currently-highlighted philosopher as the user scrolls the ring,
+   * BEFORE they commit by clicking. Used by the dashboard to mirror
+   * the sprite + name in real time. Clears when leaving the select page. */
+  hoveredPhilosopher?: { name: string; philId: string; tradition: string; index: number; total: number } | null;
   filter?: string;
   quoteIndex?: number;
   quoteTotal?: number;
@@ -265,11 +281,190 @@ export function onGlassesStateChange(cb: GlassesStateListener): () => void {
   return () => { glassesStateListeners = glassesStateListeners.filter(l => l !== cb); };
 }
 export function getGlassesState(): GlassesState | null { return lastPublishedState; }
+
+/** Returns the philosopher array for the currently-active philosopher-
+ * select page (Picks browse OR Speak). Empty if not on a select page.
+ * Used by the dashboard to render its mirror UI with the same list the
+ * glasses are currently displaying. */
+export function getPhilsForCurrentSelectPage(): { tradition: string; phils: { name: string; philId: string }[] } | null {
+  if (currentPage === 'philosophers' && currentTradition) {
+    const arr = getQuotePhilosophersByTradition(currentTradition);
+    return { tradition: currentTradition, phils: arr.map(p => ({ name: p.name, philId: p.philId })) };
+  }
+  if (currentPage === 'speak-philosophers' && speakTradition) {
+    const arr = getPhilosophersByTradition(speakTradition);
+    return { tradition: speakTradition, phils: arr.map(p => ({ name: p.name, philId: p.philId })) };
+  }
+  return null;
+}
+
+/** Called from the dashboard when the user clicks a philosopher in the
+ * mirror UI. For Speak path, this fully drives our state (rebuilds the
+ * page on glasses, sprite + name update, list cursor follows our state).
+ * For Picks path, falls back to sprite-only mirror (firmware list there
+ * still owns the cursor). */
+export async function setHoveredPhilosopherFromDashboard(index: number): Promise<void> {
+  if (!bridgeRef) return;
+  if (currentPage === 'speak-philosophers' && speakTradition) {
+    await setSpeakSelectedIndex(index);
+  } else if (currentPage === 'philosophers' && currentTradition) {
+    await setPicksSelectedIndex(index);
+  }
+}
+
+/** Sets the speak-philosopher-select page to a specific index, rebuilds
+ * the page on the glasses (so the displayed name + sprite + position
+ * indicator all update), and publishes the new state to the dashboard.
+ * Single source of truth for "which philosopher is currently highlighted
+ * on the speak select page" — driven by ring swipes, ring clicks
+ * (committing), and webapp clicks. */
+/** Picks/Browse navpad: set the highlighted philosopher, rebuild the
+ * page, push the split portrait, publish state. Mirror of
+ * setSpeakSelectedIndex but for the quote-browse path. */
+async function setPicksSelectedIndex(index: number): Promise<void> {
+  if (!bridgeRef || !currentTradition) return;
+  const phils = getQuotePhilosophersByTradition(currentTradition);
+  if (phils.length === 0) return;
+  const wrapped = ((index % phils.length) + phils.length) % phils.length;
+  if (wrapped === picksSelectedIndex && lastHoveredPhilIndex === wrapped) return;
+  picksSelectedIndex = wrapped;
+  lastHoveredPhilIndex = wrapped;
+  const phil = phils[wrapped];
+  await bridgeRef.rebuildPageContainer(buildPhilosopherSelectPage(currentTradition, wrapped));
+  // Picks uses the split 200x200 portrait (top + bottom halves)
+  await pushPhilPortrait(bridgeRef, baseUrlRef, phil, 3, "portrait", 11, "portrait-2");
+  publishState({
+    hoveredPhilosopher: { name: phil.name, philId: phil.philId, tradition: currentTradition, index: wrapped, total: phils.length },
+    spritePath: `${phil.philId}/${phil.philId}-neutral.png`,
+  });
+  log(`[PICKS SELECT] ${phil.name} (${wrapped + 1}/${phils.length})`);
+}
+
+/** Picks navpad commit: navigate to the mindstate page for the
+ * highlighted philosopher. */
+async function commitPicksSelection(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  if (!currentTradition) return;
+  const phils = getQuotePhilosophersByTradition(currentTradition);
+  if (phils.length === 0) return;
+  const phil = phils[Math.max(0, Math.min(picksSelectedIndex, phils.length - 1))];
+  currentPhilosopher = phil;
+  mindstateSelectedIndex = 0;
+  await bridge.rebuildPageContainer(buildMindstatePage(phil, 0));
+  currentPage = "mindstate";
+  lastNavigationTime = Date.now();
+  await pushPhilPortrait(bridge, baseUrl, phil, 3, "portrait", 12, "portrait-2");
+  log(`> ${phil.name}`, "success");
+}
+
+/** Mindstate navpad: set the highlighted item, rebuild the page, push
+ * the right philosopher-emotion sprite, publish state. The sprite is
+ * the magic: when the cursor sits on an emotion item the sprite swaps
+ * to that emotion variant — scrolling becomes a live preview. Tags
+ * and shuffle/back fall back to neutral. */
+async function setMindstateSelectedIndex(index: number): Promise<void> {
+  if (!bridgeRef || !currentPhilosopher) return;
+  const selections = getMindstateSelections(currentPhilosopher);
+  if (selections.length === 0) return;
+  const wrapped = ((index % selections.length) + selections.length) % selections.length;
+  if (wrapped === mindstateSelectedIndex) return;
+  mindstateSelectedIndex = wrapped;
+  const phil = currentPhilosopher;
+  const emotion = selections[wrapped].value;
+  await bridgeRef.rebuildPageContainer(buildMindstatePage(phil, wrapped));
+  // Live preview: scrolling onto an emotion swaps the philosopher's
+  // sprite to that emotion variant. Names are canonical (from the
+  // curated quote data) so they map straight to sprite filenames.
+  await pushSpritesSplit(bridgeRef, baseUrlRef, `${phil.philId}/${phil.philId}-${emotion}.png`,
+                         3, "portrait", 12, "portrait-2");
+  publishState({ spritePath: `${phil.philId}/${phil.philId}-${emotion}.png` });
+  log(`[MINDSTATE] ${phil.name} · ${capitalize(emotion)} (${wrapped + 1}/${selections.length})`);
+}
+
+/** Mindstate navpad commit — filter quotes by the highlighted emotion
+ * and navigate to the quote viewer. */
+async function commitMindstateSelection(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  if (!currentPhilosopher) return;
+  const selections = getMindstateSelections(currentPhilosopher);
+  if (selections.length === 0) return;
+  const idx = Math.max(0, Math.min(mindstateSelectedIndex, selections.length - 1));
+  const emotion = selections[idx].value;
+  currentQuotes = getQuotesByEmotion(currentPhilosopher, emotion);
+  currentFilter = capitalize(emotion);
+  shuffleMode = false;
+  currentQuoteIndex = 0;
+  currentPage = 'quote';
+  lastNavigationTime = Date.now();
+  await showCurrentQuote(bridge, baseUrl);
+  startAutoRotate();
+  log(`> ${currentFilter} (${currentQuotes.length} quotes)`, 'success');
+}
+
+/** Commit the currently-highlighted speak philosopher: navigate the
+ * glasses into the speak-conversation page, start the persona session,
+ * push the opening sprite. Called from ring-click on the navpad AND
+ * (potentially) webapp commit. */
+async function commitSpeakSelection(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  if (!speakTradition) return;
+  const phils = getPhilosophersByTradition(speakTradition);
+  if (phils.length === 0) return;
+  const phil = phils[Math.max(0, Math.min(speakSelectedIndex, phils.length - 1))];
+  speakPhilosopher = phil;
+  speakPhilId = phil.philId;
+  lastNavigationTime = Date.now();
+  speakPageIndex = 0;
+  speakIsInitialized = false;
+  lastPushedEmotion = "";
+  const { opening, emotion } = await startConversation(speakPhilId);
+  lastResponseText = opening;
+  currentPage = "speak-conversation";
+  await renderSpeakPage(bridge, opening, false);
+  await updateEmotionSprite(bridge, baseUrl, emotion);
+  log(`> Speak: ${phil.name}`, "success");
+}
+
+async function setSpeakSelectedIndex(index: number): Promise<void> {
+  if (!bridgeRef || !speakTradition) return;
+  const phils = getPhilosophersByTradition(speakTradition);
+  if (phils.length === 0) return;
+  // Wrap-around — scrolling past the end loops to the beginning
+  const wrapped = ((index % phils.length) + phils.length) % phils.length;
+  if (wrapped === speakSelectedIndex && lastHoveredPhilIndex === wrapped) return;
+  speakSelectedIndex = wrapped;
+  lastHoveredPhilIndex = wrapped;
+  const phil = phils[wrapped];
+  // Rebuild the page so the displayed name + position indicator update.
+  // (Cheaper alternatives like updateTextContent could be wired later if
+  // ring response feels laggy.)
+  await bridgeRef.rebuildPageContainer(buildSpeakPhilosopherPage(speakTradition, wrapped));
+  // Push the sprite for the new philosopher
+  await pushSpriteSingle(bridgeRef, baseUrlRef, `${phil.philId}/${phil.philId}-neutral.png`, 3, "portrait", 100, 100);
+  publishState({
+    hoveredPhilosopher: { name: phil.name, philId: phil.philId, tradition: speakTradition, index: wrapped, total: phils.length },
+    spritePath: `${phil.philId}/${phil.philId}-neutral.png`,
+  });
+  log(`[SPEAK SELECT] ${phil.name} (${wrapped + 1}/${phils.length})`);
+}
 function publishState(extra: Partial<GlassesState> = {}): void {
+  // hoveredPhilosopher only makes sense while on a philosopher-select page;
+  // anywhere else, force-clear it so the dashboard's mirror UI knows to
+  // hide the live hover indicator.
+  const onSelectPage = currentPage === "philosophers" || currentPage === "speak-philosophers";
+  // Pick the *active* tradition based on which page we're on. Speak path
+  // uses speakTradition; everything else uses currentTradition. Without
+  // this, the dashboard's mirror-card tradition-change detection broke
+  // when navigating to Speak → Greek (s.tradition was null because
+  // currentTradition is null on the speak path) and the list never
+  // re-rendered.
+  const activeTradition =
+    (currentPage === "speak-philosophers" || currentPage === "speak-conversation" ||
+     currentPage === "speak-traditions")
+      ? speakTradition
+      : currentTradition;
   const s: GlassesState = {
     page: currentPage,
-    tradition: currentTradition,
+    tradition: activeTradition,
     philosopher: currentPhilosopher ? { name: currentPhilosopher.name, philId: currentPhilosopher.philId } : null,
+    hoveredPhilosopher: onSelectPage ? (extra.hoveredPhilosopher ?? lastPublishedState?.hoveredPhilosopher ?? null) : null,
     filter: currentFilter,
     quoteIndex: currentQuoteIndex,
     quoteTotal: currentQuotes.length,
@@ -278,6 +473,8 @@ function publishState(extra: Partial<GlassesState> = {}): void {
     speakPageIndex,
     ...extra,
   };
+  // If caller didn't override and we just left a select page, ensure cleared
+  if (!onSelectPage && !('hoveredPhilosopher' in extra)) s.hoveredPhilosopher = null;
   lastPublishedState = s;
   for (const cb of glassesStateListeners) { try { cb(s); } catch (e) { console.error("[state cb]", e); } }
 }
@@ -329,15 +526,15 @@ async function pushPhilPortrait(
   await pushSpritesSplit(bridge, baseUrl, `${phil.philId}/${phil.philId}-neutral.png`, topID, topName, botID, botName);
 }
 
-// ═══ PUSH EMOTION PORTRAIT (single 120x120 for speak conversation) ═══
+// ═══ PUSH EMOTION PORTRAIT (single 100x100 for speak conversation) ═══
 // Container size MUST match pages.layout.ts buildSpeakConversationPage —
-// containerID 1 'portrait' is declared 120×120. If we push a 100×100 PNG
-// the G2 firmware silently rejects it (simulator is more permissive).
+// containerID 1 'portrait' is declared 100×100. If we push a different
+// size the G2 firmware silently rejects it (simulator is more permissive).
 async function pushEmotionPortrait(
   bridge: EvenAppBridge, baseUrl: string, philId: string, emotion: string,
 ): Promise<void> {
   const sprite = emotionToSprite(philId, emotion);
-  await pushSpriteSingle(bridge, baseUrl, sprite, 1, "portrait", 120, 120);
+  await pushSpriteSingle(bridge, baseUrl, sprite, 1, "portrait", 100, 100);
 }
 
 // ═══ SHOW CURRENT QUOTE ═══
@@ -349,8 +546,8 @@ async function showCurrentQuote(bridge: EvenAppBridge, baseUrl: string): Promise
     buildQuoteViewPage(currentPhilosopher, quote, currentQuoteIndex, currentQuotes.length, fav, shuffleMode)
   );
   if (quote.sprite) {
-    // QuoteView container 3 'sprite' is 120×120 (pages.layout.ts:191) — push must match
-    await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 120, 120);
+    // QuoteView container 3 'sprite' is 100×100 (pages.layout.ts) — push must match
+    await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 100, 100);
   }
   log(`[${currentQuoteIndex + 1}/${currentQuotes.length}] ${capitalize(quote.emotion)} — "${quote.text.slice(0, 40)}..."`);
   publishState({ spritePath: quote.sprite });
@@ -360,7 +557,11 @@ async function showCurrentQuote(bridge: EvenAppBridge, baseUrl: string): Promise
 async function updatePhilosopherPortrait(
   bridge: EvenAppBridge, baseUrl: string, tradition: Tradition, index: number
 ): Promise<void> {
-  const phils = getPhilosophersByTradition(tradition);
+  // Match the array used by the displayed list: Picks/browse uses the
+  // quote-only filter (Enki etc. excluded), Speak uses the full list.
+  const phils = currentPage === "philosophers"
+    ? getQuotePhilosophersByTradition(tradition)
+    : getPhilosophersByTradition(tradition);
   if (index < 0 || index >= phils.length) return;
   if (index === lastHoveredPhilIndex) return;
   lastHoveredPhilIndex = index;
@@ -373,6 +574,18 @@ async function updatePhilosopherPortrait(
     await pushSpriteSingle(bridge, baseUrl, `${phil.philId}/${phil.philId}-neutral.png`, 3, "portrait", 100, 100);
   }
   log(`[HOVER] ${phil.name}`);
+
+  // Mirror the hover to the dashboard so the webapp can show the same
+  // philosopher (sprite + name) being highlighted on the glasses in
+  // real time. spritePath uses the per-philosopher neutral so the
+  // dashboard can render it via the same relative-path pipeline.
+  publishState({
+    hoveredPhilosopher: {
+      name: phil.name, philId: phil.philId, tradition,
+      index, total: phils.length,
+    },
+    spritePath: `${phil.philId}/${phil.philId}-neutral.png`,
+  });
 }
 
 // ═══ GO BACK ═══
@@ -394,7 +607,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       if (currentTradition) {
         await bridge.rebuildPageContainer(buildPhilosopherSelectPage(currentTradition));
         currentPage = "philosophers"; lastHoveredPhilIndex = -1; currentPhilosopher = null;
-        const phils = getPhilosophersByTradition(currentTradition);
+        const phils = getQuotePhilosophersByTradition(currentTradition);
         if (phils.length > 0) { await pushPhilPortrait(bridge, baseUrl, phils[0], 3, "portrait", 11, "portrait-2"); lastHoveredPhilIndex = 0; }
       }
       lastNavigationTime = Date.now();
@@ -424,10 +637,21 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       lastPushedEmotion = "";
       speakPageIndex = 0;
       if (speakTradition) {
-        await bridge.rebuildPageContainer(buildSpeakPhilosopherPage(speakTradition));
-        currentPage = "speak-philosophers"; lastHoveredPhilIndex = -1;
+        // Restore prior selection on the navpad when coming back from a
+        // conversation; if user came from a different tradition, reset to 0.
         const phils = getPhilosophersByTradition(speakTradition);
-        if (phils.length > 0) { await pushSpriteSingle(bridge, baseUrl, `${phils[0].philId}/${phils[0].philId}-neutral.png`, 3, "portrait", 100, 100); lastHoveredPhilIndex = 0; }
+        const idxToShow = Math.max(0, Math.min(speakSelectedIndex, phils.length - 1));
+        speakSelectedIndex = idxToShow;
+        await bridge.rebuildPageContainer(buildSpeakPhilosopherPage(speakTradition, idxToShow));
+        currentPage = "speak-philosophers"; lastHoveredPhilIndex = idxToShow;
+        if (phils.length > 0) {
+          const phil = phils[idxToShow];
+          await pushSpriteSingle(bridge, baseUrl, `${phil.philId}/${phil.philId}-neutral.png`, 3, "portrait", 100, 100);
+          publishState({
+            hoveredPhilosopher: { name: phil.name, philId: phil.philId, tradition: speakTradition, index: idxToShow, total: phils.length },
+            spritePath: `${phil.philId}/${phil.philId}-neutral.png`,
+          });
+        }
       }
       lastNavigationTime = Date.now();
       log("< Back to speak philosophers", "success");
@@ -662,14 +886,25 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         await pushLogoToGlasses(bridge, baseUrl);
         log("> soPHICON Speaks", "success");
       } else {
+        // Index into BROWSABLE_TRADITIONS, NOT the full TRADITIONS array.
+        // The home menu now hides traditions that have no quote-philosophers
+        // (e.g. Primordial), so the click index maps 1:1 to BROWSABLE_TRADITIONS.
         const tradIdx = idx - 1;
-        if (tradIdx >= 0 && tradIdx < TRADITIONS.length) {
-          currentTradition = TRADITIONS[tradIdx];
-          await bridge.rebuildPageContainer(buildPhilosopherSelectPage(currentTradition));
-          currentPage = "philosophers"; lastHoveredPhilIndex = -1;
+        if (tradIdx >= 0 && tradIdx < BROWSABLE_TRADITIONS.length) {
+          currentTradition = BROWSABLE_TRADITIONS[tradIdx];
+          picksSelectedIndex = 0;
+          await bridge.rebuildPageContainer(buildPhilosopherSelectPage(currentTradition, 0));
+          currentPage = "philosophers"; lastHoveredPhilIndex = 0;
           lastNavigationTime = Date.now();
-          const phils = getPhilosophersByTradition(currentTradition);
-          if (phils.length > 0) { await pushPhilPortrait(bridge, baseUrl, phils[0], 3, "portrait", 11, "portrait-2"); lastHoveredPhilIndex = 0; }
+          const phils = getQuotePhilosophersByTradition(currentTradition);
+          if (phils.length > 0) {
+            await pushPhilPortrait(bridge, baseUrl, phils[0], 3, "portrait", 11, "portrait-2");
+            // Publish initial hover so the dashboard mirror lights up immediately.
+            publishState({
+              hoveredPhilosopher: { name: phils[0].name, philId: phils[0].philId, tradition: currentTradition, index: 0, total: phils.length },
+              spritePath: `${phils[0].philId}/${phils[0].philId}-neutral.png`,
+            });
+          }
           log(`> ${currentTradition}`, "success");
         }
       }
@@ -678,7 +913,7 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
 
     // ── PHILOSOPHERS (quote browse) ──
     if (currentPage === "philosophers" && currentTradition) {
-      const phils = getPhilosophersByTradition(currentTradition);
+      const phils = getQuotePhilosophersByTradition(currentTradition);
       if (idx === phils.length) { navigating = false; await goBack(bridge, baseUrl); return; }
       if (idx >= 0 && idx < phils.length) {
         currentPhilosopher = phils[idx];
@@ -691,19 +926,9 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
     }
 
     // ── MINDSTATE ──
-    if (currentPage === "mindstate" && currentPhilosopher) {
-      const selections = getMindstateSelections(currentPhilosopher);
-      if (idx < 0 || idx >= selections.length) return;
-      const sel = selections[idx];
-      if (sel.type === "back") { navigating = false; await goBack(bridge, baseUrl); return; }
-      if (sel.type === "shuffle") { currentQuotes = shuffleArray(getAllQuotes(currentPhilosopher)); currentFilter = "Shuffle"; shuffleMode = true; }
-      else if (sel.type === "emotion") { currentQuotes = getQuotesByEmotion(currentPhilosopher, sel.value); currentFilter = capitalize(sel.value); shuffleMode = false; }
-      else if (sel.type === "tag") { currentQuotes = getQuotesByTag(currentPhilosopher, sel.value); currentFilter = formatTag(sel.value); shuffleMode = false; }
-      currentQuoteIndex = 0; currentPage = "quote"; lastNavigationTime = Date.now();
-      await showCurrentQuote(bridge, baseUrl); startAutoRotate();
-      log(`> ${currentFilter} (${currentQuotes.length} quotes)`, "success");
-      return;
-    }
+    // Mindstate now uses the navpad pattern (text-with-capture). Clicks
+    // arrive via sysEvent and are handled by commitMindstateSelection.
+    // The old listEvent click handler is dead code on this page.
 
     // ── QUOTE: click = reshuffle ──
     if (currentPage === "quote" && currentPhilosopher && currentQuotes.length > 0) {
@@ -718,10 +943,18 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
       if (idx === TRADITIONS.length) { navigating = false; await goBack(bridge, baseUrl); return; }
       if (idx >= 0 && idx < TRADITIONS.length) {
         speakTradition = TRADITIONS[idx];
-        await bridge.rebuildPageContainer(buildSpeakPhilosopherPage(speakTradition));
-        currentPage = "speak-philosophers"; lastHoveredPhilIndex = -1; lastNavigationTime = Date.now();
+        speakSelectedIndex = 0;
+        await bridge.rebuildPageContainer(buildSpeakPhilosopherPage(speakTradition, 0));
+        currentPage = "speak-philosophers"; lastHoveredPhilIndex = 0; lastNavigationTime = Date.now();
         const phils = getPhilosophersByTradition(speakTradition);
-        if (phils.length > 0) { await pushSpriteSingle(bridge, baseUrl, `${phils[0].philId}/${phils[0].philId}-neutral.png`, 3, "portrait", 100, 100); lastHoveredPhilIndex = 0; }
+        if (phils.length > 0) {
+          await pushSpriteSingle(bridge, baseUrl, `${phils[0].philId}/${phils[0].philId}-neutral.png`, 3, "portrait", 100, 100);
+          // Publish initial hover so the dashboard mirror lights up immediately.
+          publishState({
+            hoveredPhilosopher: { name: phils[0].name, philId: phils[0].philId, tradition: speakTradition, index: 0, total: phils.length },
+            spritePath: `${phils[0].philId}/${phils[0].philId}-neutral.png`,
+          });
+        }
         log(`> Speak: ${speakTradition}`, "success");
       }
       return;
@@ -843,6 +1076,24 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       if (down) { await handleQuoteScroll(bridge, baseUrl, "down"); return; }
     }
 
+    // Speak philosopher-select: swipe up/down cycles our selectedIndex
+    // (we own this state). Wrap-around handled inside setSpeakSelectedIndex.
+    if (currentPage === "speak-philosophers" && speakTradition) {
+      if (up)   { await setSpeakSelectedIndex(speakSelectedIndex - 1); return; }
+      if (down) { await setSpeakSelectedIndex(speakSelectedIndex + 1); return; }
+    }
+    // Picks/browse philosopher-select: same treatment.
+    if (currentPage === "philosophers" && currentTradition) {
+      if (up)   { await setPicksSelectedIndex(picksSelectedIndex - 1); return; }
+      if (down) { await setPicksSelectedIndex(picksSelectedIndex + 1); return; }
+    }
+    // Mindstate emotion/tag-filter: scroll cycles + live-previews the
+    // philosopher's emotion sprite when on an emotion item.
+    if (currentPage === "mindstate" && currentPhilosopher) {
+      if (up)   { await setMindstateSelectedIndex(mindstateSelectedIndex - 1); return; }
+      if (down) { await setMindstateSelectedIndex(mindstateSelectedIndex + 1); return; }
+    }
+
     if (currentPage === "speak-conversation") {
       // Natural reading order: swipe down = next page, swipe up = previous.
       // Clamp hard at both ends so swiping past a boundary does nothing
@@ -912,6 +1163,23 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       // Mindfulness mode clicks
       if (currentPage === "mindful-blank")      { await showMindfulQuote(bridge); return; }
       if (currentPage === "mindful-quote")      { await showMindfulBlank(bridge); return; }
+      // Speak philosopher-select: text container captures clicks here.
+      // Click commits whatever speakSelectedIndex points to.
+      if (currentPage === "speak-philosophers" && speakTradition) {
+        await commitSpeakSelection(bridge, baseUrl);
+        return;
+      }
+      // Picks/browse philosopher-select: same — click commits to mindstate.
+      if (currentPage === "philosophers" && currentTradition) {
+        await commitPicksSelection(bridge, baseUrl);
+        return;
+      }
+      // Mindstate filter: click commits the highlighted filter and
+      // navigates to the quote viewer.
+      if (currentPage === "mindstate" && currentPhilosopher) {
+        await commitMindstateSelection(bridge, baseUrl);
+        return;
+      }
       return;
     }
 
