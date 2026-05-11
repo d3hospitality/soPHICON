@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   try {
-    const { persona, history, userMessage, crossContext, userProfile } = req.body;
+    const { persona, history, userMessage, crossContext, userProfile, memoryBank } = req.body;
 
     if (!persona || !userMessage) {
       return res.status(400).json({ error: 'Missing persona or userMessage' });
@@ -49,7 +49,7 @@ SPEECH STYLE: ${persona.speech_style || ''}
 ${aboutPerson ? `ABOUT THIS PERSON (treat as quiet awareness — never list this back at them, never start with "I see you...". Use it to inflect your reply, not to perform.):
 ${aboutPerson}
 
-` : ''}${crossContext ? `RECENT CONVERSATION CONTEXT (across other philosophers, last 14 days — same rule: quiet awareness, never volunteer):
+` : ''}${buildMemoryBlock(memoryBank)}${crossContext ? `RECENT CONVERSATION CONTEXT (across other philosophers, last 14 days — same rule: quiet awareness, never volunteer):
 ${crossContext}
 
 ` : ''}${languageDirective}
@@ -99,16 +99,30 @@ RULES:
     messages.push({ role: 'user', content: userMessage });
 
     // ─── Diagnostic logging visible in Vercel function logs ───
+    const wantsStream = req.query && (req.query.stream === '1' || req.query.stream === 'true');
     console.log('[/api/speak]',
       'persona:', persona.name,
       '| historyLen:', trimmedHistory.length,
       '| msgsLen:', messages.length,
       '| crossContext:', crossContext ? `${crossContext.length}c` : 'none',
+      '| stream:', wantsStream ? 'yes' : 'no',
       '| userMsg:', userMessage.slice(0, 80),
     );
     console.log('[/api/speak] systemPrompt first 400 chars:', systemPrompt.slice(0, 400));
 
-    // Call GPT-4o
+    // ────────────────────────────────────────────────────────────
+    // Streaming path — opt-in via ?stream=1.
+    // The Android Speak screen consumes this for word-by-word reveal.
+    // The ER-G2 host doesn't ask for it (today the glasses receive a
+    // single complete reply because of audio/TTS pipeline + BLE
+    // bandwidth concerns; streaming is a per-client opt-in, not a
+    // proxy default — see enkiBRIDGE-SDK §11).
+    // ────────────────────────────────────────────────────────────
+    if (wantsStream) {
+      return await handleStream(res, messages);
+    }
+
+    // Call GPT-4o (non-streaming path — unchanged for ER-G2).
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -154,11 +168,163 @@ RULES:
   }
 }
 
+// ─── Streaming handler (Server-Sent Events) ─────────────────────────
+//
+// Wire format — emitted as standard SSE (`data: <json>\n\n` per event):
+//
+//   { "delta": "the unexamined" }                  ← token chunk
+//   { "delta": " life" }
+//   { "delta": " is" }
+//   ...
+//   { "done": true,                                 ← terminal event
+//     "text": "the unexamined life is not worth living.",
+//     "emotion": "contemplation",
+//     "userMood": "seeking" }
+//
+// Clients should:
+//   1. Append `delta` to the in-progress assistant message as they arrive.
+//   2. On `done`, REPLACE the visible content with `text` (which has the
+//      [USER_MOOD:...] / [EMOTION:...] meta tags stripped) — this also
+//      collapses any final whitespace cleanup.
+//   3. Use `emotion` and `userMood` from the terminal event for the
+//      sprite + journal mood tagging.
+//
+// On error during streaming, the handler writes one final
+//   { "done": true, "error": "...", "text": "..." }
+// and closes the stream. Clients must tolerate a missing `emotion` /
+// `userMood` and fall back to "contemplation" / "neutral" — same
+// defaults as the non-streaming path.
+async function handleStream(res, messages) {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  // Vercel's edge buffer can hold SSE chunks otherwise. This header is
+  // a no-op on Node runtimes, but a hint for any nginx-style middlebox.
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  // Helper: write one SSE event.
+  const send = (obj) => {
+    res.write(`data: ${JSON.stringify(obj)}\n\n`);
+  };
+
+  let full = '';
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages,
+        max_tokens: 420,
+        temperature: 0.9,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('OpenAI stream error:', err);
+      send({ done: true, error: 'OpenAI request failed', text: '' });
+      return res.end();
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Split on SSE event boundary (\n\n). Process complete events,
+      // leave the partial tail in the buffer.
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const event = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        if (!event.startsWith('data:')) continue;
+        const payload = event.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const json = JSON.parse(payload);
+          const delta = json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content;
+          if (delta) {
+            full += delta;
+            // Hold back deltas once we hit a meta-tag opener so the
+            // user doesn't see [USER_MOOD: flicker mid-reply.
+            if (full.indexOf('[USER_MOOD:') === -1 && full.indexOf('[EMOTION:') === -1) {
+              send({ delta });
+            }
+          }
+        } catch (e) {
+          // Malformed chunk — skip; OpenAI occasionally emits keep-alives.
+        }
+      }
+    }
+
+    // Parse meta tags + clean text once the upstream stream has closed.
+    const emotionMatch  = full.match(/\[EMOTION:(\w+)\]/i);
+    const userMoodMatch = full.match(/\[USER_MOOD:(\w+)\]/i);
+    const emotion  = emotionMatch  ? emotionMatch[1].toLowerCase()  : 'contemplation';
+    const userMood = userMoodMatch ? userMoodMatch[1].toLowerCase() : 'neutral';
+    const text = full
+      .replace(/\[EMOTION:\w+\]/gi, '')
+      .replace(/\[USER_MOOD:\w+\]/gi, '')
+      .replace(/\n\s*\n/g, '\n')
+      .trim();
+
+    send({ done: true, text, emotion, userMood });
+    return res.end();
+  } catch (err) {
+    console.error('Speak stream error:', err);
+    send({ done: true, error: 'Stream failed', text: full });
+    return res.end();
+  }
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────
+
+/**
+ * PERSISTENT MEMORY block — returns either an empty string or a fully-
+ * formed system-prompt section. Same convention as ABOUT THIS PERSON
+ * and RECENT CONVERSATION CONTEXT: quiet awareness, never name-dropped.
+ *
+ * Wire shape: memoryBank is a list of strings, each ≤400 chars. Order
+ * is newest-first from the client. We cap the injected block to ~12
+ * memories (most recent) so a 100-memory user doesn't blow the prompt
+ * budget.
+ */
+function buildMemoryBlock(memoryBank) {
+  if (!Array.isArray(memoryBank) || memoryBank.length === 0) return '';
+  const items = memoryBank
+    .filter(m => typeof m === 'string' && m.trim().length > 0)
+    .slice(0, 12)
+    .map(m => `- ${m.trim()}`)
+    .join('\n');
+  if (!items) return '';
+  return `PERSISTENT MEMORY (what this person has shared with you across past sessions — treat as quiet awareness, never list back, never volunteer; let it inflect your reply):
+${items}
+
+`;
+}
+
 function buildAboutPerson(profile) {
   if (!profile || typeof profile !== 'object') return '';
   const lines = [];
-  if (profile.name) lines.push(`- Name: ${profile.name}${profile.pronouns ? ` (${profile.pronouns})` : ''}`);
+  // Identity line. Android sends `gender` (a Gender enum wire string:
+  // female / male / non_binary / prefer_not_to_say). ER-G2 still sends
+  // `pronouns` (free-form string). Prefer gender when present, fall
+  // back to pronouns. PreferNotToSay = no identity directive.
+  const gender = profile.gender;
+  const ident = (gender && gender !== 'prefer_not_to_say' && gender !== 'unspecified')
+    ? gender
+    : (profile.pronouns || '');
+  if (profile.name) lines.push(`- Name: ${profile.name}${ident ? ` (${ident})` : ''}`);
   if (profile.role) lines.push(`- Life role / context: ${profile.role}`);
   if (profile.currentFocus) lines.push(`- Currently working through: ${profile.currentFocus}`);
   if (Array.isArray(profile.challenges) && profile.challenges.length) {

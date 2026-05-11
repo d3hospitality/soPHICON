@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>soΦcon</title>
+  <script type="module" crossorigin src="/soPHICON/assets/index-kOinqP-_.js"></script>
+  <link rel="stylesheet" crossorigin href="/soPHICON/assets/index-BHXhJYMd.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <div class="header">
+      <div>
+        <h1>so<span class="phi">Φ</span>con</h1>
+        <div class="tagline">Philosophy / On Glass</div>
+      </div>
+      <div class="header-spacer"></div>
+      <button class="header-icon-btn" id="header-settings-btn" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+
+    <!-- Status -->
+    <div class="status-bar">
+      <span id="status-dot" class="dot disconnected"></span>
+      <span id="status-text">Connecting…</span>
+      <span id="battery-text"></span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-bar" role="tablist">
+      <button class="tab-btn active" data-tab="home" role="tab">Home</button>
+      <button class="tab-btn" data-tab="philosophers" role="tab">Philosophers</button>
+      <button class="tab-btn" data-tab="speak" role="tab">Speak</button>
+      <button class="tab-btn" data-tab="debug" role="tab">Debug</button>
+      <button class="tab-btn" data-tab="about" role="tab">About</button>
+    </div>
+
+    <!-- HOME -->
+    <div class="tab-panel active" data-panel="home">
+      <div class="card">
+        <div class="card-header">
+          <span class="glasses-live-dot" id="glasses-live-dot" style="display:none"></span>
+          On Glass
+          <span class="badge" id="glasses-page-badge">—</span>
+        </div>
+        <div class="card-body">
+          <div class="glasses-row">
+            <div class="glasses-sprite placeholder" id="glasses-sprite">
+              <svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="16" cy="16" r="10"/>
+                <line x1="16" y1="6" x2="16" y2="26"/>
+              </svg>
+            </div>
+            <div class="glasses-info">
+              <div class="page-name" id="glasses-page-name">Not connected</div>
+              <div class="page-sub" id="glasses-page-sub">Waiting for bridge…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Library</div>
+        <div class="stats">
+          <div class="stat"><div class="v" id="stat-quotes">—</div><div class="k">Quotes</div></div>
+          <div class="stat"><div class="v" id="stat-phils">—</div><div class="k">Philosophers</div></div>
+          <div class="stat"><div class="v" id="stat-trads">—</div><div class="k">Traditions</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHILOSOPHERS -->
+    <div class="tab-panel" data-panel="philosophers">
+      <div id="phil-groups"></div>
+    </div>
+
+    <!-- SPEAK -->
+    <div class="tab-panel" data-panel="speak">
+      <div class="card">
+        <div class="card-header">
+          Conversation
+          <span class="badge" id="speak-phil-badge">— idle —</span>
+        </div>
+        <div class="card-body" id="speak-mirror">
+          <p class="muted">Nothing yet. Pick a philosopher → tap the glass → speak.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEBUG -->
+    <div class="tab-panel" data-panel="debug">
+      <div class="card">
+        <div class="card-header">Sprite push log
+          <span class="badge" id="push-count">0</span>
+        </div>
+        <div class="push-log" id="push-log"></div>
+        <div class="btn-row mt-sm">
+          <button class="btn sm" id="btn-clear-cache">Clear sprite cache</button>
+          <button class="btn sm" id="btn-refresh-log">Refresh</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Manual sprite push</div>
+        <div class="field">
+          <label>Philosopher</label>
+          <select id="push-phil"></select>
+        </div>
+        <div class="field">
+          <label>Emotion</label>
+          <select id="push-emotion">
+            <!-- 23 canonical emotions — matches sprite filenames 1:1 -->
+            <option>neutral</option>
+            <option>acceptance</option><option>authority</option><option>awe</option>
+            <option>compassion</option><option>contemplation</option><option>conviction</option>
+            <option>defiance</option><option>devotion</option><option>doubt</option>
+            <option>grief</option><option>honor</option><option>joy</option>
+            <option>liberation</option><option>peace</option><option>rage</option>
+            <option>resolve</option><option>serenity</option><option>sorrow</option>
+            <option>teaching</option><option>transcendence</option><option>urgency</option>
+            <option>wonder</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="btn-push-sprite">Push to portrait (ID 1, 100×100)</button>
+        <div class="hint mt-sm">Useful for diagnosing "sprite didn't appear" on speak-conversation.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">App log</div>
+        <div id="log"></div>
+      </div>
+    </div>
+
+    <!-- ABOUT -->
+    <div class="tab-panel" data-panel="about">
+      <div class="card">
+        <div class="card-header">soΦcon G2</div>
+        <div class="card-body">
+          <p>Philosophy on Glass. <strong>2,801 quotes</strong> across 17 philosophers and 8 traditions.</p>
+          <p class="mt-md muted">Built with Vite + TypeScript + <code>@evenrealities/even_hub_sdk</code>.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Settings</div>
+        <div class="field">
+          <label>OpenAI API key</label>
+          <input id="openai-key" type="password" placeholder="sk-… (stored locally)" autocomplete="off" />
+          <span class="hint">Stored via bridge.setLocalStorage. Production key lives in the Vercel proxy — this is only used if you fork your own deploy.</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-save-settings">Save settings</button>
+          <button class="btn" id="btn-reset-convos">Clear all conversation history</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
