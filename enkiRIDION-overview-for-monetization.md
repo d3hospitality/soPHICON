@@ -1,8 +1,8 @@
-# enkiSPEAKS — App Overview for Monetization Analysis
+# enkiRIDION — App Overview for Monetization Analysis
 
 ## What it is, in one paragraph
 
-**enkiSPEAKS** is a philosophy companion app for Android. The product treats philosophy as a daily practice rather than a reading subject: the user holds voice and text conversations with historical philosophers (Marcus Aurelius, Lao Tzu, Krishnamurti, Nietzsche, etc.), reflects through structured journaling rituals, and over time builds a personal "philosopher profile" that defines their own register. The unique mechanic is a **stylized RPG-portrait sprite system**: every bundled philosopher has ~23 hand-painted emotion sprites, and the user themselves gets a painted "neutral" sprite generated from 4 selfies through OpenAI gpt-image-1 anchored to a master template. The user's sprite becomes their identity across the app — replacing the generic avatar in conversations, posts, comments, and a public quote-feed called **Aphorica**.
+**enkiRIDION** is a philosophy companion app for Android. The product treats philosophy as a daily practice rather than a reading subject: the user holds voice and text conversations with historical philosophers (Marcus Aurelius, Lao Tzu, Krishnamurti, Nietzsche, etc.), reflects through structured journaling rituals, and over time builds a personal "philosopher profile" that defines their own register. The unique mechanic is a **stylized RPG-portrait sprite system**: every bundled philosopher has ~23 hand-painted emotion sprites, and the user themselves gets a painted "neutral" sprite generated from 4 selfies through OpenAI gpt-image-1 anchored to a master template. The user's sprite becomes their identity across the app — replacing the generic avatar in conversations, posts, comments, and a public quote-feed called **Aphorica**.
 
 ## Core architecture
 

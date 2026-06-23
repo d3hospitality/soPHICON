@@ -46,7 +46,7 @@ body {
   color: var(--ink);
 }
 .header h1 .phi { color: var(--gold); }
-.header h1 .speaks { color: var(--gold); letter-spacing: 0.02em; }
+.header h1 .ridion { color: var(--gold); letter-spacing: 0.02em; }
 .header .tagline {
   font-size: 11px; color: var(--dim); letter-spacing: 0.06em; text-transform: uppercase;
   margin-top: 2px;

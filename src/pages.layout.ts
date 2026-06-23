@@ -21,7 +21,7 @@ export function buildHomePage(): (TextContainerProperty | ListContainerProperty 
       textColor: 'FFFFFF',
       bgColor: '000000',
       gravity: 0,
-      content: 'enkiSPEAKS',
+      content: 'enkiRIDION',
     } as any),
     new ListContainerProperty({
       xPosition: 75,
@@ -224,7 +224,7 @@ export function buildSpeakTraditionPage(): (TextContainerProperty | ListContaine
       textColor: 'FFFFFF',
       bgColor: '000000',
       gravity: 0,
-      content: 'enkiSPEAKS',
+      content: 'enkiRIDION',
     } as any),
     new ListContainerProperty({
       xPosition: 75,
@@ -317,7 +317,7 @@ export function buildSpeakPhilosopherPage(): (TextContainerProperty | ImageConta
       textColor: 'FFFFFF',
       bgColor: '000000',
       gravity: 0,
-      content: 'enkiSPEAKS',
+      content: 'enkiRIDION',
     } as any),
   ];
 }

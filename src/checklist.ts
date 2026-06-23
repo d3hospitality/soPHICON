@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
-// enkiSPEAKS — Daily Checklist module (src/checklist.ts)
+// enkiRIDION — Daily Checklist module (src/checklist.ts)
 //
 // The action-learning loop. Every checklist item is metadata-rich:
 //

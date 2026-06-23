@@ -41,7 +41,7 @@ import {
 } from './constants';
 
 // ═══ Constants consumed by events.ts ═══
-// Home page lists enkiSPEAKS first (the entry to voice conversations),
+// Home page lists enkiRIDION first (the entry to voice conversations),
 // then ONLY traditions that have at least one quote-philosopher. Primordial
 // (Enki's tradition) is filtered out here because Enki has no quotes —
 // the home page is the quote-browse entry point. Enki stays reachable via
@@ -49,7 +49,7 @@ import {
 export const BROWSABLE_TRADITIONS = TRADITIONS.filter(t =>
   getQuotePhilosophersByTradition(t).length > 0
 );
-export const HOME_LIST_ITEMS = ["enkiSPEAKS", ...BROWSABLE_TRADITIONS];
+export const HOME_LIST_ITEMS = ["enkiRIDION", ...BROWSABLE_TRADITIONS];
 export const SPEAK_INDEX = 0;
 
 // Speak conversation text pagination — per glasses-ui skill, text
@@ -227,7 +227,7 @@ function homeContainers() {
   const title = new TextContainerProperty({
     ...geo(layout, "title"),
     containerID: 1, containerName: "title",
-    content: "enkiSPEAKS",
+    content: "enkiRIDION",
     isEventCapture: 0,
   });
   const traditions = new ListContainerProperty({
@@ -493,7 +493,7 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
   const title = new TextContainerProperty({
     ...geo(layout, "title"),
     containerID: 1, containerName: "title",
-    content: "enkiSPEAKS",
+    content: "enkiRIDION",
     isEventCapture: 0,
   });
   const tradList = new ListContainerProperty({
@@ -573,7 +573,7 @@ export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 
   const branding = new TextContainerProperty({
     ...geo(layout, "branding"),
     containerID: 4, containerName: "branding",
-    content: "enkiSPEAKS",
+    content: "enkiRIDION",
     isEventCapture: 0,
   });
   return new RebuildPageContainer({

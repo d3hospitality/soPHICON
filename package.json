@@ -1,7 +1,7 @@
 {
   "name": "sophicon",
   "version": "0.1.0",
-  "description": "enkiSPEAKS — Philosophy on Glass for Even Realities G2 (soPHICON platform)",
+  "description": "enkiRIDION — Philosophy on Glass for Even Realities G2 (soPHICON platform)",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
