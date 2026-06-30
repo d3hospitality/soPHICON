@@ -6,6 +6,46 @@
   <title>enkiSPEAKS</title>
   <script type="module" crossorigin src="./assets/index-DpZ17GBs.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-D4xOt8rL.css">
+
+  <!-- Desktop layout: widen the column and flow cards into multiple columns so
+       a wide screen shows much more at once instead of a single 480px strip.
+       Mobile is untouched (rules only apply at >=880px). -->
+  <style>
+    @media (min-width: 880px) {
+      #app { max-width: 1040px; padding: 18px 22px 72px; }
+
+      /* Header / status / tabs stay as a full-width strip across the top */
+      .header { padding-top: 4px; padding-bottom: 12px; margin-bottom: 10px; }
+      .tab-bar { margin-bottom: 12px; }
+      .tab-btn { font-size: 12px; padding: 9px 0; }
+
+      /* Flow the stacked cards of the active tab into two columns.
+         break-inside:avoid keeps each card intact within a column. */
+      .tab-panel.active {
+        column-count: 2;
+        column-gap: 16px;
+      }
+      .tab-panel.active > .card,
+      .tab-panel.active > #phil-groups > * {
+        break-inside: avoid;
+        -webkit-column-break-inside: avoid;
+      }
+
+      /* Tighten the now-wider cards a touch so more fits per screen */
+      .card { padding: 13px 15px; margin-bottom: 12px; }
+      .card-body { font-size: 13px; }
+    }
+
+    /* Very wide screens: a third column for the dense Home / Picks panels */
+    @media (min-width: 1320px) {
+      #app { max-width: 1320px; }
+      .tab-panel.active[data-panel="home"],
+      .tab-panel.active[data-panel="philosophers"],
+      .tab-panel.active[data-panel="mindful"] {
+        column-count: 3;
+      }
+    }
+  </style>
 </head>
 <body>
   <div id="app">
