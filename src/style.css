@@ -21,13 +21,13 @@
   --err: #f87171;
   --accent-b: #60a5fa;
   --accent-p: #a78bfa;
-  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   background: var(--bg); color: var(--ink);
   min-height: 100vh; padding: 0;
   -webkit-font-smoothing: antialiased;
@@ -46,6 +46,7 @@ body {
   color: var(--ink);
 }
 .header h1 .phi { color: var(--gold); }
+.header h1 { font-family: 'Crimson Text', Georgia, serif; }
 .header h1 .ridion { color: var(--gold); letter-spacing: 0.02em; }
 .header .tagline {
   font-size: 11px; color: var(--dim); letter-spacing: 0.06em; text-transform: uppercase;

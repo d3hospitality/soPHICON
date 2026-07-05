@@ -42,6 +42,7 @@ import {
   setHabitsBridge, listHabits, favoriteAsHabit, unfavoriteHabit,
   isHabit, pendingCheckIns, recordCheckIn, streakHealth, habitSpritePath,
 } from './habits';
+import { authHeaders, linkedHandle, linkWithCode, unlink, setAccountBridge } from './enkiAccount';
 import {
   UserProfile, LANGUAGES, setProfileBridge, loadProfile, saveProfile,
 } from './profile';
@@ -397,6 +398,44 @@ async function initSettings(): Promise<void> {
     log('[DASHBOARD] Settings saved', 'success');
   });
 
+  // ── enkiRIDION account link (glasses pairing) ──
+  const codeInput = $('glasses-code') as HTMLInputElement | null;
+  const linkHint = $('glasses-link-hint');
+  const btnLink = $('btn-link-glasses');
+  const btnUnlink = $('btn-unlink-glasses');
+
+  async function renderLinkState(): Promise<void> {
+    const handle = await linkedHandle();
+    if (linkHint) {
+      linkHint.textContent = handle
+        ? `Linked as @${handle}. Tier follows your enkiridion.com subscription.`
+        : 'Unlinked — Seeker mode. Generate a code on enkiridion.com → Settings → G2 Glasses, then link to bring your Sage tier onto the glasses.';
+    }
+    if (btnUnlink) btnUnlink.style.display = handle ? '' : 'none';
+    if (btnLink) btnLink.style.display = handle ? 'none' : '';
+    if (codeInput) codeInput.style.display = handle ? 'none' : '';
+  }
+  await renderLinkState();
+
+  btnLink?.addEventListener('click', async () => {
+    const code = codeInput?.value?.trim() || '';
+    if (code.length !== 6) { log('[DASHBOARD] Enter the 6-character code', 'error'); return; }
+    const result = await linkWithCode(code);
+    if (result.ok) {
+      log(`[DASHBOARD] Glasses linked as @${result.handle || 'you'} (${result.tier || 'seeker'})`, 'success');
+      if (codeInput) codeInput.value = '';
+    } else {
+      log(`[DASHBOARD] Link failed: ${result.error || 'invalid code'}`, 'error');
+    }
+    await renderLinkState();
+  });
+
+  btnUnlink?.addEventListener('click', async () => {
+    await unlink();
+    log('[DASHBOARD] Glasses unlinked — back to Seeker', 'success');
+    await renderLinkState();
+  });
+
   $('btn-reset-convos')?.addEventListener('click', async () => {
     if (!bridge) return;
     if (!confirm('Clear ALL conversation history with ALL philosophers? This cannot be undone.')) return;
@@ -613,7 +652,7 @@ async function extractProblems(): Promise<void> {
   host.innerHTML = '<p class="muted">Analyzing…</p>';
   try {
     const resp = await fetch('https://sophicon-api.vercel.app/api/problems', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ journal: journalCache }),
     });
     if (!resp.ok) throw new Error(`API ${resp.status}`);
@@ -658,7 +697,7 @@ async function computeActions(): Promise<void> {
   host.innerHTML = '<p class="muted">Generating…</p>';
   try {
     const resp = await fetch('https://sophicon-api.vercel.app/api/actions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ conversations: recent, scope: 'week' }),
     });
     if (!resp.ok) throw new Error(`API ${resp.status}`);
@@ -1655,6 +1694,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   setWeeklyBridge(b);
   setHabitsBridge(b);
   setProfileBridge(b);
+  setAccountBridge(b);
   setChecklistBridge(b);
 
   initTabs();

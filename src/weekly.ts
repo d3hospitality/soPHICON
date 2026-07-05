@@ -15,6 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
+import { authHeaders } from './enkiAccount';
 import { PHILOSOPHERS, Quote } from './constants';
 
 // ═══ Types ═══════════════════════════════════════════════════════════
@@ -220,7 +221,7 @@ export async function generateOverview(args: {
 }): Promise<WeeklyOverview> {
   const resp = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(args),
   });
   if (!resp.ok) {

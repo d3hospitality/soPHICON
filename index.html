@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>enkiRIDION</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,600;1,600&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -436,6 +440,19 @@
             <button class="btn btn-primary" id="btn-save-profile">Save profile</button>
             <button class="btn" id="btn-reset-profile">Reset to defaults</button>
           </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">enkiRIDION account</div>
+        <div class="field" id="glasses-link-field">
+          <label>Pairing code</label>
+          <input id="glasses-code" type="text" placeholder="6-char code from enkiridion.com → Settings" autocomplete="off" maxlength="6" style="text-transform: uppercase;" />
+          <span class="hint" id="glasses-link-hint">Unlinked — Seeker mode. Generate a code on enkiridion.com → Settings → G2 Glasses, then link to bring your Sage tier onto the glasses.</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-link-glasses">Link glasses</button>
+          <button class="btn" id="btn-unlink-glasses" style="display:none;">Unlink</button>
         </div>
       </div>
 

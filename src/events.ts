@@ -39,6 +39,7 @@ import {
 } from './pages';
 import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle } from './image-utils';
 import { isFavorite } from './favorites';
+import { setAccountBridge } from './enkiAccount';
 import {
   loadPersonas, setSpeakBridge, startConversation,
   startRecording, stopRecordingAndSend, handleAudioChunk,
@@ -497,6 +498,7 @@ export function registerEventHandlers(bridge: EvenAppBridge, baseUrl: string): (
   bridgeRef = bridge;
   baseUrlRef = baseUrl;
   setSpeakBridge(bridge);
+  setAccountBridge(bridge);
   loadPersonas(baseUrl);
 
   return bridge.onEvenHubEvent((event: EvenHubEvent) => {

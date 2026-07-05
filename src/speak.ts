@@ -27,6 +27,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
+import { authHeaders, handleUnauthorized } from './enkiAccount';
 import { log } from './ui';
 import { loadProfile, profileForApi } from './profile';
 
@@ -257,7 +258,7 @@ async function extractActionsFromSession(session: JournalSession): Promise<void>
   try {
     const resp = await fetch(ACTIONS_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify({ conversations: [session], scope: "session" }),
     });
     if (!resp.ok) {
@@ -513,7 +514,7 @@ export async function stopRecordingAndSend(): Promise<{ text: string; emotion: s
   try {
     const resp = await fetch(TRANSCRIBE_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify({ audio: base64, language: lang }),
     });
     if (!resp.ok) throw new Error(`Transcribe ${resp.status}`);
@@ -564,7 +565,7 @@ export async function sendMessage(userText: string): Promise<{ text: string; emo
 
     const resp = await fetch(SPEAK_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body,
     });
 
@@ -573,6 +574,26 @@ export async function sendMessage(userText: string): Promise<{ text: string; emo
     if (!resp.ok) {
       const err = await resp.text();
       log(`[SPEAK] API error body: ${err.slice(0, 100)}`, "error");
+      // Entitlement responses render as an on-glass line, not an error.
+      if (resp.status === 401) {
+        await handleUnauthorized();
+        return {
+          text: "Your glasses link expired. Re-pair from enkiridion.com → Settings.",
+          emotion: "contemplation", userMood: "neutral",
+        };
+      }
+      if (resp.status === 403) {
+        return {
+          text: "Sage unlocks every philosopher. Pair your glasses at enkiridion.com — until then, Enki walks with you.",
+          emotion: "teaching", userMood: "neutral",
+        };
+      }
+      if (resp.status === 429) {
+        return {
+          text: "Five conversations today — the seeker's measure is spent. Sage removes the limit: enkiridion.com",
+          emotion: "serenity", userMood: "neutral",
+        };
+      }
       throw new Error(`API ${resp.status}: ${err}`);
     }
 
