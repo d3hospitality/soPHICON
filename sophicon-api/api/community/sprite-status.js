@@ -14,6 +14,15 @@
 
 import { getPhilosopherByPhilId } from './_store.js';
 
+/**
+ * Poll the sprite-generation pipeline status for a community
+ * philosopher. Clients hit this every ~3s during the loading screen.
+ *
+ * @description Check sprite generation status
+ * @method GET
+ * @param {string} req.query.philId - The philosopher's ID
+ * @returns {object} { spriteStatus: 'pending'|'generating'|'ready'|'failed', spriteError: string|null }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -31,6 +40,7 @@ export default async function handler(req, res) {
       spriteError: phil.spriteError || null,
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'sprite-status failed' });
+    console.error('sprite-status failed:', e);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

@@ -1,3 +1,4 @@
+import { requireEntitlement } from '../_entitlements.js';
 // /api/aphorica/classify
 //
 // Classify a draft aphorism using GPT-4o-mini and return the taxonomy
@@ -65,12 +66,33 @@ const BLENDS = [
 
 const MOD_FLAGS = ['hate','self_harm','harassment','minors','spam','fake_deep'];
 
+/**
+ * Classify a draft aphorism against the Aphorica taxonomy using
+ * GPT-4o-mini. Returns emotion, archetype, blend, quality rating,
+ * tags, and moderation flags. Each submission is classified before
+ * being committed to the feed.
+ *
+ * @description Classify and rate a draft aphorism
+ * @method POST
+ * @param {object} req.body
+ * @param {string} req.body.text - Aphorism text, max 240 chars
+ * @param {string} [req.body.context] - Author's "why I thought of that" line, max 60 chars
+ * @param {string} [req.body.authorPhilId] - Author's philosopher ID (for telemetry)
+ * @returns {object} { emotion: string, archetype: string, blend: string, ratingScore: number, tags: string[], moderationFlag: string|null, rejectReason: string|null }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const gate = await requireEntitlement(req, res, 'aphorica-classify');
+  if (!gate) return;
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
+  }
 
   try {
     const body = req.body || {};

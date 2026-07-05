@@ -5,6 +5,8 @@
   "type": "module",
   "description": "Vercel-hosted serverless API for the soPHICON ecosystem (Speak / Symposium / Aphorica / Community / etc).",
   "dependencies": {
-    "@vercel/kv": "^3.0.0"
+    "@vercel/kv": "^3.0.0",
+    "jose": "^5.9.6",
+    "@supabase/supabase-js": "^2.47.10"
   }
 }

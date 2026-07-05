@@ -4,6 +4,9 @@
     "api/community/sprite-init.js": {
       "includeFiles": "api/community/master_neutral.png",
       "maxDuration": 60
+    },
+    "api/symposium.js": {
+      "maxDuration": 60
     }
   }
 }

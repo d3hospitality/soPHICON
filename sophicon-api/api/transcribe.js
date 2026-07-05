@@ -1,3 +1,16 @@
+import { requireEntitlement } from './_entitlements.js';
+/**
+ * Transcribe audio to text using OpenAI's Whisper API (gpt-4o-transcribe).
+ * Accepts base64-encoded raw PCM audio, wraps it in a WAV container,
+ * and locks Whisper to a specific language to prevent auto-detect drift.
+ *
+ * @description Convert speech audio to text
+ * @method POST
+ * @param {object} req.body
+ * @param {string} req.body.audio - Base64-encoded 16kHz 16-bit mono PCM audio
+ * @param {string} [req.body.language='en'] - ISO 639-1 language code for transcription
+ * @returns {object} { text: string }
+ */
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -5,6 +18,13 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const gate = await requireEntitlement(req, res, 'transcribe');
+  if (!gate) return;
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
+  }
 
   try {
     const { audio, language } = req.body;

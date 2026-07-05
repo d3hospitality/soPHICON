@@ -1,10 +1,36 @@
+import { requireEntitlement } from './_entitlements.js';
+import { languageLabel } from './_utils.js';
+
+/**
+ * Philosopher conversation endpoint -- the core of enkiSPEAKS.
+ * Sends the user's message to a philosopher persona via GPT-4o
+ * and returns the philosopher's in-character reply with emotion
+ * and mood metadata for sprite rendering.
+ *
+ * Supports optional streaming via ?stream=1 query parameter (SSE).
+ *
+ * @description Converse with a philosopher persona
+ * @method POST
+ * @param {object} req.body
+ * @param {object} req.body.persona - Philosopher persona definition (name, tradition, tone, approach, speech_style, principles)
+ * @param {Array<{role: string, content: string}>} [req.body.history] - Prior conversation turns
+ * @param {string} req.body.userMessage - The user's current message
+ * @param {string} [req.body.crossContext] - Cross-philosopher context from recent sessions
+ * @param {object} [req.body.userProfile] - User profile for personalization (name, gender, language, etc.)
+ * @param {string[]} [req.body.memoryBank] - Persistent memory facts about the user
+ * @returns {object} { text: string, emotion: string, userMood: string }
+ */
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
+  }
 
   try {
     const { persona, history, userMessage, crossContext, userProfile, memoryBank } = req.body;
@@ -12,6 +38,10 @@ export default async function handler(req, res) {
     if (!persona || !userMessage) {
       return res.status(400).json({ error: 'Missing persona or userMessage' });
     }
+
+    // Tier gate: seeker = Enki only, 5 turns/day; sage = everything.
+    const gate = await requireEntitlement(req, res, 'speak', { persona: persona.name });
+    if (!gate) return;
 
     // Build "ABOUT THIS PERSON" preamble from the user profile.
     // Stable, structured, never volunteered — same convention as
@@ -144,7 +174,12 @@ RULES:
     }
 
     const data = await response.json();
-    const raw = data.choices[0].message.content.trim();
+    const raw = data?.choices?.[0]?.message?.content?.trim?.() ?? '';
+
+    if (!raw) {
+      console.error('[/api/speak] empty response from OpenAI:', JSON.stringify(data).slice(0, 300));
+      return res.status(502).json({ error: 'Empty response from model' });
+    }
 
     // Parse both meta tags (order-agnostic, either can be missing)
     const emotionMatch  = raw.match(/\[EMOTION:(\w+)\]/i);
@@ -350,13 +385,4 @@ function buildAboutPerson(profile) {
     for (const g of profile.guidelines.slice(0, 10)) lines.push(`- Guideline: ${g}`);
   }
   return lines.join('\n');
-}
-
-function languageLabel(code) {
-  const map = {
-    en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
-    pt: 'Portuguese', nl: 'Dutch', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
-    hi: 'Hindi', ar: 'Arabic',
-  };
-  return map[code] || code;
 }

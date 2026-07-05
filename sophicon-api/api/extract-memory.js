@@ -1,3 +1,4 @@
+import { requireEntitlement } from './_entitlements.js';
 // /api/extract-memory — pull 0-3 candidate memories from a finished
 // Speak session. Cheap GPT-4o-mini call so it's not a meaningful budget
 // hit per session. Each candidate lands in the client's memory bank
@@ -27,12 +28,33 @@
 //   • If nothing memorable was shared, return [] — better to skip than
 //     pad
 
+/**
+ * Extract 0-3 persistent memory candidates from a finished Speak
+ * session using GPT-4o-mini. Each candidate is a single-line fact
+ * the user shared about themselves, suitable for cross-session recall.
+ *
+ * @description Extract memorable facts from a conversation session
+ * @method POST
+ * @param {object} req.body
+ * @param {string} [req.body.philName] - Name of the philosopher in the session
+ * @param {string} [req.body.tradition] - Philosopher's tradition
+ * @param {Array<{role: string, content: string}>} req.body.exchanges - Full exchange list from the session
+ * @param {string[]} [req.body.existingMemories] - Already-stored memories to avoid duplicates
+ * @returns {object} { memories: string[] }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const gate = await requireEntitlement(req, res, 'extract-memory');
+  if (!gate) return;
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
+  }
 
   try {
     const { philName, tradition, exchanges, existingMemories } = req.body || {};

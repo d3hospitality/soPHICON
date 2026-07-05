@@ -1,3 +1,4 @@
+import { requireEntitlement } from '../_entitlements.js';
 // POST /api/community/sprite-init
 //
 // Generate the NEUTRAL sprite for a community philosopher from their
@@ -99,12 +100,29 @@ async function loadMasterNeutral() {
   return cachedMasterNeutral;
 }
 
+/**
+ * Generate the NEUTRAL sprite for a community philosopher from up
+ * to 4 reference selfies plus the master_neutral.png style anchor.
+ * Uses gpt-image-1 via OpenAI's images/edits endpoint. Pipeline
+ * state is tracked in KV and polled via /sprite-status.
+ *
+ * @description Generate a community philosopher's neutral sprite
+ * @method POST
+ * @param {object} req.body
+ * @param {string} req.body.userId - The user's anonymous UUID
+ * @param {string} req.body.philId - The philosopher identity to generate for
+ * @param {string[]} req.body.references - 1-4 base64-encoded reference selfie images
+ * @returns {object} { spriteB64: string, spriteStatus: 'ready' }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-User-Id');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const gate = await requireEntitlement(req, res, 'sprite');
+  if (!gate) return;
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
@@ -144,7 +162,8 @@ export default async function handler(req, res) {
     const phil = await getPhilosopherByPhilId(philId);
     if (!phil) return res.status(404).json({ error: 'philId not found' });
   } catch (e) {
-    return res.status(400).json({ error: 'bad_request', details: e.message });
+    console.error('sprite-init request validation failed:', e);
+    return res.status(400).json({ error: 'bad_request' });
   }
 
   // Flip status immediately so a polling client sees the right state.
@@ -226,7 +245,8 @@ export default async function handler(req, res) {
     await setSpriteStatus({ philId, status: 'ready' });
     return res.status(200).json({ spriteB64: b64, spriteStatus: 'ready' });
   } catch (e) {
-    await setSpriteStatus({ philId, status: 'failed', error: e.message?.slice(0, 200) });
-    return res.status(500).json({ error: 'sprite_init_failed', details: e.message?.slice(0, 400) });
+    console.error('sprite-init failed:', e);
+    await setSpriteStatus({ philId, status: 'failed', error: 'internal_error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

@@ -1,3 +1,4 @@
+import { requireEntitlement } from './_entitlements.js';
 // ═══════════════════════════════════════════════════════════════════
 // /api/actions
 // Given one or more conversations, return 3–5 concrete TODOs the user
@@ -6,6 +7,19 @@
 // "write a letter", the TODO keeps that voice, doesn't flatten to
 // generic self-help.
 // ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Generate 3-5 concrete, philosopher-voiced action items from recent
+ * conversations. Each action preserves the originating philosopher's
+ * framing and credits the source.
+ *
+ * @description Extract actionable TODOs from philosopher conversations
+ * @method POST
+ * @param {object} req.body
+ * @param {Array<{philName: string, tradition: string, exchanges: Array<{role: string, content: string, userMood?: string}>}>} req.body.conversations - Conversation sessions to analyze
+ * @param {string} [req.body.scope='recent'] - Scope filter: 'week', 'session', or 'recent'
+ * @returns {object} { actions: Array<{ title: string, detail: string, source: string, theme: string }> }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -13,14 +27,24 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
+  const gate = await requireEntitlement(req, res, 'actions');
+  if (!gate) return;
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
+  }
+
   try {
     const { conversations, scope } = req.body;
     if (!Array.isArray(conversations) || conversations.length === 0) {
       return res.status(200).json({ actions: [] });
     }
 
+    // Filter out sessions with missing or invalid exchanges before processing.
+    const validSessions = conversations.filter(s => Array.isArray(s.exchanges));
+
     // Compact: keep user turns + their matched philosopher replies
-    const compact = conversations.flatMap(session =>
+    const compact = validSessions.flatMap(session =>
       session.exchanges.map(m => ({
         role: m.role,
         phil: session.philName,

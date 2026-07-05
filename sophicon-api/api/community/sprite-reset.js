@@ -1,3 +1,4 @@
+import { requireEntitlement } from '../_entitlements.js';
 // POST /api/community/sprite-reset
 //
 // Reset a philosopher's sprite-generation state back to 'pending' and
@@ -45,12 +46,27 @@ import {
   setSpriteStatus,
 } from './_store.js';
 
+/**
+ * Reset a philosopher's sprite-generation state back to 'pending'.
+ * Used for cancel-during-generation and retry-with-same-photos flows.
+ * Does not delete the philosopher record or local reference photos.
+ *
+ * @description Reset sprite generation state to pending
+ * @method POST
+ * @param {object} req.body
+ * @param {string} req.body.userId - The user's anonymous UUID
+ * @param {string} req.body.philId - The philosopher identity to reset
+ * @returns {object} { spriteStatus: 'pending', spriteError: null }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-User-Id');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const gate = await requireEntitlement(req, res, 'sprite');
+  if (!gate) return;
 
   try {
     const body = req.body || {};
@@ -65,6 +81,7 @@ export default async function handler(req, res) {
     await setSpriteStatus({ philId, status: 'pending', error: null });
     return res.status(200).json({ spriteStatus: 'pending', spriteError: null });
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'sprite-reset failed' });
+    console.error('sprite-reset failed:', e);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

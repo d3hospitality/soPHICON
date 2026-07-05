@@ -1,3 +1,4 @@
+import { requireEntitlement } from './_entitlements.js';
 // /api/photo-reflection — show a chosen philosopher a photo.
 // One-shot vision call (no streaming). Returns the philosopher's
 // reflection text in their own voice.
@@ -20,6 +21,23 @@
 // dedicated Photo × Philosopher screen does. Sprite stays at the
 // philosopher's resting emotion.
 
+import { languageLabel } from './_utils.js';
+
+/**
+ * Show a philosopher a photograph and get their in-character
+ * reflection. Uses GPT-4o vision to analyze the image through
+ * the philosopher's tradition and voice.
+ *
+ * @description Philosopher reflects on a user-submitted photo
+ * @method POST
+ * @param {object} req.body
+ * @param {object} req.body.persona - Philosopher persona definition
+ * @param {string} req.body.imageBase64 - Raw base64 image data (no data-URI prefix)
+ * @param {string} [req.body.imageMime='image/jpeg'] - MIME type of the image
+ * @param {string} [req.body.userPrompt] - Optional framing prompt from the user
+ * @param {object} [req.body.userProfile] - User profile for language preference
+ * @returns {object} { text: string }
+ */
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -27,6 +45,13 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const gate = await requireEntitlement(req, res, 'photo-reflection');
+  if (!gate) return;
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
+  }
 
   try {
     const { persona, imageBase64, imageMime, userPrompt, userProfile } = req.body || {};
@@ -118,13 +143,4 @@ RULES:
     console.error('[/api/photo-reflection] error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-}
-
-function languageLabel(code) {
-  const labels = {
-    en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
-    pt: 'Portuguese', nl: 'Dutch', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
-    hi: 'Hindi', ar: 'Arabic',
-  };
-  return labels[code] || 'English';
 }

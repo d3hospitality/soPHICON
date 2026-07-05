@@ -1,3 +1,4 @@
+import { requireEntitlement } from './_entitlements.js';
 // ═══════════════════════════════════════════════════════════════════
 // /api/weekly-overview
 // Synthesizes a structured weekly action plan from the user's Speak
@@ -12,6 +13,20 @@
 // regeneration.
 // ═══════════════════════════════════════════════════════════════════
 
+/**
+ * Build a structured weekly action plan from the user's Speak journal.
+ * Clusters problems by life-area category, proposes Eisenhower-quadrant
+ * action steps, and tags each with emotion themes for quote matching.
+ * Supports rollover of prior-week problems.
+ *
+ * @description Synthesize a weekly philosophical action plan
+ * @method POST
+ * @param {object} req.body
+ * @param {Array<{date: string, philName: string, tradition: string, exchanges: Array}>} req.body.journal - Conversation sessions from this week
+ * @param {Array<object>} [req.body.rolledOver] - Prior-week problems to carry forward
+ * @param {string} [req.body.weekKey] - ISO week key (e.g. '2026-W25'); defaults to current week
+ * @returns {object} { weekKey: string, problems: Array<{ id: string, title: string, summary: string, category: string, philosophers: string[], actions: Array, status: string }> }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -19,14 +34,24 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
+  const gate = await requireEntitlement(req, res, 'weekly-overview');
+  if (!gate) return;
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
+  }
+
   try {
     const { journal, rolledOver, weekKey } = req.body;
     if (!Array.isArray(journal)) {
       return res.status(400).json({ error: 'journal must be an array' });
     }
 
+    // Filter out sessions with missing or invalid exchanges before processing.
+    const validSessions = journal.filter(s => Array.isArray(s.exchanges));
+
     // Compact journal: user turns only, plus which philosopher heard them.
-    const compact = journal.flatMap(session =>
+    const compact = validSessions.flatMap(session =>
       session.exchanges
         .filter(m => m.role === 'user')
         .map(m => ({

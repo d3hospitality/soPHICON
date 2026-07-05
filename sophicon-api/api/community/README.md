@@ -30,7 +30,7 @@ so the wire shape stays identical after the swap.
 
 ## Deploy
 
-From `~/Desktop/soPHICON ER-G2/sophicon-api/`:
+From `~/Desktop/d3-apps/soPHICON ER-G2/sophicon-api/`:
 
 ```bash
 vercel --prod

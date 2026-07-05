@@ -1,3 +1,4 @@
+import { requireEntitlement } from '../_entitlements.js';
 // POST /api/community/submit-quote
 //
 // Submit a community quote for taxonomy rating + publish. Returns the
@@ -18,12 +19,29 @@
 
 import { submitQuote, getPhilosopherByPhilId } from './_store.js';
 
+/**
+ * Submit a community aphorism for publication. Validates the philId
+ * exists, creates the quote record, and indexes it in sorted sets
+ * for feed retrieval.
+ *
+ * @description Publish a community quote
+ * @method POST
+ * @param {object} req.body
+ * @param {string} req.body.userId - Submitter's anonymous UUID
+ * @param {string} req.body.philId - Submitter's philosopher identity ID
+ * @param {string} req.body.text - Quote text, max 240 chars
+ * @param {string} [req.body.source] - Optional attribution or origin note
+ * @returns {object} Full quote record (CommunityQuoteEntity shape)
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-User-Id');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const gate = await requireEntitlement(req, res, 'community-submit');
+  if (!gate) return;
 
   try {
     const body = req.body || {};
@@ -45,6 +63,7 @@ export default async function handler(req, res) {
     const quote = await submitQuote({ userId, philId, text, source });
     return res.status(200).json(quote);
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'submit-quote failed' });
+    console.error('submit-quote failed:', e);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

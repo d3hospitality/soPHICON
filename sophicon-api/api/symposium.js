@@ -1,3 +1,4 @@
+import { requireEntitlement } from './_entitlements.js';
 // /api/symposium — runs a back-and-forth between two philosophers on a
 // user-supplied topic. The user is the moderator; the philosophers debate.
 //
@@ -32,6 +33,23 @@
 // philosopher's identity instead, which the Android screen renders as
 // alternating bubble portraits.
 
+import { languageLabel } from './_utils.js';
+
+/**
+ * Run a multi-turn philosophical debate (symposium) between two
+ * philosopher personas on a user-supplied topic. Each philosopher
+ * takes turns responding to the other via separate GPT-4o calls.
+ *
+ * @description Two-philosopher debate on a user topic
+ * @method POST
+ * @param {object} req.body
+ * @param {string} req.body.topic - The debate topic
+ * @param {object} req.body.philA - First philosopher persona
+ * @param {object} req.body.philB - Second philosopher persona
+ * @param {number} [req.body.turns=3] - Turns per philosopher (max 5)
+ * @param {object} [req.body.userProfile] - User profile for language preference
+ * @returns {object} { turns: Array<{ role: string, philId: string, philName: string, content: string, ts: number }> }
+ */
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -39,6 +57,13 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const gate = await requireEntitlement(req, res, 'symposium');
+  if (!gate) return;
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
+  }
 
   try {
     const { topic, philA, philB, turns: requestedTurns, userProfile } = req.body || {};
@@ -207,13 +232,4 @@ SYMPOSIUM RULES:
 function philIdGuess(phil) {
   if (!phil || !phil.name) return '';
   return phil.name.toLowerCase().replace(/\s+/g, '_');
-}
-
-function languageLabel(code) {
-  const labels = {
-    en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
-    pt: 'Portuguese', nl: 'Dutch', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
-    hi: 'Hindi', ar: 'Arabic',
-  };
-  return labels[code] || 'English';
 }

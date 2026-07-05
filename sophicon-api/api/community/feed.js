@@ -18,6 +18,18 @@ import { readFeed } from './_store.js';
 
 const ALLOWED_SORTS = new Set(['WEEKLY_TOP', 'ALL_TIME', 'RISING', 'FRESH']);
 
+/**
+ * Paginated community feed read. Returns quotes sorted by the
+ * requested mode with cursor-based pagination.
+ *
+ * @description Read the community quote feed
+ * @method GET
+ * @param {string} [req.query.sort='FRESH'] - Sort mode: WEEKLY_TOP, ALL_TIME, RISING, or FRESH
+ * @param {string} [req.query.weekKey] - ISO week key for WEEKLY_TOP sort
+ * @param {string} [req.query.cursor] - Pagination cursor from a previous response
+ * @param {number} [req.query.limit=20] - Page size (1-50)
+ * @returns {object} { quotes: Quote[], nextCursor: string|null, weekKey: string }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -37,6 +49,7 @@ export default async function handler(req, res) {
     const page = await readFeed({ sort, weekKey, cursor, limit });
     return res.status(200).json(page);
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'feed failed' });
+    console.error('feed failed:', e);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

@@ -8,6 +8,15 @@
 
 import { getQuoteById } from './_store.js';
 
+/**
+ * Fetch a single community quote by ID. Used by clients to poll
+ * for status changes after submission (e.g. rating -> published).
+ *
+ * @description Read a single community quote
+ * @method GET
+ * @param {string} req.query.quoteId - The quote ID to fetch
+ * @returns {object} Full quote record, or 404 if not found
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -22,6 +31,7 @@ export default async function handler(req, res) {
     if (!q) return res.status(404).json({ error: 'quote not found' });
     return res.status(200).json(q);
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'get-quote failed' });
+    console.error('get-quote failed:', e);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

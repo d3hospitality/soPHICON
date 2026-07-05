@@ -1,3 +1,4 @@
+import { requireEntitlement } from './_entitlements.js';
 // ═══════════════════════════════════════════════════════════════════
 // /api/problems
 // Extract recurring problem themes from a journal of soPHICON Speaks
@@ -5,6 +6,18 @@
 // cluster them into 3–7 named "problems" the user keeps returning to
 // + which philosophers have weighed in on each.
 // ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Extract recurring problem themes from a user's Speak journal.
+ * Clusters conversations into 3-7 named problems with metadata
+ * about which philosophers have weighed in and observed moods.
+ *
+ * @description Cluster journal conversations into recurring problem themes
+ * @method POST
+ * @param {object} req.body
+ * @param {Array<{date: string, philName: string, exchanges: Array<{role: string, content: string, userMood?: string}>}>} req.body.journal - Array of conversation sessions
+ * @returns {object} { problems: Array<{ title: string, summary: string, firstSeen: string, philosophers: string[], exchangeCount: number, moods: string[] }> }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -12,14 +25,24 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
+  const gate = await requireEntitlement(req, res, 'problems');
+  if (!gate) return;
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
+  }
+
   try {
     const { journal } = req.body;
     if (!Array.isArray(journal) || journal.length === 0) {
       return res.status(200).json({ problems: [] });
     }
 
+    // Filter out sessions with missing or invalid exchanges before processing.
+    const validSessions = journal.filter(s => Array.isArray(s.exchanges));
+
     // Compact the journal for the prompt — just user turns + who heard them.
-    const compact = journal.flatMap(session =>
+    const compact = validSessions.flatMap(session =>
       session.exchanges
         .filter(m => m.role === 'user')
         .map(m => ({

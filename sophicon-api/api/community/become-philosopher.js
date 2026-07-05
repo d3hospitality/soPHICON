@@ -1,3 +1,4 @@
+import { requireEntitlement } from '../_entitlements.js';
 // POST /api/community/become-philosopher
 //
 // Claim a philosopher row in the Community Hub. Idempotent on userId:
@@ -24,12 +25,30 @@
 
 import { upsertPhilosopher } from './_store.js';
 
+/**
+ * Register or update a community philosopher identity. Idempotent
+ * on userId -- re-calling with the same user updates the record.
+ *
+ * @description Claim a philosopher identity in the Community Hub
+ * @method POST
+ * @param {object} req.body
+ * @param {string} req.body.userId - Anonymous local UUID from the client
+ * @param {string} req.body.handle - Display handle, max 24 chars, alphanumeric + underscore
+ * @param {string} req.body.tradition - Canonical tradition enum value
+ * @param {string} [req.body.personaTone] - Tone hint for sprite and classifier
+ * @param {string} [req.body.personaApproach] - Approach hint
+ * @param {string} [req.body.personaSpeechStyle] - Speech style hint
+ * @returns {object} { philId: string, handle: string, tradition: string, spriteStatus: string }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-User-Id');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const gate = await requireEntitlement(req, res, 'become-philosopher');
+  if (!gate) return;
 
   try {
     const body = req.body || {};
@@ -59,6 +78,7 @@ export default async function handler(req, res) {
       spriteStatus: rec.spriteStatus,
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'become-philosopher failed' });
+    console.error('become-philosopher failed:', e);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

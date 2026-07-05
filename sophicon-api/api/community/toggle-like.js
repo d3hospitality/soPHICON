@@ -20,6 +20,19 @@
 
 import { toggleLike } from './_store.js';
 
+/**
+ * Like or unlike a community quote. Idempotent -- re-calling with
+ * the same state is a no-op. Updates sorted-set scores so feed
+ * orderings stay accurate.
+ *
+ * @description Toggle like on a community quote
+ * @method POST
+ * @param {object} req.body
+ * @param {string} req.body.userId - The liking user's anonymous UUID
+ * @param {string} req.body.quoteId - The quote to like/unlike
+ * @param {boolean} req.body.liked - true to like, false to unlike
+ * @returns {object} { quoteId: string, likeCount: number, likedByMe: boolean }
+ */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -39,6 +52,7 @@ export default async function handler(req, res) {
     if (!result) return res.status(404).json({ error: 'quote not found' });
     return res.status(200).json(result);
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'toggle-like failed' });
+    console.error('toggle-like failed:', e);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
