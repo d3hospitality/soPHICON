@@ -432,7 +432,3 @@ For multi-step tasks, state a brief plan:
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
 <!-- D3-SYNC:END -->
-
-## Imported Claude Cowork project instructions
-
-This is an APP for Even Realities G2 Smart Glasses, we need to continue editing it using a program we created in Electron, keep updates on command center of updates, and figure out how to take it further. Saving API KEYS in SDK

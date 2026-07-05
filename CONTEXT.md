@@ -189,7 +189,7 @@ After cloud sync ships, all of these mirror to Supabase tables of the same name.
 - **"How does Speak actually work?"** — `src/speak.ts` (client), `sophicon-api/api/speak.js` (server prompt + GPT call), `sophicon-api/api/transcribe.js` (Whisper).
 - **"How are sprites encoded?"** — `src/pngEncoder.ts` + comment block at top of `src/image-utils.ts`.
 - **"Where does the journal data live?"** — `bridge.localStorage` key `speak_journal`. Append-only; entries written by `checkpointSession()` in `speak.ts`. Cloud mirror coming via Supabase `journal_sessions` table.
-- **"How do I add a new philosopher?"** — Phase 1: extend `personas.json`. Phase 2: generate sprite set (23 emotions). Phase 3: extend `PHILOSOPHERS` in `constants.ts` (or just regenerate from JSON). The Even Realities G2 sprite pipeline at `~/Desktop/soPHICON/Sprite Maker/` (separate Flask app) handles 1-3 with reference image search + GPT-image-1 generation.
+- **"How do I add a new philosopher?"** — Phase 1: extend `personas.json`. Phase 2: generate sprite set (23 emotions). Phase 3: extend `PHILOSOPHERS` in `constants.ts` (or just regenerate from JSON). The Even Realities G2 sprite pipeline at `~/Desktop/d3-apps/soPHICON/Sprite Maker/` (separate Flask app) handles 1-3 with reference image search + GPT-image-1 generation.
 - **"What does the SDK control center show?"** — `sophicon-sdk.html`, opens locally in a browser. Has the architecture roadmap, schema SQL, file links, and update log.
 - **"How does the deploy flow work?"** — `publish.sh` runs `git push origin main`, then `npm install && npm run build`, then `npx gh-pages -d dist` (publishes the WebView bundle to gh-pages branch), then `vercel --prod` from `sophicon-api/` (deploys the serverless API).
 

@@ -527,7 +527,7 @@ Skills files live at `~/.claude/skills/<skill-name>/SKILL.md` on your Mac. To re
 
 ```bash
 mkdir -p ~/.claude/skills/g2-conversational-app
-cp "~/Desktop/soPHICON ER-G2/skills/g2-conversational-app/SKILL.md" \
+cp "~/Desktop/d3-apps/soPHICON ER-G2/skills/g2-conversational-app/SKILL.md" \
    ~/.claude/skills/g2-conversational-app/SKILL.md
 ```
 
