@@ -463,6 +463,65 @@ async function loadSpeakThread(philId: string): Promise<SpeakMessage[]> {
   } catch { return []; }
 }
 
+// ─── POST-CONVERSATION REFLECTION ────────────────────────────────────
+// After a real exchange, surface 2 quote-cards that resonate with the
+// conversation's emotional register — the philosopher's own words first,
+// widening to the corpus when they have few (e.g. Enki) — so the user has
+// something to carry into deeper thinking. Pure local (baked quotes), free.
+function dominant(arr: string[]): string | null {
+  const c: Record<string, number> = {};
+  for (const e of arr) c[e] = (c[e] || 0) + 1;
+  return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+}
+
+function reflectionHtml(philId: string, thread: SpeakMessage[]): string {
+  if (!thread.some(m => m.role === 'user')) return '';   // only after a real exchange
+  const phil = PHILOSOPHERS.find(p => p.philId === philId);
+  const philName = phil?.name || 'them';
+
+  const register = dominant(
+    thread.filter(m => m.role === 'assistant' && m.emotion).map(m => normalizeEmotion(m.emotion!))
+  );
+
+  // Candidate pool: same philosopher in-register → same philosopher →
+  // whole corpus in-register → whole corpus.
+  const own = (phil?.quotes || []);
+  let pool: Quote[] = register ? own.filter(q => normalizeEmotion(q.emotion) === register) : [];
+  if (pool.length < 2) pool = pool.concat(own);
+  if (pool.length < 2) {
+    const all = PHILOSOPHERS.flatMap(p => p.quotes);
+    pool = pool.concat(register ? all.filter(q => normalizeEmotion(q.emotion) === register) : all);
+  }
+  const seen = new Set<string>();
+  const ranked = pool.filter(q => q.text && !seen.has(q.text) && seen.add(q.text))
+    .sort((a, b) => b.rating - a.rating).slice(0, 6);
+  for (let i = ranked.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ranked[i], ranked[j]] = [ranked[j], ranked[i]]; }
+  const cards = ranked.slice(0, 2);
+  if (cards.length === 0) return '';
+
+  const insight = register
+    ? `You moved through ${escapeHtml(register)} with ${escapeHtml(philName)}. Sit with these:`
+    : `Carry the conversation with ${escapeHtml(philName)} further:`;
+
+  const items = cards.map(q => {
+    const rar = String(q.rarity || getRarity(q.rating));
+    const color = TQ_RARITY_COLOR[rar] || 'var(--gold)';
+    return `<div class="reflect-quote">
+      <span class="reflect-rarity" style="color:${color}">${getRaritySymbol(rar as Rarity)}</span>
+      <div class="reflect-quote-main">
+        <p class="reflect-text">&ldquo;${escapeHtml(q.text)}&rdquo;</p>
+        <p class="reflect-src">— ${escapeHtml(q.source || philName)}</p>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="reflect-card">
+    <div class="reflect-head">✦ TAKE IT DEEPER</div>
+    <p class="reflect-insight">${insight}</p>
+    ${items}
+  </div>`;
+}
+
 async function renderSpeakThread(philId: string): Promise<void> {
   const host = $('speak-thread');
   if (!host) return;
@@ -498,7 +557,7 @@ async function renderSpeakThread(philId: string): Promise<void> {
           </div>
         </div>
       </div>`;
-  }).join('');
+  }).join('') + reflectionHtml(philId, thread);
   host.scrollTop = host.scrollHeight;
 }
 

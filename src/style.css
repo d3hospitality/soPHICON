@@ -1176,6 +1176,24 @@ body {
 .speak-input-bar input:focus { outline: none; border-color: var(--gold); }
 .speak-input-bar .btn { flex-shrink: 0; }
 
+/* ═══ Post-conversation reflection ("take it deeper") ══════════════ */
+.reflect-card {
+  margin-top: 12px; padding: 13px 14px;
+  border: 1px solid rgba(212,175,55,0.3); border-radius: 12px;
+  background: linear-gradient(160deg, rgba(212,175,55,0.07), rgba(212,175,55,0.02));
+}
+.reflect-head {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em;
+  color: var(--gold); text-transform: uppercase; margin-bottom: 6px;
+}
+.reflect-insight { font-size: 12px; color: var(--dim); line-height: 1.5; margin-bottom: 10px; }
+.reflect-quote { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; border-top: 1px solid var(--border); }
+.reflect-quote:first-of-type { border-top: none; }
+.reflect-rarity { font-size: 13px; line-height: 1.3; flex-shrink: 0; }
+.reflect-quote-main { flex: 1; min-width: 0; }
+.reflect-text { font-family: var(--serif, Georgia, serif); font-size: 13.5px; font-style: italic; line-height: 1.4; color: var(--ink); }
+.reflect-src { font-family: var(--mono); font-size: 10px; color: var(--dimmer); margin-top: 2px; }
+
 /* ═══ enkiSPEAKS trial CTA (above the tradition list) ═══════════════ */
 .trial-cta {
   display: flex; flex-direction: column; gap: 5px;
