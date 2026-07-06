@@ -9,15 +9,20 @@
   <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,600;1,600&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="/src/style.css" />
+  <link rel="icon" type="image/png" href="/sprites/enki/enki-neutral.png" />
+  <link rel="apple-touch-icon" href="/sprites/enki/enki-neutral.png" />
 </head>
 <body>
   <div id="app">
 
     <!-- Header -->
     <div class="header">
-      <div>
-        <h1>enki<span class="ridion">RIDION</span></h1>
-        <div class="masthead">PHILOSOPHY · EXAMINED DAILY</div>
+      <div class="header-brand">
+        <img class="header-logo" src="/sprites/enki/enki-neutral.png" alt="Enki" width="36" height="36" />
+        <div>
+          <h1>enki<span class="ridion">RIDION</span></h1>
+          <div class="masthead">PHILOSOPHY · EXAMINED DAILY</div>
+        </div>
       </div>
       <div class="header-spacer"></div>
       <span class="header-account" id="header-account" style="display:none"></span>
@@ -528,15 +533,6 @@
             </select>
           </div>
           <div class="field">
-            <label>Reply length</label>
-            <select id="prof-reply-length">
-              <option value="mixed">Mixed</option>
-              <option value="short">Short</option>
-              <option value="medium">Medium</option>
-              <option value="long">Long</option>
-            </select>
-          </div>
-          <div class="field">
             <label>Custom guidelines <span class="hint">one per line, up to 20</span></label>
             <textarea id="prof-guidelines" rows="3" placeholder="e.g.&#10;don't assume I'm religious&#10;skip the disclaimers"></textarea>
           </div>
@@ -561,14 +557,8 @@
       </div>
 
       <div class="card">
-        <div class="card-header">Settings</div>
-        <div class="field">
-          <label>OpenAI API key</label>
-          <input id="openai-key" type="password" placeholder="sk-… (stored locally)" autocomplete="off" />
-          <span class="hint">Stored via bridge.setLocalStorage. Production key lives in the Vercel proxy — this is only used if you fork your own deploy.</span>
-        </div>
+        <div class="card-header">Data</div>
         <div class="btn-row">
-          <button class="btn btn-primary" id="btn-save-settings">Save settings</button>
           <button class="btn" id="btn-reset-convos">Clear all conversation history</button>
         </div>
       </div>

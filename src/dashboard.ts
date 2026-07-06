@@ -705,20 +705,6 @@ function initDebugPanel(): void {
 // ─── SETTINGS ─────────────────────────────────────────────────────
 async function initSettings(): Promise<void> {
   if (!bridge) return;
-  const input = $('openai-key') as HTMLInputElement | null;
-  const existing = await bridge.getLocalStorage('openai_key').catch(() => '');
-  if (input && existing) input.value = '••••••••' + existing.slice(-4);
-
-  $('btn-save-settings')?.addEventListener('click', async () => {
-    if (!bridge) return;
-    const val = input?.value || '';
-    // Only save if user entered a new value (not the masked placeholder)
-    if (val && !val.startsWith('•')) {
-      await bridge.setLocalStorage('openai_key', val).catch(() => false);
-      if (input) input.value = '••••••••' + val.slice(-4);
-    }
-    log('[DASHBOARD] Settings saved', 'success');
-  });
 
   // ── enkiRIDION account link (glasses pairing) ──
   const codeInput = $('glasses-code') as HTMLInputElement | null;
@@ -2137,7 +2123,6 @@ async function renderProfileForm(): Promise<void> {
   set('prof-values', p.lifeContext.values.join(', '));
   set('prof-advice-style', p.preferences.adviceStyle);
   set('prof-tone', p.preferences.tone);
-  set('prof-reply-length', p.preferences.replyLength);
   set('prof-guidelines', p.guidelines.join('\n'));
 }
 
@@ -2161,7 +2146,7 @@ async function saveProfileFromForm(): Promise<void> {
     preferences: {
       adviceStyle: (get('prof-advice-style') as any) || 'mixed',
       tone: (get('prof-tone') as any) || 'mixed',
-      replyLength: (get('prof-reply-length') as any) || 'mixed',
+      replyLength: 'mixed',   // reply-length control removed from settings; model keeps a neutral default
     },
     guidelines: splitLines(get('prof-guidelines')),
     createdAt: (await loadProfile()).createdAt,
