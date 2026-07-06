@@ -19,6 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import {
+  EvenAppBridge,
   CreateStartUpPageContainer, RebuildPageContainer,
   ListContainerProperty, TextContainerProperty,
   ImageContainerProperty, ListItemContainerProperty,
@@ -219,8 +220,28 @@ function geo(layout: AnyContainer[], containerName: string): Geo {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// S1 — HOME (4 containers)
+// S1 — HOME (5 containers)
 // ══════════════════════════════════════════════════════════════════
+
+// ═══ Glance line (P2 of docs/TRANSLATION-SYSTEM.md) ═══
+// One authored line of cockpit/habit state under the wordmark, e.g.
+// "TODAY · 1 BIG: Ship menu · Φ3d". The COMPANION sync writes it to
+// bridge.localStorage ('glance_today', { d, line }); the glass only
+// reads the cache — it never fetches. Stale days render as nothing.
+let glanceLine = "";
+
+export function setGlanceLine(line: string): void { glanceLine = line || ""; }
+
+export async function loadGlanceLine(bridge: EvenAppBridge): Promise<void> {
+  try {
+    const raw = await bridge.getLocalStorage("glance_today");
+    if (!raw) { glanceLine = ""; return; }
+    const p = JSON.parse(raw);
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    glanceLine = (p && p.d === today && typeof p.line === "string") ? p.line : "";
+  } catch { glanceLine = ""; }
+}
 
 function homeContainers() {
   const layout = homeLayout();
@@ -228,6 +249,12 @@ function homeContainers() {
     ...geo(layout, "title"),
     containerID: 1, containerName: "title",
     content: "enkiRIDION",
+    isEventCapture: 0,
+  });
+  const glance = new TextContainerProperty({
+    ...geo(layout, "glance"),
+    containerID: 14, containerName: "glance",
+    content: glanceLine,
     isEventCapture: 0,
   });
   const traditions = new ListContainerProperty({
@@ -247,15 +274,15 @@ function homeContainers() {
     ...geo(layout, "logo bottom"),
     containerID: 10, containerName: "logo bottom",
   });
-  return { title, traditions, logoTop, logoBottom };
+  return { title, glance, traditions, logoTop, logoBottom };
 }
 
 export function buildHomePage(): CreateStartUpPageContainer {
   const c = homeContainers();
   return new CreateStartUpPageContainer({
-    containerTotalNum: 4,
+    containerTotalNum: 5,
     listObject: [c.traditions],
-    textObject: [c.title],
+    textObject: [c.title, c.glance],
     imageObject: [c.logoTop, c.logoBottom],
   });
 }
@@ -263,9 +290,9 @@ export function buildHomePage(): CreateStartUpPageContainer {
 export function rebuildHomePage(): RebuildPageContainer {
   const c = homeContainers();
   return new RebuildPageContainer({
-    containerTotalNum: 4,
+    containerTotalNum: 5,
     listObject: [c.traditions],
-    textObject: [c.title],
+    textObject: [c.title, c.glance],
     imageObject: [c.logoTop, c.logoBottom],
   });
 }

@@ -52,7 +52,27 @@ body {
   font-size: 11px; color: var(--dim); letter-spacing: 0.06em; text-transform: uppercase;
   margin-top: 2px;
 }
+/* Android masthead meta-line — mirrors the app's identity block */
+.header .masthead {
+  font-family: var(--mono); font-size: 9.5px; color: var(--dimmer);
+  letter-spacing: 0.18em; text-transform: uppercase; margin-top: 3px;
+}
 .header-spacer { flex: 1; }
+/* Linked account chip: @handle + tier (gold ◈ SAGE / dim SEEKER) */
+.header-account {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--dim);
+  white-space: nowrap;
+}
+.header-account .tier-chip {
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 2px 8px; font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--dimmer);
+}
+.header-account .tier-chip.sage {
+  color: var(--gold); border-color: rgba(212,175,55,0.45);
+  background: var(--gold-dim);
+}
 .header-icon-btn {
   background: transparent; border: 1px solid var(--border); color: var(--dim);
   width: 36px; height: 36px; border-radius: 9px;
@@ -77,13 +97,13 @@ body {
 
 /* ═══ TABS ═══ */
 .tab-bar {
-  display: grid; grid-template-columns: repeat(7, 1fr);
+  display: grid; grid-template-columns: repeat(8, 1fr);
   background: var(--surface); border-radius: 10px; padding: 3px;
   margin-bottom: 14px; border: 1px solid var(--border);
 }
 .tab-btn {
   background: transparent; border: 0; color: var(--dim);
-  font-family: inherit; font-size: 10.5px; font-weight: 500;
+  font-family: inherit; font-size: 9.5px; font-weight: 500;
   padding: 8px 0; border-radius: 6px; cursor: pointer;
   transition: all .15s; letter-spacing: 0.02em;
 }
@@ -940,3 +960,78 @@ body {
 .checklist-add-form button:hover { border-color: var(--gold); }
 .checklist-add-form button.primary:hover { opacity: 0.85; }
 
+
+/* ═══ Aphorica — the commons (companion mirror of the Android feed) ═ */
+.aph-toolbar {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 12px;
+}
+.aph-sort.active {
+  border-color: var(--gold); color: var(--gold); background: var(--gold-dim);
+}
+.aph-hint {
+  margin-left: auto; font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+.aph-list { list-style: none; margin: 0; padding: 0; }
+.aph-post {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+}
+.aph-post-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--dim);
+}
+.aph-author-sprite {
+  width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0;
+  background: #000; border: 1px solid var(--border);
+  image-rendering: pixelated; object-fit: cover; object-position: top;
+}
+.aph-handle { color: var(--ink); font-weight: 500; }
+.aph-post-head .tier-chip {
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 1px 7px; font-size: 8.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--dimmer);
+}
+.aph-post-head .tier-chip.sage {
+  color: var(--gold); border-color: rgba(212,175,55,0.45);
+  background: var(--gold-dim);
+}
+.aph-rarity { margin-left: auto; color: var(--gold); font-size: 12px; }
+.aph-text {
+  font-family: 'Crimson Text', Georgia, serif; font-style: italic;
+  font-size: 15.5px; line-height: 1.55; color: var(--ink);
+  margin: 2px 0 10px;
+}
+.aph-meta {
+  font-family: var(--mono); font-size: 10px; color: var(--dimmer);
+  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;
+}
+.aph-votes { display: flex; gap: 6px; align-items: center; }
+.aph-vote {
+  background: var(--surface-3); border: 1px solid var(--border);
+  border-radius: 999px; padding: 4px 12px; cursor: pointer;
+  color: var(--dim); font-family: var(--mono); font-size: 11.5px;
+  transition: all .12s;
+}
+.aph-vote:hover { border-color: var(--gold); color: var(--gold); }
+.aph-vote.mine {
+  border-color: var(--gold); color: var(--gold); background: var(--gold-dim);
+}
+.aph-compose {
+  display: block; text-align: right; margin-top: 6px;
+  font-family: var(--mono); font-size: 11px; color: var(--gold);
+  text-decoration: none; letter-spacing: 0.04em;
+}
+.aph-compose:hover { text-decoration: underline; }
+
+/* ═══ Sync status (Debug tab) ═══════════════════════════════════════ */
+.sync-status {
+  font-family: var(--mono); font-size: 11.5px; color: var(--dim);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.sync-status .sync-k {
+  color: var(--dimmer); text-transform: uppercase; letter-spacing: 1px;
+  font-size: 9.5px; margin-right: 6px;
+}
+.sync-status .sync-v { color: var(--ink); }
+.sync-status .sync-err { color: var(--err); }

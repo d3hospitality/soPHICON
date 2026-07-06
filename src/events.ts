@@ -27,7 +27,7 @@ import {
   getQuotesByEmotion, getQuotesByTag, capitalize, formatTag,
 } from './constants';
 import {
-  rebuildHomePage, buildPhilosopherSelectPage,
+  rebuildHomePage, loadGlanceLine, buildPhilosopherSelectPage,
   buildMindstatePage, getMindstateSelections,
   buildQuoteViewPage,
   HOME_LIST_ITEMS, BROWSABLE_TRADITIONS, SPEAK_INDEX,
@@ -243,6 +243,7 @@ export async function stopMindfulness(bridge?: EvenAppBridge): Promise<void> {
   await persistMindfulConfig();
   const b = bridge || bridgeRef;
   if (b) {
+    try { await loadGlanceLine(b); } catch { /* render without glance */ }
     await b.rebuildPageContainer(rebuildHomePage());
     currentPage = "home";
     await pushLogoToGlasses(b, baseUrlRef);
@@ -616,6 +617,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       log("< Back to philosophers", "success");
     }
     else if (currentPage === "philosophers") {
+      try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
       await bridge.rebuildPageContainer(rebuildHomePage());
       currentPage = "home"; currentTradition = null; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();
@@ -666,6 +668,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       log("< Back to speak traditions", "success");
     }
     else if (currentPage === "speak-traditions") {
+      try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
       await bridge.rebuildPageContainer(rebuildHomePage());
       currentPage = "home"; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();

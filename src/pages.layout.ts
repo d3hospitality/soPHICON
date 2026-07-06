@@ -61,6 +61,19 @@ export function buildHomePage(): (TextContainerProperty | ListContainerProperty 
       bgColor: '000000',
       gravity: 0,
     } as any),
+    new TextContainerProperty({
+      xPosition: 350,
+      yPosition: 252,
+      width: 220,
+      height: 30,
+      containerID: 14,
+      containerName: 'glance',
+      textSize: 16,
+      textColor: 'FFFFFF',
+      bgColor: '000000',
+      gravity: 0,
+      content: '',
+    } as any),
   ];
 }
 

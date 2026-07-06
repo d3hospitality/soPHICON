@@ -16,7 +16,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { waitForEvenAppBridge, DeviceConnectType } from '@evenrealities/even_hub_sdk';
-import { buildHomePage } from './pages';
+import { buildHomePage, loadGlanceLine } from './pages';
 import { pushLogoToGlasses } from './image-utils';
 import { registerEventHandlers } from './events';
 import { setStatus, setBattery, log } from './ui';
@@ -56,6 +56,10 @@ async function main(): Promise<void> {
       setStatus("connecting");
     }
   });
+
+  // Glance line for the Home page — cached by the companion sync into
+  // bridge.localStorage. Best-effort; empty when nothing is synced.
+  try { await loadGlanceLine(bridge); } catch { /* render without it */ }
 
   const homePage = buildHomePage();
   const result = await bridge.createStartUpPageContainer(homePage);

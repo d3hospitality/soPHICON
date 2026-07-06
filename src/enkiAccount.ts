@@ -17,10 +17,12 @@ import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 const LINK_API_URL = 'https://sophicon-api.vercel.app/api/glasses-link';
 const TOKEN_KEY = 'enki_token';
 const HANDLE_KEY = 'enki_handle';
+const TIER_KEY = 'enki_tier';
 
 let bridgeRef: EvenAppBridge | null = null;
 let cachedToken: string | null = null;
 let cachedHandle: string | null = null;
+let cachedTier: string | null = null;
 let loaded = false;
 
 export function setAccountBridge(b: EvenAppBridge): void { bridgeRef = b; }
@@ -30,6 +32,7 @@ async function ensureLoaded(): Promise<void> {
   try {
     cachedToken = (await bridgeRef.getLocalStorage(TOKEN_KEY)) || null;
     cachedHandle = (await bridgeRef.getLocalStorage(HANDLE_KEY)) || null;
+    cachedTier = (await bridgeRef.getLocalStorage(TIER_KEY)) || null;
   } catch { /* stay unlinked */ }
   loaded = true;
 }
@@ -37,6 +40,13 @@ async function ensureLoaded(): Promise<void> {
 export async function linkedHandle(): Promise<string | null> {
   await ensureLoaded();
   return cachedToken ? cachedHandle : null;
+}
+
+/** Tier captured at link time ('seeker' | 'sage').
+ * The server resolves the LIVE tier per request; this is display-only. */
+export async function linkedTier(): Promise<string | null> {
+  await ensureLoaded();
+  return cachedToken ? cachedTier : null;
 }
 
 /** Extra headers for sophicon-api calls: Bearer token when linked. */
@@ -61,10 +71,12 @@ export async function linkWithCode(
     }
     cachedToken = data.token;
     cachedHandle = data.handle || null;
+    cachedTier = data.tier || null;
     loaded = true;
     if (bridgeRef) {
       await bridgeRef.setLocalStorage(TOKEN_KEY, data.token).catch(() => false);
       await bridgeRef.setLocalStorage(HANDLE_KEY, data.handle || '').catch(() => false);
+      await bridgeRef.setLocalStorage(TIER_KEY, data.tier || '').catch(() => false);
     }
     return { ok: true, handle: data.handle, tier: data.tier };
   } catch (e) {
@@ -75,10 +87,12 @@ export async function linkWithCode(
 export async function unlink(): Promise<void> {
   cachedToken = null;
   cachedHandle = null;
+  cachedTier = null;
   loaded = true;
   if (bridgeRef) {
     await bridgeRef.setLocalStorage(TOKEN_KEY, '').catch(() => false);
     await bridgeRef.setLocalStorage(HANDLE_KEY, '').catch(() => false);
+    await bridgeRef.setLocalStorage(TIER_KEY, '').catch(() => false);
   }
 }
 

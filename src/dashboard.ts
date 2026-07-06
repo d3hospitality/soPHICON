@@ -22,6 +22,7 @@ import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 import {
   PHILOSOPHERS, TRADITIONS, TOTAL_QUOTES, TOTAL_PHILOSOPHERS, TOTAL_TRADITIONS,
   Philosopher, Tradition, getPhilosophersByTradition, capitalize,
+  Rarity, getRaritySymbol,
 } from './constants';
 import {
   onGlassesStateChange, GlassesState,
@@ -42,7 +43,11 @@ import {
   setHabitsBridge, listHabits, favoriteAsHabit, unfavoriteHabit,
   isHabit, pendingCheckIns, recordCheckIn, streakHealth, habitSpritePath,
 } from './habits';
-import { authHeaders, linkedHandle, linkWithCode, unlink, setAccountBridge } from './enkiAccount';
+import { authHeaders, linkedHandle, linkedTier, linkWithCode, unlink, setAccountBridge } from './enkiAccount';
+import {
+  setSyncBridge, syncNow, schedulePush, markDirty, captureChecklistDelete,
+  onSyncApplied, getSyncStatus, updateGlance,
+} from './enkiSync';
 import {
   UserProfile, LANGUAGES, setProfileBridge, loadProfile, saveProfile,
 } from './profile';
@@ -109,16 +114,20 @@ function initTabs(): void {
         p.classList.toggle('active', p.getAttribute('data-panel') === tab);
       });
       // Refresh debug view whenever debug tab opened
-      if (tab === 'debug') refreshPushLog();
+      if (tab === 'debug') { refreshPushLog(); renderSyncStatus().catch(() => {}); }
       // Force-refresh the journal whenever Journal tab is opened so newly-
       // checkpointed conversations always appear without the user needing
       // to reload the dashboard.
       if (tab === 'journal') refreshJournal().catch(() => {});
-      // Home tab → refresh Today card + habits card (both pull from journal)
+      // Aphorica → (re)load the commons feed
+      if (tab === 'aphorica') refreshAphorica().catch(() => {});
+      // Home tab → refresh Today card + habits card (both pull from journal),
+      // and kick a background sync cycle (pull + push, no-op unlinked).
       if (tab === 'home') {
         renderTodayCard().catch(() => {});
         renderHabits().catch(() => {});
         renderChecklist().catch(() => {});
+        syncNow().catch(() => {});
       }
     });
   });
@@ -424,16 +433,23 @@ async function initSettings(): Promise<void> {
     if (result.ok) {
       log(`[DASHBOARD] Glasses linked as @${result.handle || 'you'} (${result.tier || 'seeker'})`, 'success');
       if (codeInput) codeInput.value = '';
+      // First sync right away so the cockpit fills in from the account.
+      syncNow().then(async () => {
+        await renderChecklist();
+        await renderHabits();
+      }).catch(() => {});
     } else {
       log(`[DASHBOARD] Link failed: ${result.error || 'invalid code'}`, 'error');
     }
     await renderLinkState();
+    await renderHeaderAccount();
   });
 
   btnUnlink?.addEventListener('click', async () => {
     await unlink();
     log('[DASHBOARD] Glasses unlinked — back to Seeker', 'success');
     await renderLinkState();
+    await renderHeaderAccount();
   });
 
   $('btn-reset-convos')?.addEventListener('click', async () => {
@@ -846,6 +862,8 @@ async function initWeeklyPanel(): Promise<void> {
       const journal = await loadJournal();
       const inWindow = filterJournalToWeek(journal, nextWeek);
       const ov = await generateOverview({ weekKey: nextWeek, journal: inWindow, rolledOver });
+      await markDirty('weekly_overview', nextWeek);
+      schedulePush();
       currentWeekKey = nextWeek;
       currentOverview = ov;
       await renderWeekly();
@@ -909,6 +927,8 @@ async function initWeeklyPanel(): Promise<void> {
   $('problem-modal-addressed')?.addEventListener('click', async () => {
     if (!activeProblemId) return;
     await setProblemStatus(currentWeekKey, activeProblemId, 'addressed');
+    await markDirty('weekly_overview', currentWeekKey);
+    schedulePush();
     currentOverview = await loadOverview(currentWeekKey);
     await renderWeekly();
     closeProblemModal();
@@ -916,6 +936,8 @@ async function initWeeklyPanel(): Promise<void> {
   $('problem-modal-rollover')?.addEventListener('click', async () => {
     if (!activeProblemId) return;
     await setProblemStatus(currentWeekKey, activeProblemId, 'rolled-over');
+    await markDirty('weekly_overview', currentWeekKey);
+    schedulePush();
     currentOverview = await loadOverview(currentWeekKey);
     await renderWeekly();
     closeProblemModal();
@@ -999,6 +1021,8 @@ async function generateForCurrentWeek(force: boolean): Promise<void> {
       return;
     }
     const ov = await generateOverview({ weekKey: currentWeekKey, journal: inWindow });
+    await markDirty('weekly_overview', currentWeekKey);
+    schedulePush();
     currentOverview = ov;
     await renderWeekly();
     setWeeklyStatus(`Generated ${ov.problems.length} problem${ov.problems.length === 1 ? '' : 's'}.`);
@@ -1120,6 +1144,8 @@ async function openProblemModal(problemId: string): Promise<void> {
       const aid = check.dataset.aid || '';
       const next = !check.classList.contains('checked');
       await setActionDone(currentWeekKey, pid, aid, next);
+      await markDirty('weekly_overview', currentWeekKey);
+      schedulePush();
       const prob = currentOverview?.problems.find(p => p.id === pid);
       const act = prob?.actions.find(a => a.id === aid);
       if (act) act.done = next;
@@ -1170,6 +1196,8 @@ async function toggleHabitForAction(problemId: string, actionId: string, row: HT
 
   if (await isHabit(actionId)) {
     await unfavoriteHabit(actionId);
+    await markDirty('habit', actionId);
+    schedulePush();
     row.classList.remove('is-habit');
     log(`[HABITS] removed: ${a.title}`);
   } else {
@@ -1183,6 +1211,8 @@ async function toggleHabitForAction(problemId: string, actionId: string, row: HT
       tagHints: a.tagHints,
       quote: fq ? { text: fq.q.text, source: fq.q.source || fq.tradition, philName: fq.phil } : null,
     });
+    await markDirty('habit', actionId);
+    schedulePush();
     row.classList.add('is-habit');
     log(`[HABITS] committed: ${a.title}`);
   }
@@ -1301,8 +1331,9 @@ async function renderTodayCard(): Promise<void> {
 // On dashboard boot we also surface a check-in modal if the user has
 // any habits whose last check-in was older than yesterday. Each habit
 // row in the modal shows the philosopher's face and asks "did you
-// [habit] yesterday?" — yes / no / skip. Streaks are kept locally;
-// this is the Solo-Leveling daily-quest layer.
+// [habit] yesterday?" — yes / no / skip. Streaks live locally and,
+// when the glasses are linked, sync to the account via device_sync
+// (enkiSync.ts). This is the Solo-Leveling daily-quest layer.
 
 // ─── TODAY'S 1-3-5 CHECKLIST PANEL ────────────────────────────────
 // Cockpit on the Home tab. Three buckets (1 BIG / 3 MEDIUM / 5 SMALL)
@@ -1388,7 +1419,7 @@ function renderChecklistForm(form: HTMLElement, size: Size): void {
     if (!title) { titleInput?.focus(); return; }
     if (saveBtn) saveBtn.disabled = true;
     try {
-      await addItem({
+      const created = await addItem({
         title,
         size,
         domain: (domainSel?.value || 'Other') as Domain,
@@ -1396,6 +1427,8 @@ function renderChecklistForm(form: HTMLElement, size: Size): void {
         controlAxis: (ctrlSel?.value || 'within') as ControlAxis,
         source: 'manual',
       });
+      await markDirty('checklist_item', created.id);
+      schedulePush();
       form.hidden = true;
       await renderChecklist();
     } catch (e) {
@@ -1427,6 +1460,9 @@ async function renderChecklist(): Promise<void> {
     const done = items.filter(it => it.completed).length;
     progress.textContent = items.length === 0 ? '— / —' : `${done} / ${items.length}`;
   }
+
+  // Keep the glasses' Home glance line in step with the cockpit.
+  updateGlance().catch(() => {});
 }
 
 function renderChecklistBucket(size: Size, items: ChecklistItem[], cap: number): void {
@@ -1458,12 +1494,19 @@ function renderChecklistBucket(size: Size, items: ChecklistItem[], cap: number):
       try {
         if (isChecked) await uncompleteItem(date, id);
         else           await completeItem(date, id);
+        await markDirty('checklist_item', id);
+        schedulePush();
         await renderChecklist();
       } catch (e) { console.error('[CHECKLIST] toggle failed', e); }
     });
     row.querySelector<HTMLElement>('.checklist-delete')?.addEventListener('click', async (ev) => {
       ev.stopPropagation();
-      try { await deleteItem(date, id); await renderChecklist(); }
+      try {
+        await captureChecklistDelete(date, id);   // tombstone BEFORE the row vanishes
+        await deleteItem(date, id);
+        schedulePush();
+        await renderChecklist();
+      }
       catch (e) { console.error('[CHECKLIST] delete failed', e); }
     });
   });
@@ -1495,6 +1538,8 @@ async function renderHabits(): Promise<void> {
   if (!list || !empty || !count) return;
   const habits = await listHabits();
   count.textContent = habits.length === 0 ? '' : `${habits.length}`;
+  // Streaks feed the glasses' Home glance line — keep it fresh.
+  updateGlance().catch(() => {});
   if (habits.length === 0) {
     list.innerHTML = '';
     empty.style.display = 'block';
@@ -1569,6 +1614,8 @@ function showCheckInModal(pending: PendingCheckIn[]): void {
       btn.addEventListener('click', async () => {
         const status = btn.dataset.status as HabitStatus;
         await recordCheckIn(hid, status, date);
+        await markDirty('habit', hid);
+        schedulePush();
         // Replace buttons with a small result line
         row.querySelectorAll<HTMLElement>('.checkin-actions button').forEach(b => (b as HTMLButtonElement).disabled = true);
         const result = row.querySelector<HTMLElement>('.checkin-result');
@@ -1687,6 +1734,181 @@ function flashSavedBadge(): void {
   setTimeout(() => { if (b) b.textContent = ''; }, 1800);
 }
 
+// ─── HEADER ACCOUNT CHIP ──────────────────────────────────────────
+// When linked: "@handle ◈ SAGE" (gold) / "@handle SEEKER" (dim) in the
+// masthead row. Hidden when unlinked — the About tab owns the pairing CTA.
+async function renderHeaderAccount(): Promise<void> {
+  const host = $('header-account');
+  if (!host) return;
+  const handle = await linkedHandle();
+  if (!handle) { host.style.display = 'none'; host.innerHTML = ''; return; }
+  const tier = ((await linkedTier()) || 'seeker').toLowerCase();
+  const isSage = tier === 'sage';
+  host.style.display = '';
+  host.innerHTML = `@${escapeHtml(handle)} <span class="tier-chip ${isSage ? 'sage' : ''}">${isSage ? '◈ SAGE' : escapeHtml(tier.toUpperCase())}</span>`;
+}
+
+// ─── APHORICA — the commons (read + vote; compose is a HANDOFF) ────
+// Same community feed the web + Android show, via /api/aphorica/supafeed.
+// Voting needs the pairing token; unlinked taps get a link-your-glasses
+// hint. Composing always hands off to enkiridion.com (translation spec).
+const APH_FEED_URL = 'https://sophicon-api.vercel.app/api/aphorica/supafeed';
+const APH_VOTE_URL = 'https://sophicon-api.vercel.app/api/aphorica/vote';
+
+interface AphPost {
+  id: string; text: string; tradition: string; emotion: string;
+  archetype: string; rarity: string; stars: number;
+  upvotes: number; downvotes: number; createdAt: string | number;
+  author: { handle: string; tier: string; spritePath: string | null };
+  myVote: number | null;
+}
+
+let aphSort: 'hot' | 'new' = 'hot';
+let aphPosts: AphPost[] = [];
+let aphLoading = false;
+
+function aphHint(msg: string): void {
+  const el = $('aph-hint');
+  if (!el) return;
+  el.textContent = msg;
+  if (msg) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 3200);
+}
+
+function aphSpriteUrl(p: string | null): string | null {
+  if (!p) return null;
+  if (/^https?:\/\//.test(p)) return p;
+  return spriteUrl(p.replace(/^\/?sprites\//, ''));
+}
+
+function rarityGlyph(r: string): string {
+  const known: Rarity[] = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
+  const v = String(r || '').toLowerCase() as Rarity;
+  return known.includes(v) ? getRaritySymbol(v) : '·';
+}
+
+async function refreshAphorica(): Promise<void> {
+  const list = $('aph-list');
+  const empty = $('aph-empty');
+  const count = $('aph-count');
+  if (!list || aphLoading) return;
+  aphLoading = true;
+  if (aphPosts.length === 0) list.innerHTML = '<li class="muted" style="padding:8px 2px;">Loading the commons…</li>';
+  try {
+    const resp = await fetch(`${APH_FEED_URL}?sort=${aphSort}&limit=50`, {
+      headers: { ...(await authHeaders()) },
+    });
+    if (!resp.ok) throw new Error(`supafeed ${resp.status}`);
+    const data = await resp.json();
+    aphPosts = Array.isArray(data.posts) ? data.posts : [];
+    if (count) count.textContent = `${aphPosts.length}`;
+    renderAphList();
+    if (empty) empty.style.display = aphPosts.length === 0 ? 'block' : 'none';
+  } catch (e) {
+    list.innerHTML = `<li style="color:var(--err);font-size:12px;padding:8px 2px;">Couldn't reach the commons: ${escapeHtml(String((e as any)?.message || e))}</li>`;
+  } finally {
+    aphLoading = false;
+  }
+}
+
+function renderAphList(): void {
+  const list = $('aph-list');
+  if (!list) return;
+  list.innerHTML = aphPosts.map(p => {
+    const tier = String(p.author?.tier || 'seeker').toLowerCase();
+    const isSage = tier === 'sage';
+    const sprite = aphSpriteUrl(p.author?.spritePath || null);
+    const meta = [p.tradition, p.emotion, p.archetype].filter(Boolean)
+      .map(x => escapeHtml(String(x).replace(/_/g, ' '))).join(' · ');
+    return `
+      <li class="aph-post" data-aid="${escapeAttr(p.id)}">
+        <div class="aph-post-head">
+          ${sprite ? `<img class="aph-author-sprite" src="${sprite}" alt="" onerror="this.style.display='none'"/>` : ''}
+          <span class="aph-handle">@${escapeHtml(p.author?.handle || 'anon')}</span>
+          <span class="tier-chip ${isSage ? 'sage' : ''}">${isSage ? '◈ SAGE' : escapeHtml(tier.toUpperCase())}</span>
+          <span class="aph-rarity" title="${escapeAttr(p.rarity || '')}">${rarityGlyph(p.rarity)}</span>
+        </div>
+        <div class="aph-text">"${escapeHtml(p.text || '')}"</div>
+        ${meta ? `<div class="aph-meta">${meta}</div>` : ''}
+        <div class="aph-votes">
+          <button class="aph-vote up ${p.myVote === 1 ? 'mine' : ''}" data-v="1">♥ ${p.upvotes || 0}</button>
+          <button class="aph-vote down ${p.myVote === -1 ? 'mine' : ''}" data-v="-1">▼ ${p.downvotes || 0}</button>
+        </div>
+      </li>`;
+  }).join('');
+
+  list.querySelectorAll<HTMLElement>('.aph-post').forEach(row => {
+    const aid = row.dataset.aid || '';
+    row.querySelectorAll<HTMLButtonElement>('.aph-vote').forEach(btn => {
+      btn.addEventListener('click', () => voteAphorism(aid, Number(btn.dataset.v) as 1 | -1));
+    });
+  });
+}
+
+async function voteAphorism(aphorismId: string, dir: 1 | -1): Promise<void> {
+  const handle = await linkedHandle();
+  if (!handle) { aphHint('Link your glasses to vote'); return; }
+  const post = aphPosts.find(p => p.id === aphorismId);
+  if (!post) return;
+  const vote = post.myVote === dir ? 0 : dir;      // tap again = retract
+  try {
+    const resp = await fetch(APH_VOTE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify({ aphorismId, vote }),
+    });
+    if (!resp.ok) throw new Error(`vote ${resp.status}`);
+    const data = await resp.json();
+    post.myVote = vote;
+    if (typeof data.upvotes === 'number') post.upvotes = data.upvotes;
+    if (typeof data.downvotes === 'number') post.downvotes = data.downvotes;
+    renderAphList();
+  } catch (e) {
+    aphHint('Vote failed — try again');
+    console.error('[APHORICA] vote failed', e);
+  }
+}
+
+function initAphoricaPanel(): void {
+  $$('.aph-sort').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = (btn.getAttribute('data-sort') as 'hot' | 'new') || 'hot';
+      if (s === aphSort) return;
+      aphSort = s;
+      $$('.aph-sort').forEach(b => b.classList.toggle('active', b === btn));
+      aphPosts = [];
+      refreshAphorica().catch(() => {});
+    });
+  });
+}
+
+// ─── SYNC STATUS (Debug tab) ──────────────────────────────────────
+async function renderSyncStatus(): Promise<void> {
+  const body = $('sync-status-body');
+  const badge = $('sync-status-badge');
+  if (!body) return;
+  const s = await getSyncStatus();
+  if (badge) badge.textContent = s.linkedHandle ? (s.syncing ? 'syncing…' : 'linked') : 'unlinked';
+  const lastPull = s.lastPullMs
+    ? `${new Date(s.lastPullMs).toLocaleTimeString(undefined, { hour12: false })} (${Math.max(0, Math.round((Date.now() - s.lastPullMs) / 60000))}m ago)`
+    : 'never';
+  body.innerHTML = `
+    <div><span class="sync-k">Account</span><span class="sync-v">${s.linkedHandle ? '@' + escapeHtml(s.linkedHandle) : 'unlinked — local only'}</span></div>
+    <div><span class="sync-k">Last pull</span><span class="sync-v">${s.linkedHandle ? lastPull : '—'}</span></div>
+    <div><span class="sync-k">Pending pushes</span><span class="sync-v">${s.dirtyCount}</span></div>
+    ${s.lastError ? `<div><span class="sync-k">Last error</span><span class="sync-err">${escapeHtml(s.lastError)}</span></div>` : ''}
+  `;
+}
+
+function initSyncPanel(): void {
+  $('btn-sync-now')?.addEventListener('click', async () => {
+    await syncNow();
+    await renderSyncStatus();
+    await renderChecklist();
+    await renderHabits();
+  });
+  $('btn-sync-refresh')?.addEventListener('click', () => renderSyncStatus().catch(() => {}));
+}
+
 // ─── PUBLIC ENTRY ─────────────────────────────────────────────────
 export async function initDashboard(b: EvenAppBridge, base: string): Promise<void> {
   bridge = b;
@@ -1696,20 +1918,34 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   setProfileBridge(b);
   setAccountBridge(b);
   setChecklistBridge(b);
+  setSyncBridge(b);
 
   initTabs();
   initHomeStats();
   renderPhilosopherGrid();
   initDebugPanel();
   initJournalPanel();
+  initAphoricaPanel();
+  initSyncPanel();
   await initMindfulPanel();
   await initSettings();
   await initProfilePanel();
+  await renderHeaderAccount();
   await refreshJournal();
   await initWeeklyPanel();
   await renderHabits();
   await renderTodayCard();
   await initChecklistPanel();
+
+  // Device-sync spine: pull the account's checklist/habits/weekly rows
+  // on dashboard open, then re-render whatever a merge touched. Pure
+  // no-op when unlinked — local seeker experience is never gated.
+  onSyncApplied(() => {
+    renderChecklist().catch(() => {});
+    renderHabits().catch(() => {});
+    loadAndRenderCurrentWeek().catch(() => {});
+  });
+  syncNow().catch(() => {});
 
   // Daily check-in modal — surfaces when the user has habits whose
   // last check-in is older than yesterday. Wire close affordance once.

@@ -116,6 +116,10 @@ export async function listHabits(): Promise<Habit[]> {
 }
 export async function listAllHabits(): Promise<Habit[]> { return read(); }
 
+/** Replace the entire habits array. Used by the device-sync merge
+ * (enkiSync.ts) — never call from UI code. */
+export async function replaceAllHabits(all: Habit[]): Promise<void> { await write(all); }
+
 export async function getHabit(id: string): Promise<Habit | null> {
   const all = await read();
   return all.find(h => h.id === id) || null;

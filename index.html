@@ -17,9 +17,10 @@
     <div class="header">
       <div>
         <h1>enki<span class="ridion">RIDION</span></h1>
-        <div class="tagline">Philosophy / On Glass</div>
+        <div class="masthead">PHILOSOPHY · EXAMINED DAILY</div>
       </div>
       <div class="header-spacer"></div>
+      <span class="header-account" id="header-account" style="display:none"></span>
       <button class="header-icon-btn" id="header-settings-btn" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -33,12 +34,16 @@
     </div>
 
     <!-- Tabs -->
+    <!-- Tab order mirrors the Android seven-surface identity:
+         Today · Picks · Mindful · Speak · Journal · Aphorica · About
+         (+ Debug, a G2-only troubleshooting surface) -->
     <div class="tab-bar" role="tablist">
-      <button class="tab-btn active" data-tab="home" role="tab">Home</button>
+      <button class="tab-btn active" data-tab="home" role="tab">Today</button>
       <button class="tab-btn" data-tab="philosophers" role="tab">Picks</button>
       <button class="tab-btn" data-tab="mindful" role="tab">Mindful</button>
       <button class="tab-btn" data-tab="speak" role="tab">Speak</button>
       <button class="tab-btn" data-tab="journal" role="tab">Journal</button>
+      <button class="tab-btn" data-tab="aphorica" role="tab">Aphorica</button>
       <button class="tab-btn" data-tab="debug" role="tab">Debug</button>
       <button class="tab-btn" data-tab="about" role="tab">About</button>
     </div>
@@ -314,6 +319,31 @@
       </div>
     </div>
 
+    <!-- APHORICA — the commons. Read + vote only; composing is a
+         HANDOFF to enkiridion.com (per docs/TRANSLATION-SYSTEM.md). -->
+    <div class="tab-panel" data-panel="aphorica">
+      <div class="card">
+        <div class="card-header">
+          Aphorica — the commons
+          <span class="badge" id="aph-count">—</span>
+        </div>
+        <div class="card-body">
+          <div class="aph-toolbar">
+            <button class="btn sm aph-sort active" data-sort="hot" id="aph-sort-hot">Hot</button>
+            <button class="btn sm aph-sort" data-sort="new" id="aph-sort-new">New</button>
+            <span class="aph-hint muted" id="aph-hint"></span>
+          </div>
+          <ul class="aph-list" id="aph-list"></ul>
+          <div class="muted" id="aph-empty" style="display:none">
+            Nothing here yet — the commons awaits its first aphorism.
+          </div>
+          <a class="aph-compose" href="https://enkiridion.com/aphorica?src=g2" target="_blank" rel="noopener">
+            Compose your own on enkiridion.com →
+          </a>
+        </div>
+      </div>
+    </div>
+
     <!-- DEBUG -->
     <div class="tab-panel" data-panel="debug">
       <div class="card">
@@ -353,6 +383,21 @@
       </div>
 
       <div class="card">
+        <div class="card-header">Account sync
+          <span class="badge" id="sync-status-badge">—</span>
+        </div>
+        <div class="card-body">
+          <div class="sync-status" id="sync-status-body">
+            <p class="muted">—</p>
+          </div>
+          <div class="btn-row mt-sm">
+            <button class="btn sm" id="btn-sync-now">Sync now</button>
+            <button class="btn sm" id="btn-sync-refresh">Refresh status</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-header">App log</div>
         <div id="log"></div>
       </div>
@@ -364,6 +409,8 @@
         <div class="card-header">enkiRIDION</div>
         <div class="card-body">
           <p>Philosophy on Glass. <strong>2,801 quotes</strong> across 17 philosophers and 8 traditions.</p>
+          <p class="mt-md muted">Everything works offline as a Seeker. Link your glasses below and your
+          Today list, habits, and weekly plan stay in step with the enkiRIDION Android app and enkiridion.com.</p>
           <p class="mt-md muted">Built with Vite + TypeScript + <code>@evenrealities/even_hub_sdk</code>.</p>
         </div>
       </div>
@@ -448,7 +495,7 @@
         <div class="field" id="glasses-link-field">
           <label>Pairing code</label>
           <input id="glasses-code" type="text" placeholder="6-char code from enkiridion.com → Settings" autocomplete="off" maxlength="6" style="text-transform: uppercase;" />
-          <span class="hint" id="glasses-link-hint">Unlinked — Seeker mode. Generate a code on enkiridion.com → Settings → G2 Glasses, then link to bring your Sage tier onto the glasses. <a href="https://enkispeaks-web.vercel.app/pricing?src=g2" target="_blank" rel="noopener">Become a Sage →</a></span>
+          <span class="hint" id="glasses-link-hint">Unlinked — Seeker mode. Generate a code on enkiridion.com → Settings → G2 Glasses, then link to bring your Sage tier onto the glasses and sync your Today list, habits, and weekly plan with the Android app. <a href="https://enkispeaks-web.vercel.app/pricing?src=g2" target="_blank" rel="noopener">Become a Sage →</a></span>
         </div>
         <div class="btn-row">
           <button class="btn btn-primary" id="btn-link-glasses">Link glasses</button>
