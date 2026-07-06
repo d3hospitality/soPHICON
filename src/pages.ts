@@ -50,8 +50,13 @@ import {
 export const BROWSABLE_TRADITIONS = TRADITIONS.filter(t =>
   getQuotePhilosophersByTradition(t).length > 0
 );
-export const HOME_LIST_ITEMS = ["enkiRIDION", ...BROWSABLE_TRADITIONS];
+// On-glass home list: enkiSPEAKS (voice conversations) → Public Aphorica
+// (the community feed, a living "school of thought") → then the quote
+// traditions. Index math in events.ts offsets traditions by TRAD_OFFSET.
+export const HOME_LIST_ITEMS = ["enkiSPEAKS", "Public Aphorica", ...BROWSABLE_TRADITIONS];
 export const SPEAK_INDEX = 0;
+export const APHORICA_INDEX = 1;
+export const TRAD_OFFSET = 2;   // first tradition sits at home index 2
 
 // Speak conversation text pagination — per glasses-ui skill, text
 // containers rebuild cleanly at ~400–500 char boundaries. Swipes fire
@@ -248,7 +253,7 @@ function homeContainers() {
   const title = new TextContainerProperty({
     ...geo(layout, "title"),
     containerID: 1, containerName: "title",
-    content: "enkiRIDION",
+    content: "enkiSPEAKS",
     isEventCapture: 0,
   });
   const glance = new TextContainerProperty({
@@ -343,6 +348,32 @@ export function buildPhilosopherSelectPage(tradition: Tradition, index: number =
     listObject: [],
     textObject: [header, navpad],
     imageObject: [portraitTop, portraitBottom],
+  });
+}
+
+/** Public Aphorica — the community feed as a browsable on-glass list.
+ * Each item is a one-line preview ("@handle · text…"); ring-swipe scrolls,
+ * double-tap goes home. Items are supplied by events.ts from the live feed. */
+export function buildAphoricaPage(items: string[], index: number = 0): RebuildPageContainer {
+  const layout = philosopherSelectLayout();
+  const total = items.length;
+  const idx = Math.max(0, Math.min(index, Math.max(0, total - 1)));
+  const navText = total === 0 ? '(no aphorisms yet)' : renderNavpad(items, idx, 7);
+  const header = new TextContainerProperty({
+    ...geo(layout, "header"),
+    containerID: 1, containerName: "header",
+    content: "Public Aphorica", isEventCapture: 0,
+  });
+  const navpad = new TextContainerProperty({
+    ...geo(layout, "philosophers"),
+    containerID: 2, containerName: "philosophers",
+    content: navText, isEventCapture: 1,
+  });
+  return new RebuildPageContainer({
+    containerTotalNum: 2,
+    listObject: [],
+    textObject: [header, navpad],
+    imageObject: [],
   });
 }
 

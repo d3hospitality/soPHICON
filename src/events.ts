@@ -31,6 +31,7 @@ import {
   buildMindstatePage, getMindstateSelections,
   buildQuoteViewPage,
   HOME_LIST_ITEMS, BROWSABLE_TRADITIONS, SPEAK_INDEX,
+  APHORICA_INDEX, TRAD_OFFSET, buildAphoricaPage,
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
   buildSpeakConversationPage,
   speakConversationPageCount,
@@ -52,10 +53,34 @@ import { log } from './ui';
 // ═══ STATE ═══
 type Page = "home" | "philosophers" | "mindstate" | "quote"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
-  | "mindful-blank" | "mindful-quote";
+  | "mindful-blank" | "mindful-quote" | "aphorica";
 
 let currentPage: Page = "home";
 let currentTradition: Tradition | null = null;
+
+// Public Aphorica (on-glass community feed) state.
+const APH_FEED_URL = 'https://sophicon-api.vercel.app/api/aphorica/supafeed';
+let aphGlassItems: string[] = [];
+let aphGlassIdx = 0;
+
+/** Fetch the community feed (public read) and open it on the glasses as a
+ * browsable list — one short line per aphorism. */
+async function openAphorica(bridge: EvenAppBridge): Promise<void> {
+  aphGlassIdx = 0;
+  try {
+    const resp = await fetch(`${APH_FEED_URL}?sort=hot&limit=20`);
+    const data = resp.ok ? await resp.json() : { posts: [] };
+    const posts: any[] = Array.isArray(data.posts) ? data.posts : [];
+    aphGlassItems = posts.map(p => {
+      const handle = String(p.author?.handle || 'anon');
+      const text = String(p.text || '').replace(/\s+/g, ' ').trim();
+      const preview = text.length > 32 ? text.slice(0, 31) + '…' : text;
+      return `@${handle} +${p.upvotes || 0}: ${preview}`;
+    });
+  } catch { aphGlassItems = []; }
+  await bridge.rebuildPageContainer(buildAphoricaPage(aphGlassItems, 0));
+  currentPage = 'aphorica';
+}
 let currentPhilosopher: Philosopher | null = null;
 let currentQuotes: Quote[] = [];
 let currentQuoteIndex: number = 0;
@@ -675,6 +700,14 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       await pushLogoToGlasses(bridge, baseUrl);
       log("< Back to Home", "success");
     }
+    else if (currentPage === "aphorica") {
+      try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
+      await bridge.rebuildPageContainer(rebuildHomePage());
+      currentPage = "home"; lastHoveredPhilIndex = -1;
+      lastNavigationTime = Date.now();
+      await pushLogoToGlasses(bridge, baseUrl);
+      log("< Back to Home", "success");
+    }
   } catch (err) { log(`[BACK] ERROR: ${err}`, "error"); }
   finally { navigating = false; publishState(); }
 }
@@ -889,12 +922,15 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         currentPage = "speak-traditions";
         lastNavigationTime = Date.now();
         await pushLogoToGlasses(bridge, baseUrl);
-        log("> soPHICON Speaks", "success");
+        log("> enkiSPEAKS", "success");
+      } else if (idx === APHORICA_INDEX) {
+        await openAphorica(bridge);
+        lastNavigationTime = Date.now();
+        log("> Public Aphorica", "success");
       } else {
-        // Index into BROWSABLE_TRADITIONS, NOT the full TRADITIONS array.
-        // The home menu now hides traditions that have no quote-philosophers
-        // (e.g. Primordial), so the click index maps 1:1 to BROWSABLE_TRADITIONS.
-        const tradIdx = idx - 1;
+        // Index into BROWSABLE_TRADITIONS. enkiSPEAKS + Public Aphorica sit
+        // ahead of the traditions, so offset the click index by TRAD_OFFSET.
+        const tradIdx = idx - TRAD_OFFSET;
         if (tradIdx >= 0 && tradIdx < BROWSABLE_TRADITIONS.length) {
           currentTradition = BROWSABLE_TRADITIONS[tradIdx];
           picksSelectedIndex = 0;
@@ -1097,6 +1133,13 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
     if (currentPage === "mindstate" && currentPhilosopher) {
       if (up)   { await setMindstateSelectedIndex(mindstateSelectedIndex - 1); return; }
       if (down) { await setMindstateSelectedIndex(mindstateSelectedIndex + 1); return; }
+    }
+    // Public Aphorica: swipe scrolls through the community feed.
+    if (currentPage === "aphorica") {
+      const n = aphGlassItems.length;
+      if (n === 0) return;
+      if (up)   { aphGlassIdx = (aphGlassIdx - 1 + n) % n; await bridge.rebuildPageContainer(buildAphoricaPage(aphGlassItems, aphGlassIdx)); return; }
+      if (down) { aphGlassIdx = (aphGlassIdx + 1) % n; await bridge.rebuildPageContainer(buildAphoricaPage(aphGlassItems, aphGlassIdx)); return; }
     }
 
     if (currentPage === "speak-conversation") {
