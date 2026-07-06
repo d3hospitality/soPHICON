@@ -38,7 +38,7 @@ import {
   composeSpeakResponseContent,
   buildMindfulnessBlankPage,
 } from './pages';
-import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle } from './image-utils';
+import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl } from './image-utils';
 import { isFavorite } from './favorites';
 import { setAccountBridge } from './enkiAccount';
 import {
@@ -63,7 +63,17 @@ let currentTradition: Tradition | null = null;
 // philosophers) → one member's thoughts, shuffled, with peer reactions.
 const APH_FEED_URL = 'https://sophicon-api.vercel.app/api/aphorica/supafeed';
 type AphPost = { text: string; up: number; down: number };
-type AphAuthor = { handle: string; badge: string; posts: AphPost[] };
+type AphAuthor = { handle: string; badge: string; sprite: string | null; posts: AphPost[] };
+// Default community avatar (the ENKI mascot) when a member has no sprite.
+const APH_DEFAULT_AVATAR = 'sprites/enki/enki-neutral.png';
+/** Resolve a member's stored sprite to a source the glasses can fetch:
+ * an absolute URL as-is, a bundled relative path via sprites/, else the
+ * default ENKI avatar. */
+function aphSpriteSource(sprite: string | null): string {
+  if (!sprite) return APH_DEFAULT_AVATAR;
+  if (/^https?:\/\//.test(sprite)) return sprite;
+  return `sprites/${sprite.replace(/^\/?sprites\//, '')}`;
+}
 let aphAuthors: AphAuthor[] = [];
 let aphGlassIdx = 0;    // cursor in the author list
 let aphAuthorIdx = 0;   // selected author
@@ -104,7 +114,7 @@ async function openAphorica(bridge: EvenAppBridge): Promise<void> {
       const text = String(p.text || '').replace(/\s+/g, ' ').trim();
       if (!text) continue;
       let a = byHandle.get(handle);
-      if (!a) { a = { handle, badge: aphBadge(p.author?.tier), posts: [] }; byHandle.set(handle, a); }
+      if (!a) { a = { handle, badge: aphBadge(p.author?.tier), sprite: p.author?.spritePath || null, posts: [] }; byHandle.set(handle, a); }
       a.posts.push({ text, up: Number(p.upvotes) || 0, down: Number(p.downvotes) || 0 });
     }
     // Shuffle each member's posts so re-entry reshuffles like a philosopher.
@@ -134,6 +144,8 @@ async function renderAphoricaRead(bridge: EvenAppBridge): Promise<void> {
   await bridge.rebuildPageContainer(
     buildAphoricaReadPage(`@${a.handle} · ${a.badge}`, post.text, post.up, post.down, idx, n),
   );
+  // Push the member's avatar into the portrait slot (falls back to ENKI).
+  await pushSpriteFromUrl(bridge, aphSpriteSource(a.sprite), 3, "sprite", 100, 100);
 }
 let currentPhilosopher: Philosopher | null = null;
 let currentQuotes: Quote[] = [];

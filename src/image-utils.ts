@@ -183,3 +183,19 @@ export async function pushSpriteSingle(
     console.log(`[soΦcon] Sprite ✓ ${spritePath}`);
   } catch (e) { console.warn(`[soΦcon] Sprite FAILED: ${spritePath}`, e); }
 }
+
+/** Push a sprite from an ARBITRARY source — an absolute http(s) URL (e.g. a
+ * community member's avatar in Supabase storage) OR an asset-relative path
+ * like "sprites/enki/enki-neutral.png". Non-throwing: a missing/blocked
+ * avatar just leaves the slot empty. */
+export async function pushSpriteFromUrl(
+  bridge: EvenAppBridge, source: string,
+  containerID: number, containerName: string, w: number, h: number,
+): Promise<void> {
+  try {
+    const url = /^https?:\/\//.test(source) ? source : assetUrl(source);
+    const png = await fetchAsGrayscalePng(url, w, h);
+    await pushImg(bridge, containerID, containerName, png);
+    console.log(`[soΦcon] Member sprite ✓ ${source}`);
+  } catch (e) { console.warn(`[soΦcon] Member sprite FAILED: ${source}`, e); }
+}

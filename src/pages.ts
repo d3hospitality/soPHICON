@@ -407,11 +407,17 @@ export function buildAphoricaReadPage(
     content: [line1, line2].join('\n'),
     isEventCapture: 0,
   });
+  // The member's avatar (100×100, same slot as the philosopher portrait).
+  // events.ts pushes the pixels after this rebuild.
+  const avatar = new ImageContainerProperty({
+    ...geo(layout, "sprite"),
+    containerID: 3, containerName: "sprite",
+  });
   return new RebuildPageContainer({
-    containerTotalNum: 2,
+    containerTotalNum: 3,
     listObject: [],
     textObject: [body, info],
-    imageObject: [],
+    imageObject: [avatar],
   });
 }
 
