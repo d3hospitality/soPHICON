@@ -615,6 +615,23 @@
     </div>
   </div>
 
+  <!-- First-run onboarding / sign-in gate — shown when unlinked. Routes to
+       Google sign-in + the $8/mo trial on enkiridion.com (the glasses webview
+       can't host Google OAuth, so it opens in the phone browser), then the
+       user links back with a pairing code. -->
+  <div class="onboard-overlay" id="onboard" hidden>
+    <div class="onboard-card">
+      <div class="onboard-mark">Φ</div>
+      <div class="onboard-kicker">ENKIRIDION</div>
+      <h2 class="onboard-title">Speak with every philosopher</h2>
+      <p class="onboard-sub">Talk anything through with 17 philosophers across 8 traditions. <strong>7 days free</strong>, then $8/month — one membership covers your glasses, the web &amp; Android, with your conversations saved across all three.</p>
+      <a class="onboard-primary" href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener" id="onboard-trial">Sign in with Google · Start 7-day free trial →</a>
+      <button class="onboard-secondary" id="onboard-pair">I already subscribed — enter my code</button>
+      <button class="onboard-ghost" id="onboard-free">Continue free as a Seeker</button>
+      <p class="onboard-fine">Free forever: all 2,801 quotes + one conversation a day with Enki.</p>
+    </div>
+  </div>
+
   <script type="module" src="/src/Main.ts"></script>
 </body>
 </html>

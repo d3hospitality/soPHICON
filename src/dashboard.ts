@@ -523,6 +523,40 @@ function switchTab(name: string): void {
 }
 
 /**
+ * First-run onboarding / sign-in gate. Shown when the glasses are unlinked
+ * and the user hasn't chosen "continue free". The primary CTA opens
+ * enkiridion.com/pricing in the phone browser — that's where Google sign-in
+ * and the $8/mo trial run (the Even Hub webview can't host Google OAuth) —
+ * then the user links back with a pairing code from the About tab.
+ */
+async function maybeShowOnboarding(): Promise<void> {
+  const overlay = document.getElementById('onboard');
+  if (!overlay || !bridge) return;
+
+  const linked = await linkedHandle();
+  let dismissed = '';
+  try { dismissed = (await bridge.getLocalStorage('enki_onboarded')) || ''; } catch {}
+  if (linked || dismissed === '1') { (overlay as HTMLElement).hidden = true; return; }
+
+  (overlay as HTMLElement).hidden = false;
+
+  const close = async (remember: boolean) => {
+    (overlay as HTMLElement).hidden = true;
+    if (remember && bridge) { try { await bridge.setLocalStorage('enki_onboarded', '1'); } catch {} }
+  };
+
+  // "Continue free" → remember, so it stops nudging. The About tab still
+  // carries the trial CTA for later.
+  document.getElementById('onboard-free')?.addEventListener('click', () => { close(true); });
+  // "I already subscribed" → jump to the pairing input (don't remember, so
+  // if they bail we still nudge next launch).
+  document.getElementById('onboard-pair')?.addEventListener('click', () => { close(false); switchTab('about'); });
+  // The trial CTA is an <a target="_blank"> to enkiridion.com — let the
+  // browser open; keep the gate un-dismissed so it keeps nudging until the
+  // glasses are actually linked.
+}
+
+/**
  * Show/hide the enkiSPEAKS trial CTA above the philosopher list.
  * Sage/trial (entitled) → hidden. Seeker or unlinked → shown, so the
  * upgrade path is one tap from where you'd start a conversation.
@@ -2370,6 +2404,10 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
     if ((ev.target as HTMLElement).id === 'checkin-modal') closeCheckInModal();
   });
   await maybeShowDailyCheckIn();
+
+  // First-run onboarding / sign-in gate (unlinked users): routes to Google
+  // sign-in + the $8/mo trial on enkiridion.com, then pairing.
+  await maybeShowOnboarding();
 
   // Subscribe to live glass-state updates; also refresh journal when
   // user exits speak-conversation (checkpoint just fired)
