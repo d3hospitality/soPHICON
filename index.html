@@ -633,18 +633,28 @@
     </div>
   </div>
 
-  <!-- First-run onboarding / sign-in gate — shown when unlinked. Routes to
-       Google sign-in + the $8/mo trial on enkiridion.com (the glasses webview
-       can't host Google OAuth, so it opens in the phone browser), then the
-       user links back with a pairing code. -->
+  <!-- First-run onboarding / sign-in gate — shown when unlinked. Google OAuth
+       can't run inside the Even Realities webview (disallowed_useragent), so
+       instead of a broken in-app sign-in we hand the user a copy-pastable link
+       to open in their phone browser, subscribe there, and return with a code. -->
   <div class="onboard-overlay" id="onboard" hidden>
     <div class="onboard-card">
       <div class="onboard-mark">Φ</div>
       <div class="onboard-kicker">ENKISPEAKS</div>
       <h2 class="onboard-title">Speak with every philosopher</h2>
-      <p class="onboard-sub">Talk anything through with 17 philosophers across 8 traditions. <strong>7 days free</strong>, then $8/month — one membership covers your glasses, the web &amp; Android, with your conversations saved across all three.</p>
-      <a class="onboard-primary" href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener" id="onboard-trial">Sign in with Google · Start 7-day free trial →</a>
-      <button class="onboard-secondary" id="onboard-pair">I already subscribed — enter my code</button>
+      <p class="onboard-sub">17 philosophers across 8 traditions. <strong>7 days free</strong>, then $8/month — one membership covers your glasses, the web &amp; Android.</p>
+
+      <div class="onboard-howto">
+        <div class="onboard-step"><span class="onboard-step-n">1</span><span>Copy this link and open it in your phone&rsquo;s browser:</span></div>
+        <div class="onboard-copy">
+          <span class="onboard-url">enkiridion.com/pricing</span>
+          <button class="copy-btn" data-copy="https://enkiridion.com/pricing?src=g2">Copy</button>
+        </div>
+        <div class="onboard-step"><span class="onboard-step-n">2</span><span>Sign in with Google &amp; start your <strong>7-day free trial</strong>.</span></div>
+        <div class="onboard-step"><span class="onboard-step-n">3</span><span>Grab your 6-char code (Settings → G2 Glasses), come back, and link below.</span></div>
+      </div>
+
+      <button class="onboard-primary" id="onboard-pair">I have my code — link my glasses →</button>
       <button class="onboard-ghost" id="onboard-free">Continue free as a Seeker</button>
       <p class="onboard-fine">Free forever: all 2,801 quotes + one conversation a day with Enki.</p>
     </div>
