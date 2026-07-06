@@ -360,13 +360,18 @@ export function buildAphoricaPage(items: string[], index: number = 0): RebuildPa
   const total = items.length;
   const idx = Math.max(0, Math.min(index, Math.max(0, total - 1)));
   const navText = total === 0 ? '(no members yet)' : renderNavpad(items, idx, 7);
+  // No portrait here (unlike philosopher-select), so reclaim the full 576px
+  // width for the member list — long/weird handles get room to breathe — and
+  // move the title to a top strip so a full 7-item column never runs under it.
   const header = new TextContainerProperty({
     ...geo(layout, "header"),
+    xPosition: 40, yPosition: 6, width: 496, height: 24,
     containerID: 1, containerName: "header",
     content: "Public Aphorica", isEventCapture: 0,
   });
   const navpad = new TextContainerProperty({
     ...geo(layout, "philosophers"),
+    xPosition: 24, yPosition: 36, width: 528, height: 244,
     containerID: 2, containerName: "philosophers",
     content: navText, isEventCapture: 1,
   });
