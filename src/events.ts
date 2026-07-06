@@ -31,7 +31,7 @@ import {
   buildMindstatePage, getMindstateSelections,
   buildQuoteViewPage,
   HOME_LIST_ITEMS, BROWSABLE_TRADITIONS, SPEAK_INDEX,
-  APHORICA_INDEX, TRAD_OFFSET, buildAphoricaPage,
+  APHORICA_INDEX, TRAD_OFFSET, buildAphoricaPage, buildAphoricaReadPage,
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
   buildSpeakConversationPage,
   speakConversationPageCount,
@@ -53,33 +53,87 @@ import { log } from './ui';
 // ═══ STATE ═══
 type Page = "home" | "philosophers" | "mindstate" | "quote"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
-  | "mindful-blank" | "mindful-quote" | "aphorica";
+  | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read";
 
 let currentPage: Page = "home";
 let currentTradition: Tradition | null = null;
 
-// Public Aphorica (on-glass community feed) state.
+// Public Aphorica (on-glass community) state. Two levels: an author list
+// (community members, tagged by status like Seeker/Sage — browsed like
+// philosophers) → one member's thoughts, shuffled, with peer reactions.
 const APH_FEED_URL = 'https://sophicon-api.vercel.app/api/aphorica/supafeed';
-let aphGlassItems: string[] = [];
-let aphGlassIdx = 0;
+type AphPost = { text: string; up: number; down: number };
+type AphAuthor = { handle: string; badge: string; posts: AphPost[] };
+let aphAuthors: AphAuthor[] = [];
+let aphGlassIdx = 0;    // cursor in the author list
+let aphAuthorIdx = 0;   // selected author
+let aphReadIdx = 0;     // cursor within the selected author's posts
 
-/** Fetch the community feed (public read) and open it on the glasses as a
- * browsable list — one short line per aphorism. */
+/** Map a Supabase tier to a short on-glass status badge. */
+function aphBadge(tier: unknown): string {
+  const t = String(tier || '').toLowerCase();
+  if (t === 'sage' || t === 'trialing' || t === 'trial' || t === 'active' || t === 'past_due') return 'SAGE';
+  if (t === '' || t === 'seeker') return 'SEEKER';
+  return t.toUpperCase();
+}
+function aphShuffle<T>(arr: T[]): T[] {
+  const r = arr.slice();
+  for (let i = r.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [r[i], r[j]] = [r[j], r[i]];
+  }
+  return r;
+}
+/** Author-list labels: "@handle · SAGE (n)". */
+function aphAuthorItems(): string[] {
+  return aphAuthors.map(a => `@${a.handle} · ${a.badge} (${a.posts.length})`);
+}
+
+/** Fetch the community feed (public read), group posts by author, and open
+ * the author list on the glasses — each member browsable like a philosopher. */
 async function openAphorica(bridge: EvenAppBridge): Promise<void> {
   aphGlassIdx = 0;
   try {
-    const resp = await fetch(`${APH_FEED_URL}?sort=hot&limit=20`);
+    const resp = await fetch(`${APH_FEED_URL}?sort=hot&limit=100`);
     const data = resp.ok ? await resp.json() : { posts: [] };
     const posts: any[] = Array.isArray(data.posts) ? data.posts : [];
-    aphGlassItems = posts.map(p => {
+    // Group by author, preserving first-seen (hot) order of members.
+    const byHandle = new Map<string, AphAuthor>();
+    for (const p of posts) {
       const handle = String(p.author?.handle || 'anon');
       const text = String(p.text || '').replace(/\s+/g, ' ').trim();
-      const preview = text.length > 32 ? text.slice(0, 31) + '…' : text;
-      return `@${handle} +${p.upvotes || 0}: ${preview}`;
-    });
-  } catch { aphGlassItems = []; }
-  await bridge.rebuildPageContainer(buildAphoricaPage(aphGlassItems, 0));
+      if (!text) continue;
+      let a = byHandle.get(handle);
+      if (!a) { a = { handle, badge: aphBadge(p.author?.tier), posts: [] }; byHandle.set(handle, a); }
+      a.posts.push({ text, up: Number(p.upvotes) || 0, down: Number(p.downvotes) || 0 });
+    }
+    // Shuffle each member's posts so re-entry reshuffles like a philosopher.
+    aphAuthors = [...byHandle.values()].map(a => ({ ...a, posts: aphShuffle(a.posts) }));
+  } catch { aphAuthors = []; }
+  await bridge.rebuildPageContainer(buildAphoricaPage(aphAuthorItems(), 0));
   currentPage = 'aphorica';
+}
+
+/** Open one community member's shuffled thoughts as a reading view. */
+async function openAphoricaAuthor(bridge: EvenAppBridge, authorIdx: number): Promise<void> {
+  if (authorIdx < 0 || authorIdx >= aphAuthors.length) return;
+  if (aphAuthors[authorIdx].posts.length === 0) return;
+  aphAuthorIdx = authorIdx;
+  aphReadIdx = 0;
+  await renderAphoricaRead(bridge);
+  currentPage = 'aphorica-read';
+}
+
+/** Render the current author's current post with peer reactions. */
+async function renderAphoricaRead(bridge: EvenAppBridge): Promise<void> {
+  const a = aphAuthors[aphAuthorIdx];
+  if (!a || a.posts.length === 0) return;
+  const n = a.posts.length;
+  const idx = ((aphReadIdx % n) + n) % n;
+  const post = a.posts[idx];
+  await bridge.rebuildPageContainer(
+    buildAphoricaReadPage(`@${a.handle} · ${a.badge}`, post.text, post.up, post.down, idx, n),
+  );
 }
 let currentPhilosopher: Philosopher | null = null;
 let currentQuotes: Quote[] = [];
@@ -700,6 +754,13 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       await pushLogoToGlasses(bridge, baseUrl);
       log("< Back to Home", "success");
     }
+    else if (currentPage === "aphorica-read") {
+      // Reading a member's thoughts → back to the member list.
+      await bridge.rebuildPageContainer(buildAphoricaPage(aphAuthorItems(), aphGlassIdx));
+      currentPage = "aphorica";
+      lastNavigationTime = Date.now();
+      log("< Back to Public Aphorica", "success");
+    }
     else if (currentPage === "aphorica") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
       await bridge.rebuildPageContainer(rebuildHomePage());
@@ -1134,12 +1195,20 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       if (up)   { await setMindstateSelectedIndex(mindstateSelectedIndex - 1); return; }
       if (down) { await setMindstateSelectedIndex(mindstateSelectedIndex + 1); return; }
     }
-    // Public Aphorica: swipe scrolls through the community feed.
+    // Public Aphorica: swipe scrolls the member list.
     if (currentPage === "aphorica") {
-      const n = aphGlassItems.length;
+      const n = aphAuthors.length;
       if (n === 0) return;
-      if (up)   { aphGlassIdx = (aphGlassIdx - 1 + n) % n; await bridge.rebuildPageContainer(buildAphoricaPage(aphGlassItems, aphGlassIdx)); return; }
-      if (down) { aphGlassIdx = (aphGlassIdx + 1) % n; await bridge.rebuildPageContainer(buildAphoricaPage(aphGlassItems, aphGlassIdx)); return; }
+      if (up)   { aphGlassIdx = (aphGlassIdx - 1 + n) % n; await bridge.rebuildPageContainer(buildAphoricaPage(aphAuthorItems(), aphGlassIdx)); return; }
+      if (down) { aphGlassIdx = (aphGlassIdx + 1) % n; await bridge.rebuildPageContainer(buildAphoricaPage(aphAuthorItems(), aphGlassIdx)); return; }
+    }
+    // Aphorica reading: swipe cycles the selected member's thoughts.
+    if (currentPage === "aphorica-read") {
+      const a = aphAuthors[aphAuthorIdx];
+      const n = a ? a.posts.length : 0;
+      if (n === 0) return;
+      if (up)   { aphReadIdx = (aphReadIdx - 1 + n) % n; await renderAphoricaRead(bridge); return; }
+      if (down) { aphReadIdx = (aphReadIdx + 1) % n; await renderAphoricaRead(bridge); return; }
     }
 
     if (currentPage === "speak-conversation") {
@@ -1208,6 +1277,14 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
     if (type === OsEventTypeList.CLICK_EVENT) { // 0
       if (currentPage === "quote")              { await handleClick(bridge, 0, baseUrl); return; }
       if (currentPage === "speak-conversation") { await toggleMic(bridge, baseUrl); return; }
+      // Public Aphorica member list: click opens that member's thoughts.
+      if (currentPage === "aphorica")           { await openAphoricaAuthor(bridge, aphGlassIdx); return; }
+      // Reading a member: click reshuffles to another of their thoughts.
+      if (currentPage === "aphorica-read") {
+        const a = aphAuthors[aphAuthorIdx];
+        if (a && a.posts.length) { aphReadIdx = Math.floor(Math.random() * a.posts.length); await renderAphoricaRead(bridge); }
+        return;
+      }
       // Mindfulness mode clicks
       if (currentPage === "mindful-blank")      { await showMindfulQuote(bridge); return; }
       if (currentPage === "mindful-quote")      { await showMindfulBlank(bridge); return; }

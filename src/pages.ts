@@ -351,14 +351,15 @@ export function buildPhilosopherSelectPage(tradition: Tradition, index: number =
   });
 }
 
-/** Public Aphorica — the community feed as a browsable on-glass list.
- * Each item is a one-line preview ("@handle · text…"); ring-swipe scrolls,
- * double-tap goes home. Items are supplied by events.ts from the live feed. */
+/** Public Aphorica — LEVEL 1: browse community members like philosophers.
+ * Each item is one author ("@handle · SAGE (n)") tagged by their status;
+ * ring-swipe scrolls, click opens that author's thoughts, double-tap goes
+ * home. Items are supplied by events.ts from the live feed. */
 export function buildAphoricaPage(items: string[], index: number = 0): RebuildPageContainer {
   const layout = philosopherSelectLayout();
   const total = items.length;
   const idx = Math.max(0, Math.min(index, Math.max(0, total - 1)));
-  const navText = total === 0 ? '(no aphorisms yet)' : renderNavpad(items, idx, 7);
+  const navText = total === 0 ? '(no members yet)' : renderNavpad(items, idx, 7);
   const header = new TextContainerProperty({
     ...geo(layout, "header"),
     containerID: 1, containerName: "header",
@@ -373,6 +374,43 @@ export function buildAphoricaPage(items: string[], index: number = 0): RebuildPa
     containerTotalNum: 2,
     listObject: [],
     textObject: [header, navpad],
+    imageObject: [],
+  });
+}
+
+/** Public Aphorica — LEVEL 2: read one community member's thoughts, shuffled
+ * like a philosopher's quotes. No rarity/stars — just the author + their peer
+ * reactions (hearts and dislikes). Swipe cycles their posts, click reshuffles,
+ * double-tap returns to the member list. */
+export function buildAphoricaReadPage(
+  authorLabel: string,
+  text: string,
+  up: number,
+  down: number,
+  index: number,
+  total: number,
+): RebuildPageContainer {
+  const layout = quoteViewLayout();
+  const body = new TextContainerProperty({
+    ...geo(layout, "quote"),
+    containerID: 2, containerName: "quote",
+    content: `"${text}"`,
+    isEventCapture: 1,
+  });
+  const pos = String(index + 1).padStart(2, '0');
+  const tot = String(Math.max(1, total)).padStart(2, '0');
+  const line1 = `${pos}/${tot}  ${authorLabel}`;
+  const line2 = `♥ ${up} likes · ${down} dislikes`;
+  const info = new TextContainerProperty({
+    ...geo(layout, "text-3"),
+    containerID: 13, containerName: "text-3",
+    content: [line1, line2].join('\n'),
+    isEventCapture: 0,
+  });
+  return new RebuildPageContainer({
+    containerTotalNum: 2,
+    listObject: [],
+    textObject: [body, info],
     imageObject: [],
   });
 }
