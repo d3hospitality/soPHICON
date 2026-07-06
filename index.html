@@ -37,19 +37,34 @@
     <!-- Tab order mirrors the Android seven-surface identity:
          Today · Picks · Mindful · Speak · Journal · Aphorica · About
          (+ Debug, a G2-only troubleshooting surface) -->
-    <div class="tab-bar" role="tablist">
-      <button class="tab-btn active" data-tab="home" role="tab">Today</button>
-      <button class="tab-btn" data-tab="philosophers" role="tab">Picks</button>
-      <button class="tab-btn" data-tab="mindful" role="tab">Mindful</button>
-      <button class="tab-btn" data-tab="speak" role="tab">Speak</button>
-      <button class="tab-btn" data-tab="journal" role="tab">Journal</button>
-      <button class="tab-btn" data-tab="aphorica" role="tab">Aphorica</button>
-      <button class="tab-btn" data-tab="debug" role="tab">Debug</button>
-      <button class="tab-btn" data-tab="about" role="tab">About</button>
-    </div>
+    <nav class="tab-bar" role="tablist">
+<button class="tab-btn active" data-tab="home" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.6 12 3l9 7.6V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Today</span></button>
+<button class="tab-btn" data-tab="philosophers" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v5l-2 4H7zM14 7h4v5l-2 4h-2z"/></svg><span>Quotes</span></button>
+<button class="tab-btn" data-tab="mindful" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg><span>Mindful</span></button>
+<button class="tab-btn" data-tab="speak" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>Speak</span></button>
+<button class="tab-btn" data-tab="journal" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6C10 5 6 5 4 6v13c2-1 6-1 8 0 2-1 6-1 8 0V6c-2-1-6-1-8 0zM12 6v13"/></svg><span>Journal</span></button>
+<button class="tab-btn" data-tab="aphorica" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-11.7 7.8L3 21l1.7-6.2A8.5 8.5 0 1 1 21 11.5z"/></svg><span>Aphorica</span></button>
+<button class="tab-btn" data-tab="debug" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4zM8 9l3 3-3 3M13 15h4"/></svg><span>Debug</span></button>
+<button class="tab-btn" data-tab="about" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8h.01M11 12h1v4h1"/></svg><span>About</span></button>
+</nav>
 
     <!-- HOME -->
     <div class="tab-panel active" data-panel="home">
+
+      <!-- Today's Quote (Android parity) -->
+      <div class="card today-quote" id="today-quote">
+        <div class="tq-head">
+          <span class="tq-label">Today's Quote</span>
+          <div class="tq-right">
+            <span class="tq-rarity" id="tq-rarity"></span>
+            <button class="tq-refresh" id="tq-refresh" title="New quote" aria-label="New quote">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="tq-text" id="tq-text">…</div>
+        <div class="tq-attr" id="tq-attr"></div>
+      </div>
 
       <!-- Weekly Action Plan -->
       <div class="card weekly-card">
@@ -260,19 +275,53 @@
 
     <!-- SPEAK -->
     <div class="tab-panel" data-panel="speak">
+      <!-- On-glass mirror: what the glasses are showing right now -->
       <div class="card">
         <div class="card-header">
-          Conversation
+          On Glass
           <span class="badge" id="speak-phil-badge">— idle —</span>
         </div>
         <div class="card-body" id="speak-mirror">
           <p class="muted">Nothing yet. Pick a philosopher → tap the glass → speak.</p>
         </div>
       </div>
+
+      <!-- Phone-side compose: converse from the phone, just like Android -->
+      <div class="card speak-compose-card">
+        <div class="card-header">
+          Conversation
+          <span class="badge" id="speak-compose-badge">pick a philosopher</span>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label>Philosopher</label>
+            <select id="speak-phil-select"></select>
+          </div>
+          <div class="speak-thread" id="speak-thread">
+            <p class="muted">Choose a philosopher above, then send your first turn.</p>
+          </div>
+          <div class="speak-input-bar">
+            <input id="speak-input" type="text" placeholder="Ask a philosopher…" autocomplete="off" />
+            <button class="btn btn-primary" id="speak-send">Send</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- JOURNAL -->
     <div class="tab-panel" data-panel="journal">
+      <!-- Session list (Android parity): sprite + name + date + snippet +
+           turn count; tap to expand the full conversation + action items. -->
+      <div class="card">
+        <div class="card-header">
+          Sessions
+          <span class="badge" id="journal-sessions-count">—</span>
+        </div>
+        <div class="card-body" id="journal-sessions">
+          <p class="muted">No conversations yet. Open Speak on the glasses or the phone to start one.</p>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           Calendar

@@ -21,8 +21,8 @@
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 import {
   PHILOSOPHERS, TRADITIONS, TOTAL_QUOTES, TOTAL_PHILOSOPHERS, TOTAL_TRADITIONS,
-  Philosopher, Tradition, getPhilosophersByTradition, capitalize,
-  Rarity, getRaritySymbol,
+  Philosopher, Tradition, Quote, getPhilosophersByTradition, capitalize,
+  Rarity, getRarity, getRaritySymbol,
 } from './constants';
 import {
   onGlassesStateChange, GlassesState,
@@ -30,7 +30,11 @@ import {
   startMindfulness, stopMindfulness, loadMindfulConfig, getMindfulConfig,
 } from './events';
 import { pushSprite, getSpritePushLog, clearSpriteCache } from './image-utils';
-import { loadJournal, JournalSession, SpeakMessage, loadActionItems } from './speak';
+import {
+  loadJournal, JournalSession, SpeakMessage, loadActionItems,
+  loadPersonas, getPersona, startConversation, sendMessage,
+  emotionToSprite, normalizeEmotion,
+} from './speak';
 import {
   WeeklyOverview, WeeklyProblem, WeeklyAction, Category, Quadrant, QUADRANTS,
   isoWeekKey, weekRangeLabel, weekDisplayLabel, shiftWeek,
@@ -284,7 +288,61 @@ function applyGlassState(s: GlassesState): void {
   }
 }
 
-// ─── PHILOSOPHER GRID ─────────────────────────────────────────────
+// ─── PICKS — FULL QUOTES BROWSER ──────────────────────────────────
+// Mirrors Android ui/quotes/QuotesScreen: tradition accordion →
+// philosopher rows (40px sprite + name + count) → quote cards. Fully
+// offline — every quote is baked into constants.ts. Favorites persist
+// via bridge.setLocalStorage under `enki_favorites` (quote-text keyed).
+
+const FAVORITES_KEY = 'enki_favorites';
+let favoriteQuotes: Set<string> = new Set();
+// Which tradition / philosopher rows are currently expanded (session state)
+const expandedTraditions: Set<string> = new Set();
+let expandedPhil: string | null = null;   // only one philosopher open at a time
+
+async function loadFavorites(): Promise<void> {
+  if (!bridge) return;
+  try {
+    const raw = await bridge.getLocalStorage(FAVORITES_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) favoriteQuotes = new Set(arr.map(String));
+    }
+  } catch { favoriteQuotes = new Set(); }
+}
+
+async function saveFavorites(): Promise<void> {
+  if (!bridge) return;
+  try { await bridge.setLocalStorage(FAVORITES_KEY, JSON.stringify([...favoriteQuotes])); }
+  catch (e) { console.error('[PICKS] saveFavorites failed', e); }
+}
+
+// Rarity → glyph + label + colour class (matches Android QuotesScreen).
+// ✦ legendary gold / ◆ epic violet / ◈ rare blue / ○ uncommon green / · common dim
+function quoteRarity(q: Quote): Rarity {
+  const known: Rarity[] = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
+  const v = String(q.rarity || '').toLowerCase() as Rarity;
+  return known.includes(v) ? v : getRarity(q.rating || 0);
+}
+
+function renderQuoteCard(philId: string, philName: string, q: Quote): string {
+  const rarity = quoteRarity(q);
+  const glyph = getRaritySymbol(rarity);
+  const fav = favoriteQuotes.has(q.text);
+  const attribution = `— ${philName}${q.source ? ' · ' + q.source : ''}`;
+  return `
+    <div class="quote-card rarity-${rarity}">
+      <div class="quote-card-top">
+        <span class="quote-rarity" title="${escapeAttr(rarity)}">${glyph} ${rarity.toUpperCase()}</span>
+        <button class="quote-fav ${fav ? 'on' : ''}" data-fav="${escapeAttr(q.text)}"
+          aria-label="${fav ? 'Remove favorite' : 'Save favorite'}" title="${fav ? 'Saved' : 'Save'}">${fav ? '★' : '☆'}</button>
+      </div>
+      <div class="quote-text">“${escapeHtml(q.text)}”</div>
+      <div class="quote-attribution">${escapeHtml(attribution)}</div>
+      <div class="quote-emotion mono">${escapeHtml(String(q.emotion || '').replace(/_/g, ' '))}</div>
+    </div>`;
+}
+
 function renderPhilosopherGrid(): void {
   const host = $('phil-groups');
   if (!host) return;
@@ -295,46 +353,220 @@ function renderPhilosopherGrid(): void {
     // philosophers (Enki etc.) so we don't show "0 quotes" cards.
     const phils = getPhilosophersByTradition(tradition as Tradition).filter(p => p.quotes.length > 0);
     if (phils.length === 0) continue;
-    html += `<div class="tradition-group">
-      <div class="tradition-label">${tradition}</div>
-      <div class="phil-grid">
-        ${phils.map((p: Philosopher) => {
-          // True emotion coverage = unique `emotion` values across all
-          // quotes (not dominantEmotions, which is just the top-3 tags).
-          const emotionCount = new Set(p.quotes.map(q => q.emotion)).size;
-          return `
-          <div class="phil-card" data-phil="${p.philId}">
-            <img class="phil-card-sprite" src="${spriteUrl(`${p.philId}/${p.philId}-neutral.png`)}" alt="" onerror="this.style.display='none'" />
-            <div class="phil-card-text">
-              <div class="phil-card-name">${p.name}</div>
-              <div class="phil-card-sub">${p.quotes.length} quotes · ${emotionCount} emotions</div>
+    const tradQuotes = phils.reduce((sum, p) => sum + p.quotes.length, 0);
+    const tOpen = expandedTraditions.has(tradition);
+
+    const rowsHtml = phils.map((p: Philosopher) => {
+      const pOpen = expandedPhil === p.philId;
+      const cardsHtml = pOpen
+        ? `<div class="quote-cards">${p.quotes.map(q => renderQuoteCard(p.philId, p.name, q)).join('')}</div>`
+        : '';
+      return `
+        <div class="phil-row-wrap">
+          <div class="phil-row${pOpen ? ' active' : ''}" data-phil="${p.philId}">
+            <img class="phil-row-sprite" src="${spriteUrl(`${p.philId}/${p.philId}-neutral.png`)}" alt="" onerror="this.style.display='none'" />
+            <div class="phil-row-text">
+              <div class="phil-row-name">${escapeHtml(p.name)}</div>
+              <div class="phil-row-sub mono">${p.quotes.length} quote${p.quotes.length === 1 ? '' : 's'}</div>
             </div>
+            <span class="phil-row-chevron">${pOpen ? '▾' : '▸'}</span>
           </div>
-        `;
-        }).join('')}
-      </div>
+          ${cardsHtml}
+        </div>`;
+    }).join('');
+
+    html += `<div class="tradition-accordion${tOpen ? ' open' : ''}" data-tradition="${escapeAttr(tradition)}">
+      <button class="tradition-head" data-tradition="${escapeAttr(tradition)}">
+        <span class="tradition-name">${escapeHtml(tradition)}</span>
+        <span class="tradition-count mono">${tradQuotes} quote${tradQuotes === 1 ? '' : 's'}</span>
+        <span class="tradition-chevron">${tOpen ? '▾' : '▸'}</span>
+      </button>
+      ${tOpen ? `<div class="tradition-phils">${rowsHtml}</div>` : ''}
     </div>`;
   }
   host.innerHTML = html;
 
-  // Clicking a philosopher card pushes their neutral sprite to the
-  // debug portrait — useful to verify "is the glass actually showing
-  // this?" without touching the ring. Non-destructive to ring flow.
-  host.querySelectorAll('.phil-card').forEach(card => {
-    card.addEventListener('click', async () => {
-      const philId = card.getAttribute('data-phil');
-      if (!philId || !bridge) return;
-      host.querySelectorAll('.phil-card').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-      try {
-        await pushSprite(bridge, baseUrl, `${philId}/${philId}-neutral.png`, 1, 'portrait', 100, 100);
-        log(`[DASHBOARD] Pushed ${philId}/neutral to portrait`, 'success');
-      } catch (e) {
-        log(`[DASHBOARD] Push failed: ${e}`, 'error');
-      }
-      refreshPushLog();
+  // Tradition accordion toggle
+  host.querySelectorAll<HTMLElement>('.tradition-head').forEach(head => {
+    head.addEventListener('click', () => {
+      const t = head.dataset.tradition || '';
+      if (expandedTraditions.has(t)) { expandedTraditions.delete(t); expandedPhil = null; }
+      else expandedTraditions.add(t);
+      renderPhilosopherGrid();
     });
   });
+
+  // Philosopher row toggle (accordion within tradition — one open at a time)
+  host.querySelectorAll<HTMLElement>('.phil-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const philId = row.dataset.phil || '';
+      expandedPhil = expandedPhil === philId ? null : philId;
+      renderPhilosopherGrid();
+    });
+  });
+
+  // Favorite toggle — persists to enki_favorites, no re-render churn
+  host.querySelectorAll<HTMLButtonElement>('.quote-fav').forEach(btn => {
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const text = btn.dataset.fav || '';
+      if (favoriteQuotes.has(text)) {
+        favoriteQuotes.delete(text);
+        btn.classList.remove('on'); btn.textContent = '☆';
+        btn.setAttribute('aria-label', 'Save favorite');
+      } else {
+        favoriteQuotes.add(text);
+        btn.classList.add('on'); btn.textContent = '★';
+        btn.setAttribute('aria-label', 'Remove favorite');
+      }
+      await saveFavorites();
+    });
+  });
+}
+
+// ─── SPEAK — PHONE-SIDE COMPOSE ───────────────────────────────────
+// Mirrors Android ui/speak/SpeakScreen conversation pane: philosopher
+// selector, message thread with emotion-reactive sprites next to each
+// reply, and a text input + Send. Shares the exact same storage as the
+// glass (speak_history_<philId> via speak.ts), so the phone and glasses
+// see one thread. Network-dependent, like the glass — offline it just
+// surfaces the API error inline.
+
+let speakActivePhil: string | null = null;   // philosopher currently primed
+let speakSending = false;
+
+// Read the persisted thread for a philosopher directly from bridge
+// storage — the same key speak.ts writes on every exchange.
+async function loadSpeakThread(philId: string): Promise<SpeakMessage[]> {
+  if (!bridge) return [];
+  try {
+    const raw = await bridge.getLocalStorage(`speak_history_${philId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      : [];
+  } catch { return []; }
+}
+
+async function renderSpeakThread(philId: string): Promise<void> {
+  const host = $('speak-thread');
+  if (!host) return;
+  const phil = PHILOSOPHERS.find(p => p.philId === philId);
+  const philName = phil?.name || 'Philosopher';
+  const thread = await loadSpeakThread(philId);
+  if (thread.length === 0) {
+    host.innerHTML = `<p class="muted">No turns yet with ${escapeHtml(philName)}. Send your first message below.</p>`;
+    return;
+  }
+  host.innerHTML = thread.map(m => {
+    if (m.role === 'user') {
+      const mood = m.userMood && m.userMood !== 'neutral'
+        ? `<span class="speak-turn-emo">· ${escapeHtml(m.userMood)}</span>` : '';
+      return `
+        <div class="speak-turn user">
+          <div class="speak-turn-head"><span class="speak-turn-who">YOU</span>${mood}</div>
+          <div class="speak-turn-body">${escapeHtml(m.content)}</div>
+        </div>`;
+    }
+    // Assistant turn — show the emotion-reactive sprite next to the reply.
+    const emo = m.emotion ? normalizeEmotion(m.emotion) : 'neutral';
+    const spr = spriteUrl(emotionToSprite(philId, emo));
+    const emoTag = m.emotion
+      ? `<span class="speak-turn-emo">· ${escapeHtml(String(m.emotion).replace(/_/g, ' '))}</span>` : '';
+    return `
+      <div class="speak-turn phil">
+        <div class="speak-turn-row">
+          <img class="speak-turn-sprite" src="${spr}" alt="" onerror="this.style.visibility='hidden'" />
+          <div class="speak-turn-main">
+            <div class="speak-turn-head"><span class="speak-turn-who">${escapeHtml(philName.toUpperCase())}</span>${emoTag}</div>
+            <div class="speak-turn-body">${escapeHtml(m.content)}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  host.scrollTop = host.scrollHeight;
+}
+
+// Prime the module conversation (loads history + appends a greeting the
+// FIRST time a philosopher is opened this session), then re-render.
+async function primeSpeakPhil(philId: string): Promise<void> {
+  if (speakActivePhil === philId) return;
+  speakActivePhil = philId;
+  const badge = $('speak-compose-badge');
+  const phil = PHILOSOPHERS.find(p => p.philId === philId);
+  if (badge) badge.textContent = phil ? phil.name : philId;
+  if (getPersona(philId)) {
+    try { await startConversation(philId); } catch (e) { console.warn('[SPEAK] prime failed', e); }
+  }
+  await renderSpeakThread(philId);
+}
+
+async function initSpeakCompose(): Promise<void> {
+  const select = $('speak-phil-select') as HTMLSelectElement | null;
+  const input = $('speak-input') as HTMLInputElement | null;
+  const sendBtn = $('speak-send') as HTMLButtonElement | null;
+  if (!select || !input || !sendBtn) return;
+
+  // Personas power the persona payload sent to /api/speak.
+  await loadPersonas(baseUrl).catch(() => {});
+
+  // Every philosopher can be spoken to (including Enki, the free seeker
+  // guide) — this is the conversation path, not the quote-browse path.
+  select.innerHTML = PHILOSOPHERS
+    .map(p => `<option value="${p.philId}">${escapeHtml(p.name)} · ${escapeHtml(p.tradition)}</option>`)
+    .join('');
+
+  const doSend = async () => {
+    if (speakSending) return;
+    const philId = select.value;
+    const text = input.value.trim();
+    if (!philId || !text) return;
+    await primeSpeakPhil(philId);
+
+    speakSending = true;
+    sendBtn.disabled = true;
+    input.value = '';
+    // Optimistic: show the user turn immediately, then a thinking row.
+    const host = $('speak-thread');
+    const philName = PHILOSOPHERS.find(p => p.philId === philId)?.name || 'Philosopher';
+    if (host) {
+      if (host.querySelector('.muted')) host.innerHTML = '';
+      host.insertAdjacentHTML('beforeend', `
+        <div class="speak-turn user">
+          <div class="speak-turn-head"><span class="speak-turn-who">YOU</span></div>
+          <div class="speak-turn-body">${escapeHtml(text)}</div>
+        </div>
+        <div class="speak-turn phil" id="speak-thinking">
+          <div class="speak-turn-head"><span class="speak-turn-who">${escapeHtml(philName.toUpperCase())}</span><span class="speak-turn-emo">· thinking…</span></div>
+        </div>`);
+      host.scrollTop = host.scrollHeight;
+    }
+
+    try {
+      // sendMessage handles auth headers + 401/403/429 → returns graceful
+      // upsell copy as the reply text (never throws on entitlement).
+      await sendMessage(text);
+    } catch (e) {
+      console.warn('[SPEAK] send failed', e);
+    } finally {
+      // Re-render from the persisted thread (sendMessage saved it), so the
+      // phone reflects exactly what the glass would show.
+      await renderSpeakThread(philId);
+      speakSending = false;
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  };
+
+  sendBtn.addEventListener('click', doSend);
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); doSend(); }
+  });
+  select.addEventListener('change', () => { primeSpeakPhil(select.value); });
+
+  // Prime the first philosopher so the thread reflects any stored history.
+  if (select.value) await primeSpeakPhil(select.value);
 }
 
 // ─── DEBUG — SPRITE PUSH LOG ──────────────────────────────────────
@@ -480,6 +712,102 @@ async function refreshJournal(): Promise<void> {
   const count = $('journal-count');
   if (count) count.textContent = `${journalCache.length} session${journalCache.length === 1 ? '' : 's'}`;
   renderCalendar();
+  await renderSessionList();
+}
+
+// ─── JOURNAL — SESSION LIST (Android ui/journal parity) ───────────
+// Every session as a row: sprite + name + date + first-line snippet +
+// turn count. Tapping expands the full conversation turns; action items
+// extracted from that session (loadActionItems, matched by sessionId)
+// render below the turns. Fully offline — reads baked/stored journal.
+const expandedSessions: Set<string> = new Set();
+
+function sessionKey(s: JournalSession): string { return `${s.philId}@${s.startTs}`; }
+
+async function renderSessionList(): Promise<void> {
+  const host = $('journal-sessions');
+  const count = $('journal-sessions-count');
+  if (!host) return;
+
+  if (journalCache.length === 0) {
+    host.innerHTML = `<p class="muted">No conversations yet. Open Speak on the glasses or the phone to start one.</p>`;
+    if (count) count.textContent = '0';
+    return;
+  }
+
+  // Newest first
+  const sessions = [...journalCache].sort((a, b) => b.startTs - a.startTs);
+  if (count) count.textContent = `${sessions.length}`;
+
+  // Action items keyed by sessionId (<philId>@<startTs>) so we can attach
+  let actionsBySession = new Map<string, any[]>();
+  try {
+    const items = await loadActionItems();
+    for (const it of items) {
+      const arr = actionsBySession.get(it.sessionId) || [];
+      arr.push(it);
+      actionsBySession.set(it.sessionId, arr);
+    }
+  } catch {}
+
+  host.innerHTML = `<div class="session-list">${sessions.map(s => {
+    const key = sessionKey(s);
+    const open = expandedSessions.has(key);
+    const firstUser = s.exchanges.find(m => m.role === 'user');
+    const snippet = firstUser ? firstUser.content : (s.exchanges[0]?.content || '');
+    const dateLabel = new Date(s.startTs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const timeLabel = new Date(s.startTs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const turns = s.exchanges.length;
+    const acts = actionsBySession.get(key) || [];
+
+    let bodyHtml = '';
+    if (open) {
+      const turnsHtml = s.exchanges.map((m: SpeakMessage) => {
+        const who = m.role === 'user' ? 'YOU' : s.philName.toUpperCase();
+        const cls = m.role === 'user' ? 'user' : 'phil';
+        const tag = m.role === 'user'
+          ? (m.userMood && m.userMood !== 'neutral' ? `<span class="mood">· ${escapeHtml(m.userMood)}</span>` : '')
+          : (m.emotion ? `<span class="mood">· ${escapeHtml(String(m.emotion).replace(/_/g, ' '))}</span>` : '');
+        return `<div class="session-exchange ${cls}">
+          <div class="who">${who}${tag}</div>
+          <div class="content">${escapeHtml(m.content)}</div>
+        </div>`;
+      }).join('');
+      const actsHtml = acts.length ? `
+        <div class="session-actions">
+          <div class="session-actions-label">${acts.length} action item${acts.length === 1 ? '' : 's'}</div>
+          ${acts.slice(0, 8).map(a => `
+            <div class="session-action-item">
+              ${escapeHtml(a.title || '')}
+              ${a.theme ? `<div class="sa-meta">${escapeHtml(a.theme)}</div>` : ''}
+            </div>`).join('')}
+        </div>` : '';
+      bodyHtml = `<div class="session-item-body">${turnsHtml}${actsHtml}</div>`;
+    }
+
+    return `
+      <div class="session-item${open ? ' open' : ''}">
+        <button class="session-item-head" data-session="${escapeAttr(key)}">
+          <img class="session-item-sprite" src="${spriteUrl(`${s.philId}/${s.philId}-neutral.png`)}" alt="" onerror="this.style.visibility='hidden'" />
+          <div class="session-item-text">
+            <div class="session-item-name">${escapeHtml(s.philName)} · ${escapeHtml(s.tradition)}</div>
+            <div class="session-item-snippet">${escapeHtml(snippet)}</div>
+            <div class="session-item-meta">${dateLabel} · ${timeLabel} · ${turns} turn${turns === 1 ? '' : 's'}${acts.length ? ` · ${acts.length} action${acts.length === 1 ? '' : 's'}` : ''}</div>
+          </div>
+          <span class="session-item-chevron">${open ? '▾' : '▸'}</span>
+        </button>
+        ${bodyHtml}
+      </div>`;
+  }).join('')}</div>`;
+
+  host.querySelectorAll<HTMLElement>('.session-item-head').forEach(head => {
+    head.addEventListener('click', () => {
+      const k = head.dataset.session || '';
+      if (expandedSessions.has(k)) expandedSessions.delete(k);
+      else expandedSessions.add(k);
+      renderSessionList();
+    });
+  });
 }
 
 function dateKey(d: Date): string {
@@ -1263,6 +1591,39 @@ function closeProblemModal(): void {
 // Compact "what's already happened today" card — tap it to jump to the
 // Journal tab with today selected. Updates whenever Home reopens or a
 // new session lands.
+// ── Today's Quote card — Android-parity featured quote ──
+const TQ_RARITY_COLOR: Record<string, string> = {
+  legendary: '#d4af37', epic: '#a78bfa', rare: '#60a5fa', uncommon: '#4ade80', common: '#8a8a99',
+};
+let tqPool: { text: string; source: string; philName: string; rarity: Rarity }[] = [];
+function buildTqPool(): void {
+  if (tqPool.length) return;
+  for (const p of PHILOSOPHERS) {
+    for (const q of p.quotes) {
+      if ((q.rating || 0) >= 8) {
+        tqPool.push({ text: q.text, source: q.source, philName: p.name, rarity: getRarity(q.rating) });
+      }
+    }
+  }
+}
+function renderTodayQuote(shuffle = false): void {
+  buildTqPool();
+  if (!tqPool.length) return;
+  const now = new Date();
+  const doy = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
+  const idx = shuffle ? Math.floor(Math.random() * tqPool.length) : doy % tqPool.length;
+  const q = tqPool[idx];
+  const textEl = document.getElementById('tq-text');
+  const attrEl = document.getElementById('tq-attr');
+  const rarEl = document.getElementById('tq-rarity');
+  if (textEl) textEl.textContent = '\u201C' + q.text + '\u201D';
+  if (attrEl) attrEl.textContent = '\u2014 ' + q.philName + ' \u00B7 ' + q.source;
+  if (rarEl) {
+    rarEl.textContent = getRaritySymbol(q.rarity) + ' ' + String(q.rarity).toUpperCase();
+    rarEl.style.color = TQ_RARITY_COLOR[String(q.rarity)] || 'var(--dim)';
+  }
+}
+
 async function renderTodayCard(): Promise<void> {
   const card = $('today-card');
   const body = $('today-body');
@@ -1922,12 +2283,14 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
 
   initTabs();
   initHomeStats();
+  await loadFavorites();
   renderPhilosopherGrid();
   initDebugPanel();
   initJournalPanel();
   initAphoricaPanel();
   initSyncPanel();
   await initMindfulPanel();
+  await initSpeakCompose();
   await initSettings();
   await initProfilePanel();
   await renderHeaderAccount();
@@ -1935,6 +2298,8 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   await initWeeklyPanel();
   await renderHabits();
   await renderTodayCard();
+  renderTodayQuote();
+  document.getElementById('tq-refresh')?.addEventListener('click', () => renderTodayQuote(true));
   await initChecklistPanel();
 
   // Device-sync spine: pull the account's checklist/habits/weekly rows
@@ -1965,6 +2330,9 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
       refreshJournal().catch(() => {});
       renderTodayCard().catch(() => {});
       renderHabits().catch(() => {});
+      // Glass just left a conversation — the shared thread may have grown.
+      // Re-render the phone compose thread if it's showing that philosopher.
+      if (speakActivePhil) renderSpeakThread(speakActivePhil).catch(() => {});
     }
   });
   log('[DASHBOARD] Ready', 'success');
