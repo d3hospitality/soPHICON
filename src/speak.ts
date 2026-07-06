@@ -27,20 +27,20 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
-import { authHeaders, handleUnauthorized, linkedTier } from './enkiAccount';
+import { authHeaders, handleUnauthorized, linkedHandle } from './enkiAccount';
 import { log } from './ui';
 import { loadProfile, profileForApi } from './profile';
 
-// ═══ ENTITLEMENT ═══
-// Conversations are a Sage/trial perk: they persist to the journal and
-// sync to Supabase so you can resume them on web or Android. Seeker/anon
-// (the free 1-message-a-day taste) is deliberately EPHEMERAL — nothing is
-// journaled, nothing is synced. linkedTier() reflects the tier captured at
-// pairing; the server grants 'sage' during the 7-day trial, so trialists
-// are entitled here too. (A user who upgrades AFTER pairing should re-pair
-// to refresh this cached tier — the server still enforces limits regardless.)
+// ═══ PERSISTENCE GATE ═══
+// A LINKED account (paired via enkiridion.com code) persists + syncs its
+// conversations to your profile, so they follow you to web and Android.
+// UNLINKED / anonymous (the free daily taste) stays EPHEMERAL — nothing
+// journaled, nothing synced. We gate on "linked" rather than the cached
+// tier because that tier can go stale (e.g. you paired as seeker, then
+// upgraded); the device-sync gateway only requires a valid token, and the
+// server still enforces speak limits per request regardless.
 async function isEntitled(): Promise<boolean> {
-  return (await linkedTier()) === 'sage';
+  return !!(await linkedHandle());
 }
 
 // ═══ TYPES ═══
