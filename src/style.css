@@ -1170,6 +1170,30 @@ body {
 .speak-input-bar input:focus { outline: none; border-color: var(--gold); }
 .speak-input-bar .btn { flex-shrink: 0; }
 
+/* ═══ enkiSPEAKS trial CTA (above the tradition list) ═══════════════ */
+.trial-cta {
+  display: flex; flex-direction: column; gap: 5px;
+  width: 100%; text-align: left; cursor: pointer;
+  margin: 2px 0 14px; padding: 13px 15px;
+  background: linear-gradient(135deg, rgba(212,175,55,0.13), rgba(212,175,55,0.03));
+  border: 1px solid rgba(212,175,55,0.45); border-radius: 12px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.trial-cta:hover { border-color: var(--gold); background: linear-gradient(135deg, rgba(212,175,55,0.2), rgba(212,175,55,0.06)); }
+.trial-cta-kicker {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.18em;
+  color: var(--gold); text-transform: uppercase;
+}
+.trial-cta-title {
+  font-family: var(--serif, Georgia, serif); font-size: 16px;
+  line-height: 1.25; color: var(--ink);
+}
+.trial-cta-sub { font-size: 12px; line-height: 1.5; color: var(--dim); }
+.trial-cta-go {
+  margin-top: 3px; font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.08em; color: var(--gold);
+}
+
 /* ═══ JOURNAL — session list (Android parity) ═══════════════════════ */
 .session-list { display: flex; flex-direction: column; gap: 8px; }
 .session-item {

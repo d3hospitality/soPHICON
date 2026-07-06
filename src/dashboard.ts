@@ -33,7 +33,7 @@ import { pushSprite, getSpritePushLog, clearSpriteCache } from './image-utils';
 import {
   loadJournal, JournalSession, SpeakMessage, loadActionItems,
   loadPersonas, getPersona, startConversation, sendMessage,
-  emotionToSprite, normalizeEmotion,
+  emotionToSprite, normalizeEmotion, pullSpeakSessions,
 } from './speak';
 import {
   WeeklyOverview, WeeklyProblem, WeeklyAction, Category, Quadrant, QUADRANTS,
@@ -119,10 +119,15 @@ function initTabs(): void {
       });
       // Refresh debug view whenever debug tab opened
       if (tab === 'debug') { refreshPushLog(); renderSyncStatus().catch(() => {}); }
+      // Speak tab → refresh the trial CTA (shown to seeker/unlinked).
+      if (tab === 'speak') refreshSpeakTrialCta().catch(() => {});
       // Force-refresh the journal whenever Journal tab is opened so newly-
       // checkpointed conversations always appear without the user needing
-      // to reload the dashboard.
-      if (tab === 'journal') refreshJournal().catch(() => {});
+      // to reload the dashboard. First pull any sessions saved on other
+      // devices (web/Android/other glasses) so the journal is complete.
+      if (tab === 'journal') {
+        pullSpeakSessions().then(() => refreshJournal()).catch(() => refreshJournal().catch(() => {}));
+      }
       // Aphorica → (re)load the commons feed
       if (tab === 'aphorica') refreshAphorica().catch(() => {});
       // Home tab → refresh Today card + habits card (both pull from journal),
@@ -511,20 +516,53 @@ async function primeSpeakPhil(philId: string): Promise<void> {
   await renderSpeakThread(philId);
 }
 
+/** Programmatically activate a tab (used by the trial CTA → About/pairing). */
+function switchTab(name: string): void {
+  const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`) as HTMLElement | null;
+  btn?.click();
+}
+
+/**
+ * Show/hide the enkiSPEAKS trial CTA above the philosopher list.
+ * Sage/trial (entitled) → hidden. Seeker or unlinked → shown, so the
+ * upgrade path is one tap from where you'd start a conversation.
+ */
+async function refreshSpeakTrialCta(): Promise<void> {
+  const cta = $('speak-trial-cta');
+  if (!cta) return;
+  const entitled = (await linkedTier()) === 'sage';
+  cta.hidden = entitled;
+}
+
 async function initSpeakCompose(): Promise<void> {
   const select = $('speak-phil-select') as HTMLSelectElement | null;
   const input = $('speak-input') as HTMLInputElement | null;
   const sendBtn = $('speak-send') as HTMLButtonElement | null;
   if (!select || !input || !sendBtn) return;
 
+  // Trial CTA → jump to About, where the "Link your glasses" pairing lives.
+  // (Starting the trial itself happens on enkiridion.com — Google sign-in +
+  // card — then you pair the glasses with the code.)
+  const trialCta = $('speak-trial-cta');
+  trialCta?.addEventListener('click', () => switchTab('about'));
+
   // Personas power the persona payload sent to /api/speak.
   await loadPersonas(baseUrl).catch(() => {});
 
   // Every philosopher can be spoken to (including Enki, the free seeker
   // guide) — this is the conversation path, not the quote-browse path.
-  select.innerHTML = PHILOSOPHERS
-    .map(p => `<option value="${p.philId}">${escapeHtml(p.name)} · ${escapeHtml(p.tradition)}</option>`)
-    .join('');
+  // Grouped by tradition so the list reads Greek / Stoicism / … as labeled
+  // sections; the trial CTA above the select sits above the first (Greek).
+  select.innerHTML = TRADITIONS.map(tradition => {
+    const phils = getPhilosophersByTradition(tradition as Tradition);
+    if (phils.length === 0) return '';
+    const opts = phils
+      .map(p => `<option value="${p.philId}">${escapeHtml(p.name)}</option>`)
+      .join('');
+    return `<optgroup label="${escapeAttr(tradition)}">${opts}</optgroup>`;
+  }).join('');
+
+  await refreshSpeakTrialCta();
 
   const doSend = async () => {
     if (speakSending) return;
@@ -656,14 +694,16 @@ async function initSettings(): Promise<void> {
 
   async function renderLinkState(): Promise<void> {
     const handle = await linkedHandle();
+    const tier = await linkedTier();
     if (linkHint) {
-      linkHint.textContent = handle
-        ? `Linked as @${handle}. Tier follows your enkiridion.com subscription.`
-        : 'Unlinked — Seeker mode. Generate a code on enkiridion.com → Settings → G2 Glasses, then link to bring your Sage tier onto the glasses.';
+      linkHint.innerHTML = handle
+        ? `Linked as @${escapeHtml(handle)} · ${escapeHtml((tier || 'seeker').toUpperCase())}. Tier follows your enkiridion.com subscription. ${tier === 'sage' ? 'Your conversations save to your profile and sync across web, Android &amp; glasses.' : 'Still on Seeker — one conversation a day with Enki (not saved). <a href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener">Start your 7-day free trial →</a>'}`
+        : 'Unlinked — Seeker mode: all quotes, plus one conversation a day with Enki (not saved). Start your <strong>7-day free trial</strong> on enkiridion.com (Google sign-in), then generate a code under Settings → G2 Glasses and link here to unlock every philosopher and save your conversations across web &amp; Android. <a href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener">Start free trial →</a>';
     }
     if (btnUnlink) btnUnlink.style.display = handle ? '' : 'none';
     if (btnLink) btnLink.style.display = handle ? 'none' : '';
     if (codeInput) codeInput.style.display = handle ? 'none' : '';
+    await refreshSpeakTrialCta();
   }
   await renderLinkState();
 
@@ -674,11 +714,13 @@ async function initSettings(): Promise<void> {
     if (result.ok) {
       log(`[DASHBOARD] Glasses linked as @${result.handle || 'you'} (${result.tier || 'seeker'})`, 'success');
       if (codeInput) codeInput.value = '';
-      // First sync right away so the cockpit fills in from the account.
+      // First sync right away so the cockpit fills in from the account,
+      // and pull any conversations saved on other devices into the journal.
       syncNow().then(async () => {
         await renderChecklist();
         await renderHabits();
       }).catch(() => {});
+      pullSpeakSessions().catch(() => {});
     } else {
       log(`[DASHBOARD] Link failed: ${result.error || 'invalid code'}`, 'error');
     }

@@ -293,6 +293,14 @@
           <span class="badge" id="speak-compose-badge">pick a philosopher</span>
         </div>
         <div class="card-body">
+          <!-- Trial CTA — sits above the tradition list (above "Greek").
+               Shown to seeker/unlinked; hidden once Sage/trial is active. -->
+          <button class="trial-cta" id="speak-trial-cta" hidden>
+            <span class="trial-cta-kicker">enkiSPEAKS · 1 WEEK FREE</span>
+            <span class="trial-cta-title">Speak your problems to any philosopher</span>
+            <span class="trial-cta-sub">Seven days free, then $8/mo. Your conversations save to your profile and follow you to web &amp; Android. Free tier: one turn a day with Enki, not saved.</span>
+            <span class="trial-cta-go">Start free trial →</span>
+          </button>
           <div class="field">
             <label>Philosopher</label>
             <select id="speak-phil-select"></select>
@@ -544,7 +552,7 @@
         <div class="field" id="glasses-link-field">
           <label>Pairing code</label>
           <input id="glasses-code" type="text" placeholder="6-char code from enkiridion.com → Settings" autocomplete="off" maxlength="6" style="text-transform: uppercase;" />
-          <span class="hint" id="glasses-link-hint">Unlinked — Seeker mode. Generate a code on enkiridion.com → Settings → G2 Glasses, then link to bring your Sage tier onto the glasses and sync your Today list, habits, and weekly plan with the Android app. <a href="https://enkispeaks-web.vercel.app/pricing?src=g2" target="_blank" rel="noopener">Become a Sage →</a></span>
+          <span class="hint" id="glasses-link-hint">Unlinked — Seeker mode: all quotes, plus one conversation a day with Enki (not saved). Start your <strong>7-day free trial</strong> on enkiridion.com (Google sign-in), then generate a code under Settings → G2 Glasses and link here — that brings Sage onto the glasses, unlocks every philosopher, and saves your conversations to your profile so they follow you to web &amp; Android. <a href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener">Start free trial →</a></span>
         </div>
         <div class="btn-row">
           <button class="btn btn-primary" id="btn-link-glasses">Link glasses</button>

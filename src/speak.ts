@@ -27,9 +27,21 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
-import { authHeaders, handleUnauthorized } from './enkiAccount';
+import { authHeaders, handleUnauthorized, linkedTier } from './enkiAccount';
 import { log } from './ui';
 import { loadProfile, profileForApi } from './profile';
+
+// ═══ ENTITLEMENT ═══
+// Conversations are a Sage/trial perk: they persist to the journal and
+// sync to Supabase so you can resume them on web or Android. Seeker/anon
+// (the free 1-message-a-day taste) is deliberately EPHEMERAL — nothing is
+// journaled, nothing is synced. linkedTier() reflects the tier captured at
+// pairing; the server grants 'sage' during the 7-day trial, so trialists
+// are entitled here too. (A user who upgrades AFTER pairing should re-pair
+// to refresh this cached tier — the server still enforces limits regardless.)
+async function isEntitled(): Promise<boolean> {
+  return (await linkedTier()) === 'sage';
+}
 
 // ═══ TYPES ═══
 export interface Persona {
@@ -174,6 +186,11 @@ export async function checkpointSession(philName: string, tradition: string): Pr
     log(`[JOURNAL] skip checkpoint — pid='${currentPhilId}', turns=${conversationHistory.length}`);
     return;
   }
+  // Seeker/anon: the free daily taste is not journaled and not synced.
+  if (!(await isEntitled())) {
+    log(`[JOURNAL] skip checkpoint — seeker tier, conversation is ephemeral`);
+    return;
+  }
   // Idempotency: same conversation may be checkpointed by multiple paths
   // (explicit double-tap-back AND a subsequent FOREGROUND_EXIT lifecycle
   // event, for example). Don't double-write.
@@ -200,6 +217,11 @@ export async function checkpointSession(philName: string, tradition: string): Pr
   currentSessionCheckpointed = true;
   log(`[JOURNAL] ✓ checkpointed ${session.exchanges.length}-turn session with ${philName} (journal now ${all.length} sessions)`);
 
+  // Push this finished session to the cloud (device_sync spine) so it
+  // resurfaces on web and Android. Fire-and-forget; entitled-only guard
+  // lives inside syncSpeakSessionUp.
+  syncSpeakSessionUp(session).catch(e => console.warn("[SPEAK] session sync failed", e));
+
   // Fire-and-forget: extract action items from JUST this session and stack
   // onto the all-time action-items store. Errors are swallowed; we don't
   // want a network blip to block the user from leaving the convo.
@@ -208,6 +230,84 @@ export async function checkpointSession(philName: string, tradition: string): Pr
   // Invalidate the cross-context cache so the NEXT conversation rebuilds
   // a preamble that includes this session.
   if (bridgeRef) bridgeRef.setLocalStorage(CROSS_CONTEXT_KEY, "").catch(() => {});
+}
+
+// ═══ CLOUD SYNC (device_sync spine) ══════════════════════════════════
+// Finished sessions are pushed to Supabase via the sophicon-api gateway
+// as append-only `speak_session` rows (entityId = <philId>@<startTs>),
+// and pulled back on load so a conversation started on the glasses shows
+// up in your web/Android journal (and vice-versa). Sessions are immutable
+// once checkpointed, so there is no LWW/tombstone dance — a plain upsert
+// and a since-cursored merge suffice. Entitled-only on both directions.
+const SYNC_API_URL = "https://sophicon-api.vercel.app/api/device-sync";
+const SPEAK_SYNC_SINCE_KEY = "speak_sync_since";
+const SPEAK_ENTITY = "speak_session";
+const sessionEntityId = (s: JournalSession) => `${s.philId}@${s.startTs}`;
+
+async function syncSpeakSessionUp(session: JournalSession): Promise<void> {
+  if (!(await isEntitled())) return;
+  try {
+    const resp = await fetch(SYNC_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ upserts: [{
+        entityType: SPEAK_ENTITY,
+        entityId: sessionEntityId(session),
+        payload: session,
+      }] }),
+    });
+    if (resp.status === 401) { await handleUnauthorized(); return; }
+    if (!resp.ok) { console.warn("[SPEAK] session sync up", resp.status); return; }
+    log(`[SPEAK] session synced to cloud (${session.philName})`);
+  } catch (e) {
+    console.warn("[SPEAK] session sync up failed", e);
+  }
+}
+
+/**
+ * Pull sessions saved on other devices and merge any new ones into the
+ * local journal (dedupe by <philId>@<startTs>). Entitled-only; safe to
+ * call on load and when the Journal tab opens. Returns # merged.
+ */
+export async function pullSpeakSessions(): Promise<number> {
+  if (!bridgeRef || !(await isEntitled())) return 0;
+  try {
+    const since = Number(await bridgeRef.getLocalStorage(SPEAK_SYNC_SINCE_KEY)) || 0;
+    const url = `${SYNC_API_URL}?since=${since}&types=${SPEAK_ENTITY}`;
+    const resp = await fetch(url, { headers: { ...(await authHeaders()) } });
+    if (resp.status === 401) { await handleUnauthorized(); return 0; }
+    if (!resp.ok) { console.warn("[SPEAK] session pull", resp.status); return 0; }
+    const data = await resp.json();
+    const rows: any[] = Array.isArray(data.rows) ? data.rows : [];
+    const serverNow = Number(data.now) || Date.now();
+    if (rows.length === 0) {
+      await bridgeRef.setLocalStorage(SPEAK_SYNC_SINCE_KEY, String(serverNow));
+      return 0;
+    }
+    const journal = await loadJournal();
+    const seen = new Set(journal.map(s => `${s.philId}@${s.startTs}`));
+    let merged = 0;
+    for (const r of rows) {
+      if (r.deleted_at) continue;
+      const s = r.payload as JournalSession;
+      if (!s || !s.philId || !s.startTs || !Array.isArray(s.exchanges)) continue;
+      const key = `${s.philId}@${s.startTs}`;
+      if (seen.has(key)) continue;
+      journal.push(s);
+      seen.add(key);
+      merged++;
+    }
+    if (merged > 0) {
+      journal.sort((a, b) => a.startTs - b.startTs);
+      await saveJournal(journal);
+      log(`[SPEAK] merged ${merged} cloud session${merged === 1 ? "" : "s"} into journal`, "success");
+    }
+    await bridgeRef.setLocalStorage(SPEAK_SYNC_SINCE_KEY, String(serverNow));
+    return merged;
+  } catch (e) {
+    console.warn("[SPEAK] session pull failed", e);
+    return 0;
+  }
 }
 
 // ═══ AUTO ACTION-ITEM EXTRACTION ═════════════════════════════════════
@@ -369,6 +469,9 @@ async function loadHistory(philId: string): Promise<SpeakMessage[]> {
 
 async function saveHistory(philId: string): Promise<void> {
   if (!bridgeRef || !philId) return;
+  // Seeker/anon conversations are ephemeral — never persisted (upgrading
+  // to Sage is what unlocks saved, resumable, cross-device conversations).
+  if (!(await isEntitled())) return;
   try {
     await bridgeRef.setLocalStorage(historyKey(philId), JSON.stringify(conversationHistory));
   } catch (e) {
@@ -589,10 +692,12 @@ export async function sendMessage(userText: string): Promise<{ text: string; emo
         };
       }
       if (resp.status === 429) {
-        return {
-          text: "Five conversations today — the seeker's measure is spent. Sage removes the limit: enkiridion.com",
-          emotion: "serenity", userMood: "neutral",
-        };
+        let limit = 1;
+        try { limit = JSON.parse(err)?.limit || 1; } catch {}
+        const text = limit <= 1
+          ? "One conversation a day is the seeker's taste. A 7-day free trial opens every philosopher — enkiridion.com"
+          : `Today's ${limit} conversations are spent — they return tomorrow. enkiridion.com`;
+        return { text, emotion: "serenity", userMood: "neutral" };
       }
       throw new Error(`API ${resp.status}: ${err}`);
     }
