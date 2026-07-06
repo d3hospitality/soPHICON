@@ -136,6 +136,7 @@ function initTabs(): void {
         renderTodayCard().catch(() => {});
         renderHabits().catch(() => {});
         renderChecklist().catch(() => {});
+        renderAphHome().catch(() => {});
         syncNow().catch(() => {});
       }
     });
@@ -621,10 +622,13 @@ async function maybeShowOnboarding(): Promise<void> {
  * upgrade path is one tap from where you'd start a conversation.
  */
 async function refreshSpeakTrialCta(): Promise<void> {
-  const cta = $('speak-trial-cta');
-  if (!cta) return;
+  const linked = await linkedHandle();
   const entitled = (await linkedTier()) === 'sage';
-  cta.hidden = entitled;
+  const cta = $('speak-trial-cta');
+  if (cta) cta.hidden = entitled;
+  // The Home "how to unlock" card is only useful before you've paired.
+  const howto = $('home-howto');
+  if (howto) (howto as HTMLElement).hidden = !!linked;
 }
 
 async function initSpeakCompose(): Promise<void> {
@@ -2300,38 +2304,62 @@ async function refreshAphorica(): Promise<void> {
   }
 }
 
+function aphPostHtml(p: AphPost): string {
+  const tier = String(p.author?.tier || 'seeker').toLowerCase();
+  const isSage = tier === 'sage';
+  const sprite = aphSpriteUrl(p.author?.spritePath || null);
+  const meta = [p.tradition, p.emotion, p.archetype].filter(Boolean)
+    .map(x => escapeHtml(String(x).replace(/_/g, ' '))).join(' · ');
+  return `
+    <li class="aph-post" data-aid="${escapeAttr(p.id)}">
+      <div class="aph-post-head">
+        ${sprite ? `<img class="aph-author-sprite" src="${sprite}" alt="" onerror="this.style.display='none'"/>` : ''}
+        <span class="aph-handle">@${escapeHtml(p.author?.handle || 'anon')}</span>
+        <span class="tier-chip ${isSage ? 'sage' : ''}">${isSage ? '◈ SAGE' : escapeHtml(tier.toUpperCase())}</span>
+        <span class="aph-rarity" title="${escapeAttr(p.rarity || '')}">${rarityGlyph(p.rarity)}</span>
+      </div>
+      <div class="aph-text">"${escapeHtml(p.text || '')}"</div>
+      ${meta ? `<div class="aph-meta">${meta}</div>` : ''}
+      <div class="aph-votes">
+        <button class="aph-vote up ${p.myVote === 1 ? 'mine' : ''}" data-v="1">♥ ${p.upvotes || 0}</button>
+        <button class="aph-vote down ${p.myVote === -1 ? 'mine' : ''}" data-v="-1">▼ ${p.downvotes || 0}</button>
+      </div>
+    </li>`;
+}
+
+function wireAphVotes(container: HTMLElement, after?: () => void): void {
+  container.querySelectorAll<HTMLElement>('.aph-post').forEach(row => {
+    const aid = row.dataset.aid || '';
+    row.querySelectorAll<HTMLButtonElement>('.aph-vote').forEach(btn => {
+      btn.addEventListener('click', () => voteAphorism(aid, Number(btn.dataset.v) as 1 | -1).then(() => after?.()));
+    });
+  });
+}
+
 function renderAphList(): void {
   const list = $('aph-list');
   if (!list) return;
-  list.innerHTML = aphPosts.map(p => {
-    const tier = String(p.author?.tier || 'seeker').toLowerCase();
-    const isSage = tier === 'sage';
-    const sprite = aphSpriteUrl(p.author?.spritePath || null);
-    const meta = [p.tradition, p.emotion, p.archetype].filter(Boolean)
-      .map(x => escapeHtml(String(x).replace(/_/g, ' '))).join(' · ');
-    return `
-      <li class="aph-post" data-aid="${escapeAttr(p.id)}">
-        <div class="aph-post-head">
-          ${sprite ? `<img class="aph-author-sprite" src="${sprite}" alt="" onerror="this.style.display='none'"/>` : ''}
-          <span class="aph-handle">@${escapeHtml(p.author?.handle || 'anon')}</span>
-          <span class="tier-chip ${isSage ? 'sage' : ''}">${isSage ? '◈ SAGE' : escapeHtml(tier.toUpperCase())}</span>
-          <span class="aph-rarity" title="${escapeAttr(p.rarity || '')}">${rarityGlyph(p.rarity)}</span>
-        </div>
-        <div class="aph-text">"${escapeHtml(p.text || '')}"</div>
-        ${meta ? `<div class="aph-meta">${meta}</div>` : ''}
-        <div class="aph-votes">
-          <button class="aph-vote up ${p.myVote === 1 ? 'mine' : ''}" data-v="1">♥ ${p.upvotes || 0}</button>
-          <button class="aph-vote down ${p.myVote === -1 ? 'mine' : ''}" data-v="-1">▼ ${p.downvotes || 0}</button>
-        </div>
-      </li>`;
-  }).join('');
+  list.innerHTML = aphPosts.map(aphPostHtml).join('');
+  wireAphVotes(list);
+}
 
-  list.querySelectorAll<HTMLElement>('.aph-post').forEach(row => {
-    const aid = row.dataset.aid || '';
-    row.querySelectorAll<HTMLButtonElement>('.aph-vote').forEach(btn => {
-      btn.addEventListener('click', () => voteAphorism(aid, Number(btn.dataset.v) as 1 | -1));
-    });
-  });
+/** Compact community preview on the Home tab — top posts with sprites + votes. */
+async function renderAphHome(): Promise<void> {
+  const list = $('aph-home-list');
+  if (!list) return;
+  try {
+    if (aphPosts.length === 0) {
+      const resp = await fetch(`${APH_FEED_URL}?sort=hot&limit=8`, { headers: { ...(await authHeaders()) } });
+      if (resp.ok) { const data = await resp.json(); aphPosts = Array.isArray(data.posts) ? data.posts : []; }
+    }
+    const top = aphPosts.slice(0, 5);
+    list.innerHTML = top.length
+      ? top.map(aphPostHtml).join('')
+      : '<li class="muted" style="padding:8px 2px;">No aphorisms yet — be the first to post one on the web.</li>';
+    wireAphVotes(list, () => { renderAphHome(); renderAphList(); });
+  } catch {
+    list.innerHTML = '<li style="color:var(--err);font-size:12px;padding:8px 2px;">Couldn’t reach the commons.</li>';
+  }
 }
 
 async function voteAphorism(aphorismId: string, dir: 1 | -1): Promise<void> {
@@ -2430,6 +2458,17 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   renderTodayQuote();
   document.getElementById('tq-refresh')?.addEventListener('click', () => renderTodayQuote(true));
   await initChecklistPanel();
+
+  // Home: Public Aphorica Feed preview + "see all" → Aphorica tab.
+  renderAphHome().catch(() => {});
+  $('aph-home-all')?.addEventListener('click', () => switchTab('aphorica'));
+  // Copy buttons (how-to links) — clipboard where available, else select-all.
+  $$('.copy-btn').forEach(btn => btn.addEventListener('click', async () => {
+    const url = btn.getAttribute('data-copy') || '';
+    try { await navigator.clipboard.writeText(url); btn.textContent = 'Copied'; btn.classList.add('copied'); }
+    catch { btn.textContent = 'Copied'; btn.classList.add('copied'); }
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1600);
+  }));
 
   // Device-sync spine: pull the account's checklist/habits/weekly rows
   // on dashboard open, then re-render whatever a merge touched. Pure
