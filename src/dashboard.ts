@@ -274,17 +274,26 @@ function applyGlassState(s: GlassesState): void {
     if (speakMirror) {
       const indicator = s.speakThinking
         ? '⋯ Thinking'
-        : (s.speakListening ? '● Listening' : '◦ Tap to speak (on glass)');
+        : (s.speakListening ? '● Listening' : '◦ Speaking on glass');
       speakMirror.innerHTML = `
-        <div class="muted" style="font-size:12px; font-family: var(--mono); margin-bottom:6px;">${indicator}</div>
-        <div style="font-size:13.5px; line-height:1.5;">
-          ${s.speakPageIndex !== undefined && s.speakPageCount ? `<span class="muted">Page ${s.speakPageIndex + 1} / ${s.speakPageCount}</span>` : ''}
-        </div>
+        <div class="muted" style="font-size:12px; font-family: var(--mono);">${indicator}${s.speakPageIndex !== undefined && s.speakPageCount ? ` · glass page ${s.speakPageIndex + 1}/${s.speakPageCount}` : ''}</div>
       `;
+    }
+    // Render the LIVE glass conversation into the companion thread and prime
+    // the phone composer to the same philosopher — so the exchange happening
+    // on the glasses shows up here, and you can pick it up from the phone.
+    const gpid = s.philosopher.philId;
+    if (gpid) {
+      speakActivePhil = gpid;
+      const sel = document.getElementById('speak-phil-select') as HTMLSelectElement | null;
+      if (sel && sel.options.length && sel.value !== gpid) sel.value = gpid;
+      const composeBadge = document.getElementById('speak-compose-badge');
+      if (composeBadge) composeBadge.textContent = s.philosopher.name;
+      renderSpeakThread(gpid).catch(() => {});
     }
   } else if (speakBadge) {
     speakBadge.textContent = '— idle —';
-    if (speakMirror) speakMirror.innerHTML = `<p class="muted">Nothing yet. Pick a philosopher → tap the glass → speak.</p>`;
+    if (speakMirror) speakMirror.innerHTML = `<p class="muted">Nothing yet. Pick a philosopher → tap the glass → speak. The exchange renders here live.</p>`;
   }
 }
 
@@ -2335,5 +2344,10 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
       if (speakActivePhil) renderSpeakThread(speakActivePhil).catch(() => {});
     }
   });
+  // Deep-link: a #<tab> hash activates that tab on load (e.g. #speak, #philosophers).
+  const deepTab = location.hash.replace('#', '').trim();
+  if (deepTab) {
+    setTimeout(() => document.querySelector<HTMLElement>(`.tab-btn[data-tab="${deepTab}"]`)?.click(), 600);
+  }
   log('[DASHBOARD] Ready', 'success');
 }
