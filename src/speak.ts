@@ -26,7 +26,7 @@
 // stays unchanged.
 // ═══════════════════════════════════════════════════════════════════
 
-import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
+import { EvenAppBridge, AudioInputSource } from '@evenrealities/even_hub_sdk';
 import { authHeaders, handleUnauthorized, linkedHandle } from './enkiAccount';
 import { log } from './ui';
 import { loadProfile, profileForApi } from './profile';
@@ -550,8 +550,16 @@ export async function startRecording(): Promise<boolean> {
   audioChunks = [];
 
   try {
-    await bridgeRef.audioControl(true);
-    log("[SPEAK] Mic open");
+    // MUST pass the source on real glasses (SDK ≥0.0.8). Without it the
+    // glasses mic returns false / yields no audio on device (it only worked
+    // in the simulator, which tolerates the sourceless call).
+    const ok = await bridgeRef.audioControl(true, AudioInputSource.Glasses);
+    if (ok === false) {
+      log("[SPEAK] Glasses mic did not open (audioControl → false)", "error");
+      isRecording = false;
+      return false;
+    }
+    log("[SPEAK] Mic open (glasses)");
     return true;
   } catch (e) {
     console.error("[SPEAK] Mic open failed:", e);
@@ -575,7 +583,7 @@ export async function stopRecordingAndSend(): Promise<{ text: string; emotion: s
   isRecording = false;
 
   try {
-    await bridgeRef.audioControl(false);
+    await bridgeRef.audioControl(false, AudioInputSource.Glasses);
     log("[SPEAK] Mic closed");
   } catch (e) {
     console.error("[SPEAK] Mic close failed:", e);
