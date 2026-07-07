@@ -1159,6 +1159,10 @@ async function onAppExiting(bridge: EvenAppBridge): Promise<void> {
   }
   try { await flushHistory(); } catch {}
   stopAutoRotate();
+  // Cooperative teardown: tell the OS we've finished cleanup so it can shut
+  // the page container down gracefully (exitMode 1 = let the foreground layer
+  // decide) rather than hard-killing us on the double-tap exit event.
+  try { await bridge.shutDownPageContainer(1); } catch {}
 }
 
 // ═══ MAIN EVENT HANDLER ═══

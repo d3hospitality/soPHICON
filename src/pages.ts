@@ -253,7 +253,7 @@ function homeContainers() {
   const title = new TextContainerProperty({
     ...geo(layout, "title"),
     containerID: 1, containerName: "title",
-    content: "enkiSPEAKS",
+    content: "enkiRIDION",
     isEventCapture: 0,
   });
   const glance = new TextContainerProperty({

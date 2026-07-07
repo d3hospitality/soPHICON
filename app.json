@@ -2,7 +2,7 @@
   "package_id": "com.d3hospitality.sophicon",
   "edition": "202601",
   "name": "enkiRIDION",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Philosophy on Glass — speak with 17 philosophers, collect wisdom, and think deeper.",
   "author": "D3 Hospitality",
   "entrypoint": "index.html",
@@ -13,7 +13,7 @@
     {
       "name": "network",
       "desc": "Sync your account and conversations, and load quotes, sprites, and the Aphorica community feed.",
-      "whitelist": ["sophicon-api.vercel.app", "enkiridion.com", "afdrjzhcfltsngyxaqhb.supabase.co", "fonts.googleapis.com", "fonts.gstatic.com"]
+      "whitelist": ["https://sophicon-api.vercel.app", "https://enkiridion.com", "https://afdrjzhcfltsngyxaqhb.supabase.co", "https://fonts.googleapis.com", "https://fonts.gstatic.com"]
     },
     {
       "name": "g2-microphone",
