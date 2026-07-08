@@ -48,7 +48,17 @@ function mode() {
  */
 export async function requireEntitlement(req, res, feature, opts = {}) {
   const m = mode();
-  if (m === 'off') return { userId: null, tier: 'seeker', scope: 'user' };
+  if (m === 'off') {
+    // Enforcement off ≠ identity off: downstream features (server-side
+    // memory recall/persist) key on userId, so still resolve identity —
+    // just never block on it.
+    try {
+      const id = await identify(req);
+      return id || { userId: null, tier: 'seeker', scope: 'user' };
+    } catch {
+      return { userId: null, tier: 'seeker', scope: 'user' };
+    }
+  }
 
   const id = await identify(req);
   const tier = id?.tier || 'seeker';

@@ -25,15 +25,19 @@ function admin() {
 async function loadServerMemoryBank(userId) {
   if (!userId || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
   try {
-    const { data } = await admin()
+    const query = admin()
       .from('user_memories')
       .select('text')
       .eq('user_id', userId)
       .eq('status', 'active')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
-      .limit(12);
-    return (data || []).map(r => r.text).filter(t => typeof t === 'string' && t.trim());
+      .limit(12)
+      .then(({ data }) => (data || []).map(r => r.text).filter(t => typeof t === 'string' && t.trim()));
+    // Hard 1.5s deadline: a hung connection must degrade to "no memories",
+    // never stall the speak hot path until the function timeout.
+    const deadline = new Promise(resolve => setTimeout(() => resolve([]), 1500));
+    return await Promise.race([query, deadline]);
   } catch {
     return [];
   }

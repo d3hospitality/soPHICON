@@ -62,7 +62,10 @@ function admin() {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Authorization MUST be allowed: browser callers (web speak harvest, G2
+  // companion webview) send a Bearer token and the preflight blocks the
+  // whole request without it. Matches speak.js.
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
@@ -93,7 +96,10 @@ export default async function handler(req, res) {
     // Server-side dedupe context: when persisting, what's already in the
     // user's Supabase bank matters more than what the client happened to
     // send. Merge both (client list first, server fills the remainder).
-    const wantPersist = persist === true && !!gate.userId
+    // Sage-only: Seeker conversations are ephemeral BY CONTRACT on every
+    // surface — even in ENFORCE=warn mode (where the gate lets the call
+    // through), a seeker's session must never be distilled into the bank.
+    const wantPersist = persist === true && !!gate.userId && gate.tier === 'sage'
       && !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
     let serverMemories = [];
     if (wantPersist) {
@@ -111,7 +117,7 @@ export default async function handler(req, res) {
     const knownMemories = [...new Set([
       ...(Array.isArray(existingMemories) ? existingMemories : []),
       ...serverMemories,
-    ])];
+    ])].filter(m => typeof m === 'string' && m.trim());
 
     const existingBlock = knownMemories.length
       ? `\n\nThe user already has these memories on file (do NOT propose anything that duplicates these):\n${knownMemories.slice(0, 20).map(m => `- ${m}`).join('\n')}`
