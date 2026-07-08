@@ -1,5 +1,43 @@
 import { requireEntitlement } from './_entitlements.js';
 import { languageLabel } from './_utils.js';
+import { createClient } from '@supabase/supabase-js';
+
+// Service-role client for the server-side memory bank (user_memories).
+// Same lazy pattern as device-sync.js.
+let _admin = null;
+function admin() {
+  if (!_admin) {
+    _admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
+  }
+  return _admin;
+}
+
+/**
+ * Load the user's persistent memory bank from Supabase — newest 12 active
+ * facts. This is the cross-surface "second brain": ANY authenticated client
+ * (web, G2 glasses, Android, iOS) gets the same recall without shipping
+ * memoryBank itself. Clients that DO send a non-empty memoryBank (Android's
+ * local Room bank) win — server recall is the fallback, not an override.
+ * Must never take Speak down: any failure returns [].
+ */
+async function loadServerMemoryBank(userId) {
+  if (!userId || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
+  try {
+    const { data } = await admin()
+      .from('user_memories')
+      .select('text')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(12);
+    return (data || []).map(r => r.text).filter(t => typeof t === 'string' && t.trim());
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Philosopher conversation endpoint -- the core of enkiSPEAKS.
@@ -43,6 +81,14 @@ export default async function handler(req, res) {
     const gate = await requireEntitlement(req, res, 'speak', { persona: persona.name });
     if (!gate) return;
 
+    // Second brain: when the client didn't ship a memory bank (web, G2,
+    // iOS — anyone but Android's local Room bank), recall it server-side
+    // from user_memories so philosophers remember this person on every
+    // surface they sign in on.
+    const effectiveMemoryBank = (Array.isArray(memoryBank) && memoryBank.length > 0)
+      ? memoryBank
+      : await loadServerMemoryBank(gate.userId);
+
     // Build "ABOUT THIS PERSON" preamble from the user profile.
     // Stable, structured, never volunteered — same convention as
     // crossContext: quiet awareness, not name-dropping.
@@ -79,7 +125,7 @@ SPEECH STYLE: ${persona.speech_style || ''}
 ${aboutPerson ? `ABOUT THIS PERSON (treat as quiet awareness — never list this back at them, never start with "I see you...". Use it to inflect your reply, not to perform.):
 ${aboutPerson}
 
-` : ''}${buildMemoryBlock(memoryBank)}${crossContext ? `RECENT CONVERSATION CONTEXT (across other philosophers, last 14 days — same rule: quiet awareness, never volunteer):
+` : ''}${buildMemoryBlock(effectiveMemoryBank)}${crossContext ? `RECENT CONVERSATION CONTEXT (across other philosophers, last 14 days — same rule: quiet awareness, never volunteer):
 ${crossContext}
 
 ` : ''}${languageDirective}

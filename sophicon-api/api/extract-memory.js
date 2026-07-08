@@ -1,8 +1,13 @@
 import { requireEntitlement } from './_entitlements.js';
+import { createClient } from '@supabase/supabase-js';
 // /api/extract-memory — pull 0-3 candidate memories from a finished
 // Speak session. Cheap GPT-4o-mini call so it's not a meaningful budget
-// hit per session. Each candidate lands in the client's memory bank
-// with status=pending; the user accepts or dismisses in Settings.
+// hit per session. Two persistence modes:
+//   • default (Android): candidates return to the client, which lands
+//     them locally with status=pending for review in Settings.
+//   • persist:true (web, G2): candidates are ALSO written server-side to
+//     Supabase user_memories as status=active — the cross-surface second
+//     brain that /api/speak recalls for every authenticated client.
 //
 // Request body (POST JSON):
 //   {
@@ -11,8 +16,20 @@ import { requireEntitlement } from './_entitlements.js';
 //     exchanges: [             // the session's full exchange list
 //       { role: "user" | "assistant", content: string }, ...
 //     ],
-//     existingMemories: [string]   // optional; passed so we don't re-propose facts the user already has
+//     existingMemories: [string],  // optional; passed so we don't re-propose facts the user already has
+//     persist: boolean,            // optional; write results to user_memories (needs auth)
+//     philId: string,              // optional; source philosopher id for provenance
 //   }
+
+let _admin = null;
+function admin() {
+  if (!_admin) {
+    _admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
+  }
+  return _admin;
+}
 //
 // Response:
 //   { memories: [string, string, ...] }   // 0-3 single-line facts
@@ -57,7 +74,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { philName, tradition, exchanges, existingMemories } = req.body || {};
+    const { philName, tradition, exchanges, existingMemories, persist, philId } = req.body || {};
     if (!Array.isArray(exchanges) || exchanges.length === 0) {
       return res.status(200).json({ memories: [] });
     }
@@ -73,8 +90,31 @@ export default async function handler(req, res) {
       .map(m => `${m.role.toUpperCase()}: ${m.content.slice(0, 600)}`)
       .join('\n\n');
 
-    const existingBlock = Array.isArray(existingMemories) && existingMemories.length
-      ? `\n\nThe user already has these memories on file (do NOT propose anything that duplicates these):\n${existingMemories.slice(0, 20).map(m => `- ${m}`).join('\n')}`
+    // Server-side dedupe context: when persisting, what's already in the
+    // user's Supabase bank matters more than what the client happened to
+    // send. Merge both (client list first, server fills the remainder).
+    const wantPersist = persist === true && !!gate.userId
+      && !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    let serverMemories = [];
+    if (wantPersist) {
+      try {
+        const { data } = await admin()
+          .from('user_memories')
+          .select('text')
+          .eq('user_id', gate.userId)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        serverMemories = (data || []).map(r => r.text).filter(Boolean);
+      } catch { /* dedupe context is best-effort */ }
+    }
+    const knownMemories = [...new Set([
+      ...(Array.isArray(existingMemories) ? existingMemories : []),
+      ...serverMemories,
+    ])];
+
+    const existingBlock = knownMemories.length
+      ? `\n\nThe user already has these memories on file (do NOT propose anything that duplicates these):\n${knownMemories.slice(0, 20).map(m => `- ${m}`).join('\n')}`
       : '';
 
     const systemPrompt = `You are a memory-extraction assistant. You read a single conversation between a user and a philosopher (${philName || 'a philosopher'}, ${tradition || 'classical'}) and extract 0 to 3 SINGLE-LINE FACTS the user shared about themselves that would be worth remembering across future sessions.
@@ -125,6 +165,28 @@ If nothing memorable was shared, return { "memories": [] }. PADDING IS WORSE THA
           .slice(0, 3)
           .map(m => m.slice(0, 200))
       : [];
+
+    // Second brain write-back: land the new facts in Supabase so every
+    // surface's philosophers recall them via /api/speak. Case-insensitive
+    // dedupe against everything we know; the (user_id, lower(text)) unique
+    // index is the last line of defense — a constraint hit is not an error.
+    if (wantPersist && memories.length) {
+      const knownLower = new Set(knownMemories.map(m => m.toLowerCase()));
+      const fresh = memories.filter(m => !knownLower.has(m.toLowerCase()));
+      for (const text of fresh) {
+        try {
+          await admin().from('user_memories').insert({
+            user_id: gate.userId,
+            kind: 'auto',
+            status: 'active',
+            text,
+            source_phil_id: typeof philId === 'string' ? philId.slice(0, 80) : null,
+            source_phil_name: typeof philName === 'string' ? philName.slice(0, 80) : null,
+          });
+        } catch { /* duplicate or transient — never fail the response */ }
+      }
+    }
+
     return res.status(200).json({ memories });
   } catch (err) {
     console.error('[/api/extract-memory] error:', err);

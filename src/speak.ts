@@ -68,6 +68,7 @@ export interface SpeakMessage {
 const SPEAK_API_URL = "https://sophicon-api.vercel.app/api/speak";
 const TRANSCRIBE_API_URL = "https://sophicon-api.vercel.app/api/transcribe";
 const ACTIONS_API_URL = "https://sophicon-api.vercel.app/api/actions";
+const MEMORY_API_URL = "https://sophicon-api.vercel.app/api/extract-memory";
 
 const ACTION_ITEMS_KEY = "speak_action_items";   // append-only, all-time
 const CROSS_CONTEXT_KEY = "speak_cross_context"; // cached per-session preamble
@@ -226,6 +227,12 @@ export async function checkpointSession(philName: string, tradition: string): Pr
   // onto the all-time action-items store. Errors are swallowed; we don't
   // want a network blip to block the user from leaving the convo.
   extractActionsFromSession(session).catch(e => console.warn("[ACTIONS] auto-extract failed", e));
+
+  // Fire-and-forget: distill 0-3 persistent facts from this session into
+  // the Supabase second brain (user_memories, persist:true). /api/speak
+  // then recalls them on EVERY surface this account signs in on — web,
+  // glasses, Android. The server dedupes against what it already knows.
+  extractMemoryFromSession(session).catch(e => console.warn("[MEMORY] auto-extract failed", e));
 
   // Invalidate the cross-context cache so the NEXT conversation rebuilds
   // a preamble that includes this session.
@@ -388,6 +395,35 @@ async function extractActionsFromSession(session: JournalSession): Promise<void>
     log(`[ACTIONS] +${fresh.length} from ${session.philName} session`);
   } catch (e) {
     console.warn("[ACTIONS] extract error", e);
+  }
+}
+
+// ═══ AUTO MEMORY EXTRACTION (Supabase second brain) ══════════════════
+// Called from checkpointSession. persist:true tells the server to write
+// the distilled facts into user_memories keyed to this account; from then
+// on /api/speak injects them as PERSISTENT MEMORY for every philosopher
+// on every surface (web, glasses, Android). All storage + dedupe is
+// server-side — the glasses keep nothing locally.
+async function extractMemoryFromSession(session: JournalSession): Promise<void> {
+  if (!(await isEntitled())) return; // seeker sessions are ephemeral
+  try {
+    const resp = await fetch(MEMORY_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({
+        philName: session.philName,
+        tradition: session.tradition,
+        philId: session.philId,
+        exchanges: session.exchanges.map(m => ({ role: m.role, content: m.content })),
+        persist: true,
+      }),
+    });
+    if (!resp.ok) { console.warn("[MEMORY] api error", resp.status); return; }
+    const data = await resp.json();
+    const n = Array.isArray(data.memories) ? data.memories.length : 0;
+    if (n > 0) log(`[MEMORY] +${n} fact${n === 1 ? "" : "s"} remembered from ${session.philName} session`, "success");
+  } catch (e) {
+    console.warn("[MEMORY] extract error", e);
   }
 }
 
