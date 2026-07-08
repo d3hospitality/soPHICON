@@ -1119,15 +1119,22 @@ function escapeHtml(s: string): string {
 }
 
 // ─── PROBLEMS (extracted via /api/problems) ───────────────────────
-async function extractProblems(): Promise<void> {
+// Runs AUTOMATICALLY — once on load when a journal exists, and again each
+// time a conversation ends on the glasses (same trigger that refreshes the
+// journal). The "Extract from journal" button remains as a manual refresh.
+// Auto runs fail silently so a network blip or tier gate never scribbles
+// an error over the panel unprompted.
+let problemsRunning = false;
+async function extractProblems(auto: boolean = false): Promise<void> {
   const host = $('problems-list');
   const count = $('problems-count');
-  if (!host) return;
+  if (!host || problemsRunning) return;
   if (journalCache.length === 0) {
-    host.innerHTML = '<p class="muted">No journal yet. Talk to a philosopher first.</p>';
+    if (!auto) host.innerHTML = '<p class="muted">No journal yet. Talk to a philosopher first.</p>';
     return;
   }
-  host.innerHTML = '<p class="muted">Analyzing…</p>';
+  problemsRunning = true;
+  if (!auto) host.innerHTML = '<p class="muted">Analyzing…</p>';
   try {
     const resp = await fetch('https://sophicon-api.vercel.app/api/problems', {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -1150,10 +1157,12 @@ async function extractProblems(): Promise<void> {
           </div>
           <div class="source">heard by: ${(p.philosophers || []).map((n: string) => escapeHtml(n)).join(' · ')}</div>
         </div>`).join('');
-    log(`[DASHBOARD] ${problems.length} problems extracted`, 'success');
+    log(`[DASHBOARD] ${problems.length} problems extracted${auto ? ' (auto)' : ''}`, 'success');
   } catch (e) {
-    host.innerHTML = `<p style="color:var(--err);">Failed: ${e}</p>`;
+    if (!auto) host.innerHTML = `<p style="color:var(--err);">Failed: ${e}</p>`;
     log(`[DASHBOARD] problems failed: ${e}`, 'error');
+  } finally {
+    problemsRunning = false;
   }
 }
 
@@ -1197,7 +1206,9 @@ async function computeActions(): Promise<void> {
 }
 
 function initJournalPanel(): void {
-  $('btn-extract-problems')?.addEventListener('click', extractProblems);
+  // Explicit false: addEventListener would otherwise pass the click Event
+  // as the `auto` flag, silencing manual-run feedback.
+  $('btn-extract-problems')?.addEventListener('click', () => extractProblems(false));
   $('btn-compute-actions')?.addEventListener('click', computeActions);
 }
 
@@ -2452,6 +2463,8 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   await initProfilePanel();
   await renderHeaderAccount();
   await refreshJournal();
+  // Problems auto-run on load — no button press needed once a journal exists.
+  extractProblems(true).catch(() => {});
   await initWeeklyPanel();
   await renderHabits();
   await renderTodayCard();
@@ -2494,18 +2507,25 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
 
   // Subscribe to live glass-state updates; also refresh journal when
   // user exits speak-conversation (checkpoint just fired)
+  let lastGlassPage = '';
   onGlassesStateChange((s) => {
     applyGlassState(s);
     // Any transition OUT of speak-conversation → journal likely changed.
     // Also refresh the Today card + Habits since both pull from the journal.
     if (s.page !== 'speak-conversation') {
-      refreshJournal().catch(() => {});
+      // Only re-distill problems on the actual EXIT edge (conversation just
+      // checkpointed), not on every state tick outside a conversation.
+      const justLeftConversation = lastGlassPage === 'speak-conversation';
+      refreshJournal()
+        .then(() => { if (justLeftConversation) return extractProblems(true); })
+        .catch(() => {});
       renderTodayCard().catch(() => {});
       renderHabits().catch(() => {});
       // Glass just left a conversation — the shared thread may have grown.
       // Re-render the phone compose thread if it's showing that philosopher.
       if (speakActivePhil) renderSpeakThread(speakActivePhil).catch(() => {});
     }
+    lastGlassPage = s.page || '';
   });
   // Deep-link: a #<tab> hash activates that tab on load (e.g. #speak, #philosophers).
   const deepTab = location.hash.replace('#', '').trim();
