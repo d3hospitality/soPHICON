@@ -1114,6 +1114,20 @@ async function handleDoubleClick(bridge: EvenAppBridge, baseUrl: string): Promis
     await stopMindfulness(bridge);
     return;
   }
+  // Root home page: double-tap is the EXIT gesture. goBack has no "home"
+  // branch, so without this the tap is swallowed and the plugin never
+  // exits (Even review: "double-tapping to exit yields no response").
+  // Run cooperative teardown, then shut the page container down so the OS
+  // closes the plugin.
+  if (currentPage === "home") {
+    // Raise the system exit confirmation dialog. Do NOT tear down here — if
+    // the user cancels, the app must stay live and listening. Cleanup runs
+    // in the SYSTEM_EXIT / ABNORMAL_EXIT handlers only after real exit.
+    log("[DBLCLICK] home → system exit dialog");
+    try { await bridge.shutDownPageContainer(1); }
+    catch (e) { log(`[DBLCLICK] shutDownPageContainer failed: ${e}`, "error"); }
+    return;
+  }
   if (currentPage === "speak-conversation") {
     await goBack(bridge, baseUrl);
     return;
@@ -1159,10 +1173,9 @@ async function onAppExiting(bridge: EvenAppBridge): Promise<void> {
   }
   try { await flushHistory(); } catch {}
   stopAutoRotate();
-  // Cooperative teardown: tell the OS we've finished cleanup so it can shut
-  // the page container down gracefully (exitMode 1 = let the foreground layer
-  // decide) rather than hard-killing us on the double-tap exit event.
-  try { await bridge.shutDownPageContainer(1); } catch {}
+  // NOTE: cleanup only — do NOT call shutDownPageContainer here. The exit
+  // dialog is raised from the home double-tap handler; this runs after the
+  // user has already confirmed exit (SYSTEM_EXIT / ABNORMAL_EXIT).
 }
 
 // ═══ MAIN EVENT HANDLER ═══
@@ -1285,6 +1298,7 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
 
     // Double-click → back (every page handles it in goBack)
     if (type === OsEventTypeList.DOUBLE_CLICK_EVENT) { // 3
+      navigating = false; // force-clear so double-tap always registers, even mid-nav
       await handleDoubleClick(bridge, baseUrl);
       return;
     }
