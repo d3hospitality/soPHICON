@@ -585,6 +585,36 @@ function shuffleArray<T>(arr: T[]): T[] {
   return a;
 }
 
+// ═══ G2 UX LAB seam (dev-only; inert unless the lab installs itself) ═══
+// The lab may temporarily own the glass (Habit Check-In / Journal Prompt /
+// Pairing pages driven by its state machine). While it does, its hook sees
+// every ring event FIRST and returns true to consume it — the production
+// router below never double-handles. Normal mode: hook is null, zero cost.
+export type LabEventHook = (event: EvenHubEvent) => boolean;
+let labEventHook: LabEventHook | null = null;
+export function setLabEventHook(hook: LabEventHook | null): void { labEventHook = hook; }
+
+/** Inject a synthetic ring event into the SAME router the real glasses
+ * use (single-subscription contract). Powers the lab's gesture buttons. */
+export function simulateEvent(event: EvenHubEvent): void {
+  if (!bridgeRef) return;
+  handleEvent(bridgeRef, event, baseUrlRef).catch(e => console.error('[lab simulate]', e));
+}
+
+/** Current on-glass page string ("home", "speak-conversation", …). */
+export function getCurrentPageName(): string { return currentPage; }
+
+/** Hand the glass back to the production router at Home. Mirrors the
+ * stopMindfulness exit path (glance reload → home rebuild → logo). */
+export async function returnHomeFromLab(): Promise<void> {
+  if (!bridgeRef) return;
+  try { await loadGlanceLine(bridgeRef); } catch { /* render without glance */ }
+  await bridgeRef.rebuildPageContainer(rebuildHomePage());
+  currentPage = "home";
+  try { await pushLogoToGlasses(bridgeRef, baseUrlRef); } catch { /* logo optional */ }
+  publishState();
+}
+
 // ═══ REGISTER ═══
 export function registerEventHandlers(bridge: EvenAppBridge, baseUrl: string): () => void {
   bridgeRef = bridge;
@@ -1188,6 +1218,9 @@ async function onAppExiting(bridge: EvenAppBridge): Promise<void> {
 //       listEvent for clicks (swipes are handled by the firmware, no event).
 //   • Image containers cannot capture.
 async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: string): Promise<void> {
+
+  // ── G2 UX LAB (dev-only): machine-owned pages consume events first ──
+  if (labEventHook && labEventHook(event)) return;
 
   // ── AUDIO (only during speak recording) ──
   if (event.audioEvent && currentPage === "speak-conversation") {

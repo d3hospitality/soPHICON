@@ -248,6 +248,23 @@ export async function loadGlanceLine(bridge: EvenAppBridge): Promise<void> {
   } catch { glanceLine = ""; }
 }
 
+// ═══ Home Glance variant (G2 UX Lab — see docs/G2_UX_LAB.md) ═══
+// When enabled, the home page answers "What should I practice right
+// now?" — the lower-right logo slot becomes a PRACTICE stack (next
+// 1-3-5 action · habit due · Enki prompt) while the traditions list
+// keeps its geometry and capture role so the production event router
+// (events.ts index math) is untouched. Lab-only until promoted.
+let glanceHomeEnabled = false;
+let practiceLines = "";
+
+export function setGlanceHomeEnabled(on: boolean): void { glanceHomeEnabled = on; }
+export function isGlanceHomeEnabled(): boolean { return glanceHomeEnabled; }
+
+/** 2–3 concise lines, e.g. "▶ 1 BIG: Ship the menu\nHABIT due: Meditate\nΦ Enki: evening review". */
+export function setPracticeLines(lines: string): void {
+  practiceLines = capForGlass(lines || "", 200);
+}
+
 function homeContainers() {
   const layout = homeLayout();
   const title = new TextContainerProperty({
@@ -279,27 +296,40 @@ function homeContainers() {
     ...geo(layout, "logo bottom"),
     containerID: 10, containerName: "logo bottom",
   });
-  return { title, glance, traditions, logoTop, logoBottom };
+  // Glance variant: practice stack replaces the bottom logo (same geometry).
+  const practice = new TextContainerProperty({
+    ...geo(layout, "logo bottom"),
+    containerID: 15, containerName: "practice",
+    content: practiceLines,
+    isEventCapture: 0,
+  });
+  return { title, glance, traditions, logoTop, logoBottom, practice };
+}
+
+function homePageParts() {
+  const c = homeContainers();
+  if (glanceHomeEnabled) {
+    return {
+      containerTotalNum: 5,
+      listObject: [c.traditions],
+      textObject: [c.title, c.glance, c.practice],
+      imageObject: [c.logoTop],
+    };
+  }
+  return {
+    containerTotalNum: 5,
+    listObject: [c.traditions],
+    textObject: [c.title, c.glance],
+    imageObject: [c.logoTop, c.logoBottom],
+  };
 }
 
 export function buildHomePage(): CreateStartUpPageContainer {
-  const c = homeContainers();
-  return new CreateStartUpPageContainer({
-    containerTotalNum: 5,
-    listObject: [c.traditions],
-    textObject: [c.title, c.glance],
-    imageObject: [c.logoTop, c.logoBottom],
-  });
+  return new CreateStartUpPageContainer(homePageParts());
 }
 
 export function rebuildHomePage(): RebuildPageContainer {
-  const c = homeContainers();
-  return new RebuildPageContainer({
-    containerTotalNum: 5,
-    listObject: [c.traditions],
-    textObject: [c.title, c.glance],
-    imageObject: [c.logoTop, c.logoBottom],
-  });
+  return new RebuildPageContainer(homePageParts());
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -852,4 +882,100 @@ export function composeSpeakResponseContent(
     : (isListening ? "● Listening (tap to send)" : "□ Tap to speak");
   const marker = pages.length > 1 ? `  [${clampedIdx + 1}/${pages.length}]` : "";
   return capForGlass(`${status}${marker}\n${shown}`);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// G2 UX LAB — machine-owned glance pages (see docs/G2_UX_LAB.md)
+//
+// Three surfaces the production router doesn't render yet. Each obeys
+// the glance grammar (one idea per page, fixed ring verbs, ≤4
+// containers, exactly one isEventCapture:1). Geometry is inline —
+// pages.layout.ts is regenerated wholesale by the D3 Container Editor,
+// so lab-only pages must not live there until promoted.
+// ══════════════════════════════════════════════════════════════════
+
+/** Habit Check-In — TAP = done · SWIPE = next habit · DOUBLE-TAP = home. */
+export function buildHabitCheckInPage(
+  habitName: string, streakLine: string, idx: number, total: number,
+): RebuildPageContainer {
+  const counter = total > 1 ? `  [${idx + 1}/${total}]` : "";
+  const body = capForGlass(
+    `${habitName}\n${streakLine}\n\n` +
+    `tap = done · swipe = next · double-tap = home`,
+  );
+  return new RebuildPageContainer({
+    containerTotalNum: 2,
+    textObject: [
+      new TextContainerProperty({
+        xPosition: 350, yPosition: 252, width: 220, height: 30,
+        containerID: 1, containerName: "title",
+        content: `HABIT CHECK-IN${counter}`, isEventCapture: 0,
+      }),
+      new TextContainerProperty({
+        xPosition: 15, yPosition: 40, width: 545, height: 200,
+        containerID: 2, containerName: "habit",
+        content: body, isEventCapture: 1,
+      }),
+    ],
+  });
+}
+
+/** Journal Prompt — shown right after a Speak conversation ends.
+ * TAP = save reflection · DOUBLE-TAP = skip. */
+export function buildJournalPromptPage(
+  philosopherName: string, promptText: string,
+): RebuildPageContainer {
+  const body = capForGlass(
+    `${promptText}\n\n` +
+    `tap = save to journal · double-tap = skip`,
+  );
+  return new RebuildPageContainer({
+    containerTotalNum: 2,
+    textObject: [
+      new TextContainerProperty({
+        xPosition: 320, yPosition: 252, width: 250, height: 30,
+        containerID: 1, containerName: "title",
+        content: `AFTER ${philosopherName.toUpperCase()}`, isEventCapture: 0,
+      }),
+      new TextContainerProperty({
+        xPosition: 15, yPosition: 40, width: 545, height: 200,
+        containerID: 2, containerName: "prompt",
+        content: body, isEventCapture: 1,
+      }),
+    ],
+  });
+}
+
+/** Pairing / account state — informational; DOUBLE-TAP = home. */
+export function buildPairingPage(
+  status: "unpaired" | "lost" | "linking" | "linked",
+  detailLine: string = "",
+): RebuildPageContainer {
+  const headline =
+    status === "linked" ? "LINKED" :
+    status === "linking" ? "LINKING…" :
+    status === "lost" ? "CONNECTION LOST" : "NOT PAIRED";
+  const hint =
+    status === "linked" ? "you're in step with enkiridion.com" :
+    status === "linking" ? "enter the code in the phone app" :
+    status === "lost" ? "glasses will reconnect on their own" :
+    "open Even Hub on your phone to pair";
+  const body = capForGlass(
+    `${headline}\n${detailLine}\n\n${hint}\n\ndouble-tap = home`,
+  );
+  return new RebuildPageContainer({
+    containerTotalNum: 2,
+    textObject: [
+      new TextContainerProperty({
+        xPosition: 350, yPosition: 252, width: 220, height: 30,
+        containerID: 1, containerName: "title",
+        content: "enkiRIDION · ACCOUNT", isEventCapture: 0,
+      }),
+      new TextContainerProperty({
+        xPosition: 15, yPosition: 40, width: 545, height: 200,
+        containerID: 2, containerName: "pairing",
+        content: body, isEventCapture: 1,
+      }),
+    ],
+  });
 }

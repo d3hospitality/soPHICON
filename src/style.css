@@ -1369,3 +1369,22 @@ body {
 .today-quote .tq-attr { font-family: var(--mono); font-size: 12px; color: var(--gold); }
 .today-quote .tq-refresh { background:none; border:0; color: var(--dim); cursor:pointer; padding:2px; line-height:0; }
 .today-quote .tq-refresh svg { width:18px; height:18px; }
+
+/* ═══ G2 UX LAB (dev-only — mounted only in lab mode) ═══
+   Even Hub styling: calm dense dashboard; Even yellow ONLY as accent;
+   glasses green reserved for the mirror surfaces. */
+.lab-accent { color: #f2c200; }
+.lab-root .card-header { color: #f2c200; }
+.lab-canvas {
+  width: 100%; aspect-ratio: 2 / 1; display: block;
+  background: #020a04; border: 1px solid #123a1e; border-radius: 8px;
+}
+.lab-mirror {
+  margin-top: 8px; padding: 10px; max-height: 220px; overflow: auto;
+  background: #020a04; color: #3fd268; border: 1px solid #123a1e;
+  border-radius: 8px; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+}
+.lab-idx { width: 64px; }
+.lab-lbl { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+#lab-log .entry { font: 11px/1.5 ui-monospace, monospace; opacity: .85; }
