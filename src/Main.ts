@@ -22,12 +22,30 @@ import { registerEventHandlers } from './events';
 import { setStatus, setBattery, log } from './ui';
 import { TOTAL_QUOTES, TOTAL_PHILOSOPHERS, TOTAL_TRADITIONS } from './constants';
 import { initDashboard } from './dashboard';
+import { isLabMode } from './lab/labFlag';
+
+// Lab mode only: race the real Even bridge against a short timeout and
+// fall back to the isolated mock so the webapp boots in a plain browser.
+// Normal mode is untouched — it awaits the real bridge exactly as before.
+type Bridge = Awaited<ReturnType<typeof waitForEvenAppBridge>>;
+
+async function acquireBridge(): Promise<Bridge> {
+  if (!isLabMode()) return waitForEvenAppBridge();
+  const real = await Promise.race([
+    waitForEvenAppBridge(),
+    new Promise<null>(resolve => setTimeout(() => resolve(null), 1500)),
+  ]);
+  if (real) return real;
+  const { createMockBridge } = await import('./lab/mockBridge');
+  log("LAB: no Even bridge — using isolated mock", "success");
+  return createMockBridge() as Bridge;
+}
 
 async function main(): Promise<void> {
   log("Initializing...");
   setStatus("connecting", "Waiting for bridge...");
 
-  const bridge = await waitForEvenAppBridge();
+  const bridge = await acquireBridge();
   log("Bridge ready", "success");
 
   const user = await bridge.getUserInfo();
@@ -83,6 +101,12 @@ async function main(): Promise<void> {
 
   // Phone-side dashboard (tabs, live glass-state mirror, sprite debug)
   await initDashboard(bridge, baseUrl);
+
+  // G2 UX Lab (dev-only, dynamically imported — absent from normal boots)
+  if (isLabMode()) {
+    const { initLabPanel } = await import('./lab/labPanel');
+    await initLabPanel(bridge, baseUrl);
+  }
 
   await bridge.setLocalStorage("sophicon_version", "0.1.0");
   log(`soΦcon v0.1.0 — ${TOTAL_QUOTES} quotes · ${TOTAL_PHILOSOPHERS} philosophers · ${TOTAL_TRADITIONS} traditions`, "success");
