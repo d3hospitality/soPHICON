@@ -186,7 +186,61 @@ rhythm, not a single global clock.
   the most competition); the wake and lunch windows deliver similar attention at
   10–25% cheaper CPMs, which matters most in JA/FR/IT.
 
-## 6. Recommendations
+## 6. Monetization prerequisite (do this before spending)
+
+Organic baseline from Even Hub (Jul 5 → Jul 11): 9.7K→10.6K listing views,
+2.9K→3K downloads, 202→206 likes. Listing-view→download conversion ≈ **30%
+lifetime** — the creative hook works. But downloads→paying = **1 customer
+(0.03%)** because all features are free. At that rate, $1k of ads ≈ 0.3
+customers. Ship the paywall first.
+
+**Tier structure:**
+
+| | Free | Premium |
+|---|---|---|
+| Browse (2,801 quotes, all sprites/expressions) | ✅ unlimited, forever | ✅ |
+| Speak — Confucius, Epictetus, Ibn Sina | ✅ metered (3–5 exchanges/day) | ✅ unmetered |
+| Speak — remaining 14 (Marcus, Socrates, Buddha…) | 🔒 | ✅ |
+| Future figures (the 64 "influential figures" roster) | 🔒 | ✅ as they ship |
+
+- Free trio = one ambassador per civilization (East Asian / Greco-Roman /
+  Islamic), each anchoring a campaign lane. Epictetus free + Marcus Aurelius
+  paid is deliberate: the teacher's Stoic hooks, the famous Stoic converts.
+- **Grandfather all existing installs** (pre-cutoff = "founders" keep Speak on
+  all 17). Sacrifices ~zero revenue (base converted at 0.03%) and protects the
+  reviews/likes/word-of-mouth in a niche community with no anonymity of scale.
+  Announce founders' status the same day as the pre-order push.
+- Daily meter on the free trio caps Whisper/LLM cost exposure per free user
+  and creates a second upgrade trigger.
+- Highest-converting paywall placement: contextual — an "Ask Marcus about
+  this" button on the quote being read, not a locked menu list.
+- Premium = subscription (matches recurring API costs); future figure drops
+  become recurring justification, culturally matched to language lanes
+  (Dostoevsky → RU push, Rumi → future AR lane, etc.).
+
+## 7. Launch calendar (Jul 11 → Oct 11, release Aug 8)
+
+| Date | Milestone |
+|---|---|
+| **Jul 11–13** | Confirm release build + subscription IAPs are **submitted/approved** — App Store pre-orders require an approved app. AI-persona voice chat draws App Review attention (moderation controls, age rating, AI disclosure); budget a rejection cycle (~1 week each). |
+| **Jul 13** | Pre-orders open (iOS + Watch). Same day: founders' announcement to Even Hub community. Push channels: Even Hub listing/changelog, community, enkiSPEAKS web, email. **$0 ad spend pre-launch** — install campaigns can't optimize against an unreleased app. |
+| **Jul 13–Aug 8** | 26-day pre-order window. Cadence: launch push (Jul 13), mid-window reminder (~Jul 25), last-48h push (Aug 6). Target: **100+ pre-orders** = success (day-one auto-install spike for ranking + Meta signal). |
+| **~Jul 28** | Hard deadline: final release build (paywall in, IAPs approved) through App Review with buffer. Watch app = smallest viable companion; don't let it slip the date. |
+| **Aug 8** | Release day (a Saturday — have crash monitoring watched over the weekend). Pre-orders auto-download. |
+| **Aug 10–11** | After ~48h crash-free: start Meta $1k, ~$33/day × 30 days. One campaign, LatAm-weighted geo, all locales via dynamic language optimization. |
+| **~Aug 24** | Two weeks of data: clamp dayparting to the four windows (§5), kill clearly losing lanes, shift budget to leaders. |
+| **~Sep 9** | Campaign ends. Sep 10–15: full readout — CPI per language lane, trial starts, conversion, D7 retention. |
+| **Sep 15–Oct 15** | Decision window: next tranche into the winning lane **before Q4 CPMs ramp** (Oct–Dec +30–60%). |
+| **Oct 11** | Scoreboard check (below). |
+
+**90-day scoreboard:** launched on time with paywall in build → 100+
+community pre-orders → 1,000+ total iOS installs → **15+ paying subscribers**
+→ one language lane identified as the winner. Expected revenue by Oct 11 is
+honestly **~$150–600** (10–40 subs at ~$6/mo or ~$40/yr minus Apple's 15%) —
+the $1k buys the map (conversion baseline + winning lane + retention curve),
+not the revenue.
+
+## 8. Recommendations
 
 1. **Phase it.** Launch PT-BR and ES first (cheapest CPI, biggest lanes — ES has 3
    copy variants ready). Use 4–6 weeks of data to set CPI expectations before
