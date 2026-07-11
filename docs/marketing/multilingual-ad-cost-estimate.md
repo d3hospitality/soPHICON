@@ -108,6 +108,31 @@ device-gated creatives rotating inside each.
 \* Blended across markets; LatAm dominates install volume at any budget because CPIs
 are 3–8× cheaper than JA/FR/IT.
 
+### Micro-budget plan: $1,000 total
+
+Skip TikTok (minimums eat the budget: 7 languages = 7 ad groups × $20/day). Run
+**Meta only**, one app-install campaign at ~$33/day × 30 days:
+
+- Geo: Brazil + Mexico + Colombia (cheapest CPI), **Android-first**
+- All locale copy variants loaded into ONE ad set via **dynamic language
+  optimization** — Meta serves each user the version matching their language
+  setting (up to 48 languages, own text + own image per language) and shifts
+  budget to whichever language converts. Don't use the Advantage+ AI
+  auto-translate; the hand-tuned slang copy is the asset.
+
+Expected funnel: ~300–500k impressions ($2–4 CPM) → ~1–1.5% CTR → 15–30%
+click-to-install at $0.60–1.50 CPI → **~700–1,500 installs** → 1–3%
+install-to-paid → **~10–40 paying users**. Same budget on Japan/France yields
+4–5× fewer installs; iOS costs ~3× Android everywhere.
+
+Treat $1k as a *learning* budget: its output is the per-language/per-hook CPI
+breakdown that tells you where the next tranche goes.
+
+**Language-flipping capability by platform:** Meta = native (dynamic language
+optimization). TikTok = none; language is an ad-group targeting setting (one
+language per ad group), and Smart+ auto-translate generates its own
+translations rather than rotating supplied locale variants.
+
 ## 5. Dayparting: when to push
 
 Strategy: hit the four daily "phone-in-hand" windows — **wake-up/bathroom scroll,
