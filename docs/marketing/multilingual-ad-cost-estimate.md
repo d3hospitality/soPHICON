@@ -108,7 +108,60 @@ device-gated creatives rotating inside each.
 \* Blended across markets; LatAm dominates install volume at any budget because CPIs
 are 3–8× cheaper than JA/FR/IT.
 
-## 5. Recommendations
+## 5. Dayparting: when to push
+
+Strategy: hit the four daily "phone-in-hand" windows — **wake-up/bathroom scroll,
+lunch break, commute home, and post-dinner wind-down** — in each market's local
+rhythm, not a single global clock.
+
+### Platform mechanics first
+
+- **Meta:** ad scheduling (dayparting) requires switching the ad set to a
+  **lifetime budget**, and you can choose to deliver by the **viewer's timezone** —
+  use that for every lane, and it's the only sane option for the RU/ZH diaspora
+  audiences spread across many timezones.
+- **TikTok:** dayparting is set at the ad-group level and works with daily budgets,
+  but runs on the **ad-account timezone**, not the viewer's. Since each language
+  campaign targets one dominant timezone cluster, offset each ad group's schedule
+  to that market's local time (e.g. account in UTC: Brazil windows shift +3h,
+  Japan −9h).
+- Dayparting does **not** lower the daily minimums — $20/day/ad group on TikTok
+  still applies. What it does is concentrate that spend into peak-attention hours
+  instead of letting the algorithm dribble it out at 4am.
+- Trade-off: restricting hours shrinks auction inventory and can nudge CPMs up
+  ~10–20% while slowing learning-phase exit. Recommended sequence: run **broad for
+  the first 2 weeks**, pull the hourly breakdown reports, then clamp to the four
+  windows keeping ~9–10 delivery hours/day.
+
+### The four windows, per market (all times local)
+
+| Market | 🚽 Wake / bathroom scroll | 🥪 Lunch break | 🚗 Commute home | 🛋 Post-dinner wind-down |
+|---|---|---|---|---|
+| Brazil (UTC−3) | 06:30–09:00 | 11:30–13:30 | 17:30–19:30 (long bus/metro rides = heavy scroll) | 20:30–23:00 |
+| Mexico (UTC−6) | 06:30–09:00 | **14:00–16:00** (comida, not noon) | 18:00–20:00 (CDMX traffic) | 21:00–23:30 |
+| Colombia (UTC−5) | **05:30–08:00** (early risers) | 12:00–14:00 | 17:00–19:00 | 20:00–22:30 |
+| France (UTC+1/+2) | 07:00–09:00 | 12:00–14:00 | 17:30–19:00 | 21:00–23:00 (dinner ~20:00) |
+| Italy (UTC+1/+2) | 07:00–09:00 | 13:00–14:30 | 18:00–19:30 | **21:30–23:30** (dinner ~20:30) |
+| Japan (UTC+9) | 06:30–09:00 — merges with **train commute**, the single best window in JA | 12:00–13:00 (strict) | 18:00–20:00 (train again) | 21:00–24:00 |
+| Taiwan/SG (UTC+8) | 07:00–09:00 | 12:00–13:30 | 18:00–19:30 | 21:00–23:30 |
+| RU/ZH diaspora | Use Meta viewer-timezone delivery with the generic 06:30–09:00 / 12:00–14:00 / 17:30–19:30 / 20:30–23:00 grid | | | |
+
+### Matching creative to window
+
+- **Wake/toilet + commute:** short-attention moments — run the punchy hooks
+  ("Хватит ныть", "别再精神内耗了", "Qué onda, güey") and the *5 minutes* /
+  *Daily 1-3-5* concepts. Commute is also where the mobile app-install CTA
+  converts best.
+- **Lunch:** *Ask a Stoic* / *Which philosopher* — interactive, mid-attention.
+- **Post-dinner couch:** longest sessions, best completion rates for the deeper
+  *Seeker to Prophet* / *Real conversation* creatives, and the right slot for the
+  device-gated iPad / Vision Pro / Web frames (people are on the couch with the
+  bigger screen in reach).
+- Note the evening window is also every platform's **CPM peak** (7–11pm carries
+  the most competition); the wake and lunch windows deliver similar attention at
+  10–25% cheaper CPMs, which matters most in JA/FR/IT.
+
+## 6. Recommendations
 
 1. **Phase it.** Launch PT-BR and ES first (cheapest CPI, biggest lanes — ES has 3
    copy variants ready). Use 4–6 weeks of data to set CPI expectations before
@@ -123,6 +176,10 @@ are 3–8× cheaper than JA/FR/IT.
    subscription value, not CPI.
 5. **One caveat on Q4:** CPMs spike 30–60% October–December; the scenario table
    assumes non-holiday pricing.
+6. **Daypart in phase two, not day one.** Two weeks broad to gather hourly data,
+   then clamp each lane to its four local windows (section 5) — Meta via
+   lifetime-budget + viewer-timezone scheduling, TikTok via account-timezone
+   offsets per ad group.
 
 ## Sources
 
