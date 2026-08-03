@@ -3,20 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>enkiSPEAKS</title>
-  <script type="module" crossorigin src="./assets/index-DpZ17GBs.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-D4xOt8rL.css">
+  <title>enkiRIDION</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,600;1,600&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="icon" type="image/png" href="./sprites/enki/enki-neutral.png" />
+  <link rel="apple-touch-icon" href="./sprites/enki/enki-neutral.png" />
+  <script type="module" crossorigin src="./assets/index-ZKf1pDui.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Cr3OpxnJ.css">
 </head>
 <body>
   <div id="app">
 
     <!-- Header -->
     <div class="header">
-      <div>
-        <h1>enki<span class="speaks">SPEAKS</span></h1>
-        <div class="tagline">Philosophy / On Glass</div>
+      <div class="header-brand">
+        <img class="header-logo" src="./sprites/enki/enki-neutral.png" alt="Enki" width="36" height="36" />
+        <div>
+          <h1>enki<span class="ridion">RIDION</span></h1>
+          <div class="masthead">PHILOSOPHY · EXAMINED DAILY</div>
+        </div>
       </div>
       <div class="header-spacer"></div>
+      <span class="header-account" id="header-account" style="display:none"></span>
       <button class="header-icon-btn" id="header-settings-btn" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -30,18 +40,65 @@
     </div>
 
     <!-- Tabs -->
-    <div class="tab-bar" role="tablist">
-      <button class="tab-btn active" data-tab="home" role="tab">Home</button>
-      <button class="tab-btn" data-tab="philosophers" role="tab">Picks</button>
-      <button class="tab-btn" data-tab="mindful" role="tab">Mindful</button>
-      <button class="tab-btn" data-tab="speak" role="tab">Speak</button>
-      <button class="tab-btn" data-tab="journal" role="tab">Journal</button>
-      <button class="tab-btn" data-tab="debug" role="tab">Debug</button>
-      <button class="tab-btn" data-tab="about" role="tab">About</button>
-    </div>
+    <!-- Tab order mirrors the Android seven-surface identity:
+         Today · Picks · Mindful · Speak · Journal · Aphorica · About
+         (+ Debug, a G2-only troubleshooting surface) -->
+    <nav class="tab-bar" role="tablist">
+<button class="tab-btn active" data-tab="home" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.6 12 3l9 7.6V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="tab.home">Today</span></button>
+<button class="tab-btn" data-tab="philosophers" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v5l-2 4H7zM14 7h4v5l-2 4h-2z"/></svg><span data-i18n="tab.quotes">Quotes</span></button>
+<button class="tab-btn" data-tab="mindful" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg><span data-i18n="tab.mindful">Mindful</span></button>
+<button class="tab-btn" data-tab="speak" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span data-i18n="tab.speak">Speak</span></button>
+<button class="tab-btn" data-tab="journal" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6C10 5 6 5 4 6v13c2-1 6-1 8 0 2-1 6-1 8 0V6c-2-1-6-1-8 0zM12 6v13"/></svg><span data-i18n="tab.journal">Journal</span></button>
+<button class="tab-btn" data-tab="aphorica" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-11.7 7.8L3 21l1.7-6.2A8.5 8.5 0 1 1 21 11.5z"/></svg><span data-i18n="tab.aphorica">Aphorica</span></button>
+<button class="tab-btn" data-tab="debug" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4zM8 9l3 3-3 3M13 15h4"/></svg><span data-i18n="tab.debug">Debug</span></button>
+<button class="tab-btn" data-tab="about" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8h.01M11 12h1v4h1"/></svg><span data-i18n="tab.about">About</span></button>
+</nav>
 
     <!-- HOME -->
     <div class="tab-panel active" data-panel="home">
+
+      <!-- Today's Quote (Android parity) -->
+      <div class="card today-quote" id="today-quote">
+        <div class="tq-head">
+          <span class="tq-label">Today's Quote</span>
+          <div class="tq-right">
+            <span class="tq-rarity" id="tq-rarity"></span>
+            <button class="tq-refresh" id="tq-refresh" title="New quote" aria-label="New quote">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="tq-text" id="tq-text">…</div>
+        <div class="tq-attr" id="tq-attr"></div>
+      </div>
+
+      <!-- Public Aphorica Feed (community preview) -->
+      <div class="card">
+        <div class="card-header">
+          Public Aphorica Feed
+          <button class="badge" id="aph-home-all" style="cursor:pointer;">see all →</button>
+        </div>
+        <ul class="aph-list" id="aph-home-list">
+          <li class="muted" style="padding:8px 2px;">Loading the commons…</li>
+        </ul>
+      </div>
+
+      <!-- How to unlock full features (hidden once linked) -->
+      <div class="card" id="home-howto" hidden>
+        <div class="card-header">Unlock full features</div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:10px;">Talk to every philosopher, save your conversations, and sync across your glasses, the web &amp; Android. <strong>7 days free</strong>, then $8/mo.</p>
+          <ol class="howto-list">
+            <li>Sign in with Google &amp; start your <strong>7-day free trial</strong>:
+              <div class="howto-link"><a href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener">enkiridion.com/pricing</a><button class="copy-btn" data-copy="https://enkiridion.com/pricing?src=g2">Copy</button></div>
+            </li>
+            <li>Generate a <strong>6-char pairing code</strong> under Settings → G2 Glasses:
+              <div class="howto-link"><a href="https://enkiridion.com/settings" target="_blank" rel="noopener">enkiridion.com/settings</a><button class="copy-btn" data-copy="https://enkiridion.com/settings">Copy</button></div>
+            </li>
+            <li>Enter that code in the <strong>About</strong> tab here, and your account and Sage unlock onto the glasses.</li>
+          </ol>
+        </div>
+      </div>
 
       <!-- Weekly Action Plan -->
       <div class="card weekly-card">
@@ -79,7 +136,7 @@
             <ul class="phil-mirror-list" id="phil-mirror-list"></ul>
             <div class="phil-mirror-sprite" id="phil-mirror-sprite"></div>
           </div>
-          <div class="phil-mirror-hint muted">Scroll the ring on your glasses or click here — they sync.</div>
+          <div class="phil-mirror-hint muted">Scroll the ring on your glasses or click here. They sync.</div>
         </div>
       </div>
 
@@ -183,6 +240,15 @@
           <div class="stat"><div class="v" id="stat-trads">—</div><div class="k">Traditions</div></div>
         </div>
       </div>
+
+      <!-- Support the dev. The ONLY entrance to the Support page — there
+           is deliberately no tab button for it. Both lines are filled
+           from src/support.ts, and dashboard.ts leaves this hidden while
+           SUPPORT_URL is empty so we never render a dead button. -->
+      <button class="supportline" id="supportline" hidden>
+        <span class="sl1" id="supportline-1"></span>
+        <span class="sl2" id="supportline-2"></span>
+      </button>
     </div>
 
     <!-- PHILOSOPHERS -->
@@ -252,19 +318,61 @@
 
     <!-- SPEAK -->
     <div class="tab-panel" data-panel="speak">
+      <!-- On-glass mirror: what the glasses are showing right now -->
       <div class="card">
         <div class="card-header">
-          Conversation
-          <span class="badge" id="speak-phil-badge">— idle —</span>
+          On Glass
+          <span class="badge" id="speak-phil-badge">idle</span>
         </div>
         <div class="card-body" id="speak-mirror">
           <p class="muted">Nothing yet. Pick a philosopher → tap the glass → speak.</p>
+        </div>
+      </div>
+
+      <!-- Phone-side compose: converse from the phone, just like Android -->
+      <div class="card speak-compose-card">
+        <div class="card-header">
+          Conversation
+          <span class="badge" id="speak-compose-badge">pick a philosopher</span>
+        </div>
+        <div class="card-body">
+          <!-- Trial CTA — sits above the tradition list (above "Greek").
+               Shown to seeker/unlinked; hidden once Sage/trial is active. -->
+          <button class="trial-cta" id="speak-trial-cta" hidden>
+            <span class="trial-cta-kicker">enkiSPEAKS · 1 WEEK FREE</span>
+            <span class="trial-cta-title">Speak your problems to any philosopher</span>
+            <span class="trial-cta-sub">Seven days free, then $8/mo. Your conversations save to your profile and follow you to web &amp; Android. Free tier: one turn a day with Enki, not saved.</span>
+            <span class="trial-cta-go">Start free trial →</span>
+          </button>
+          <div class="field">
+            <label>Philosopher</label>
+            <select id="speak-phil-select"></select>
+          </div>
+          <div class="speak-thread" id="speak-thread">
+            <p class="muted">Choose a philosopher above, then send your first turn.</p>
+          </div>
+          <div class="speak-input-bar">
+            <input id="speak-input" type="text" placeholder="Ask a philosopher…" autocomplete="off" />
+            <button class="btn btn-primary" id="speak-send">Send</button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- JOURNAL -->
     <div class="tab-panel" data-panel="journal">
+      <!-- Session list (Android parity): sprite + name + date + snippet +
+           turn count; tap to expand the full conversation + action items. -->
+      <div class="card">
+        <div class="card-header">
+          Sessions
+          <span class="badge" id="journal-sessions-count">—</span>
+        </div>
+        <div class="card-body" id="journal-sessions">
+          <p class="muted">No conversations yet. Open Speak on the glasses or the phone to start one.</p>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           Calendar
@@ -311,6 +419,31 @@
       </div>
     </div>
 
+    <!-- APHORICA — the commons. Read + vote only; composing is a
+         HANDOFF to enkiridion.com (per docs/TRANSLATION-SYSTEM.md). -->
+    <div class="tab-panel" data-panel="aphorica">
+      <div class="card">
+        <div class="card-header">
+          Aphorica, the commons
+          <span class="badge" id="aph-count">—</span>
+        </div>
+        <div class="card-body">
+          <div class="aph-toolbar">
+            <button class="btn sm aph-sort active" data-sort="hot" id="aph-sort-hot">Hot</button>
+            <button class="btn sm aph-sort" data-sort="new" id="aph-sort-new">New</button>
+            <span class="aph-hint muted" id="aph-hint"></span>
+          </div>
+          <ul class="aph-list" id="aph-list"></ul>
+          <div class="muted" id="aph-empty" style="display:none">
+            Nothing here yet. The commons awaits its first aphorism.
+          </div>
+          <a class="aph-compose" href="https://enkiridion.com/aphorica?src=g2" target="_blank" rel="noopener">
+            Compose your own on enkiridion.com →
+          </a>
+        </div>
+      </div>
+    </div>
+
     <!-- DEBUG -->
     <div class="tab-panel" data-panel="debug">
       <div class="card">
@@ -350,6 +483,21 @@
       </div>
 
       <div class="card">
+        <div class="card-header">Account sync
+          <span class="badge" id="sync-status-badge">—</span>
+        </div>
+        <div class="card-body">
+          <div class="sync-status" id="sync-status-body">
+            <p class="muted">—</p>
+          </div>
+          <div class="btn-row mt-sm">
+            <button class="btn sm" id="btn-sync-now">Sync now</button>
+            <button class="btn sm" id="btn-sync-refresh">Refresh status</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-header">App log</div>
         <div id="log"></div>
       </div>
@@ -358,10 +506,25 @@
     <!-- ABOUT -->
     <div class="tab-panel" data-panel="about">
       <div class="card">
-        <div class="card-header">enkiSPEAKS</div>
+        <div class="card-header">enkiRIDION</div>
         <div class="card-body">
           <p>Philosophy on Glass. <strong>2,801 quotes</strong> across 17 philosophers and 8 traditions.</p>
+          <p class="mt-md muted">Everything works offline as a Seeker. Link your glasses below and your
+          Today list, habits, and weekly plan stay in step with the enkiRIDION Android app and enkiridion.com.</p>
           <p class="mt-md muted">Built with Vite + TypeScript + <code>@evenrealities/even_hub_sdk</code>.</p>
+        </div>
+      </div>
+
+      <!-- LANGUAGE — one choice drives the app, the glasses, and the quotes.
+           Rendered by dashboard.ts from src/i18n.ts LANGS so the phone-only
+           caveat for Arabic (no firmware glyphs) is stated in the picker
+           rather than discovered as a blank display. -->
+      <div class="card">
+        <div class="card-header" data-i18n="lang.title">Language</div>
+        <div class="card-body">
+          <p class="muted" style="margin-bottom:10px;" data-i18n="lang.help">Changes the app, the glasses display, and the quotes.</p>
+          <div class="lang-grid" id="lang-grid"></div>
+          <p class="lang-note muted" id="lang-note" hidden></p>
         </div>
       </div>
 
@@ -370,8 +533,7 @@
         <div class="card-header">Your Profile <span class="badge" id="profile-saved-badge"></span></div>
         <div class="card-body">
           <p class="muted" style="margin-bottom:12px;font-size:12px;">
-            Used by every philosopher conversation. Locks the Whisper transcription
-            language, and your context is injected as quiet awareness so the
+            Used by every philosopher conversation. Locks the Whisper transcription language, and your context is injected as quiet awareness so the
             philosophers can answer with what they know about your life — without
             ever listing it back at you.
           </p>
@@ -384,7 +546,7 @@
             <input id="prof-pronouns" type="text" placeholder="he/him, she/her, they/them..." />
           </div>
           <div class="field">
-            <label>Speech language <span class="hint">locks transcription — STOPS the language drift bug</span></label>
+            <label>Speech language <span class="hint">locks transcription and stops the language drift bug</span></label>
             <select id="prof-language"></select>
           </div>
           <div class="field">
@@ -406,9 +568,9 @@
           <div class="field">
             <label>Advice style</label>
             <select id="prof-advice-style">
-              <option value="mixed">Mixed — read the room</option>
-              <option value="direct">Direct — give me the answer</option>
-              <option value="socratic">Socratic — ask me back</option>
+              <option value="mixed">Mixed: read the room</option>
+              <option value="direct">Direct: give me the answer</option>
+              <option value="socratic">Socratic: ask me back</option>
             </select>
           </div>
           <div class="field">
@@ -418,15 +580,6 @@
               <option value="warm">Warm</option>
               <option value="austere">Austere</option>
               <option value="playful">Playful</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Reply length</label>
-            <select id="prof-reply-length">
-              <option value="mixed">Mixed</option>
-              <option value="short">Short</option>
-              <option value="medium">Medium</option>
-              <option value="long">Long</option>
             </select>
           </div>
           <div class="field">
@@ -441,16 +594,60 @@
       </div>
 
       <div class="card">
-        <div class="card-header">Settings</div>
-        <div class="field">
-          <label>OpenAI API key</label>
-          <input id="openai-key" type="password" placeholder="sk-… (stored locally)" autocomplete="off" />
-          <span class="hint">Stored via bridge.setLocalStorage. Production key lives in the Vercel proxy — this is only used if you fork your own deploy.</span>
+        <div class="card-header">enkiRIDION account</div>
+        <div class="field" id="glasses-link-field">
+          <label>Pairing code</label>
+          <input id="glasses-code" type="text" placeholder="6-char code from enkiridion.com → Settings" autocomplete="off" maxlength="6" style="text-transform: uppercase;" />
+          <span class="hint" id="glasses-link-hint">Unlinked, Seeker mode: all quotes, plus one conversation a day with Enki (not saved). Start your <strong>7-day free trial</strong> on enkiridion.com (Google sign-in), then generate a code under Settings → G2 Glasses and link here, which brings Sage onto the glasses, unlocks every philosopher, and saves your conversations to your profile so they follow you to web &amp; Android. <a href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener">Start free trial →</a></span>
         </div>
         <div class="btn-row">
-          <button class="btn btn-primary" id="btn-save-settings">Save settings</button>
+          <button class="btn btn-primary" id="btn-link-glasses">Link glasses</button>
+          <button class="btn" id="btn-unlink-glasses" style="display:none;">Unlink</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Data</div>
+        <div class="btn-row">
           <button class="btn" id="btn-reset-convos">Clear all conversation history</button>
         </div>
+      </div>
+    </div>
+
+    <!-- SUPPORT — reachable ONLY from the pill on Home. There is no
+         .tab-btn[data-tab="support"] anywhere, on purpose: with no button
+         in the bar, no tab tap can land here by accident. Content is
+         injected by dashboard.ts from src/letter.ts + src/support.ts. -->
+    <div class="tab-panel" data-panel="support">
+      <div class="support-page">
+        <img class="support-mark" src="./sprites/enki/enki-neutral.png" alt="Enki" width="60" height="60" />
+        <p class="support-hook" id="support-hook"></p>
+
+        <!-- THE ACTIONABLE THINGS COME FIRST.
+             Both are copy-paste targets — a hosted checkout link and four
+             receive addresses. Someone who arrived already decided should
+             not have to read 400 words to find them, and someone who
+             wants to read still scrolls past them in two seconds. -->
+        <a class="support-cta" id="support-cta" target="_blank" rel="noopener noreferrer">Support the bootleg engineer →</a>
+        <p class="support-cta-note" id="support-cta-note">You choose the amount. Stripe hosts the checkout, so no card details ever touch enkiRIDION.</p>
+
+        <div class="support-crypto" id="support-crypto" hidden>
+          <div class="support-crypto-head" id="support-crypto-head">Or send crypto. Tap to copy the address</div>
+          <ul class="support-crypto-list" id="support-crypto-list"></ul>
+        </div>
+
+        <!-- The opening — always open, never behind a tap. It sits under
+             the ask now rather than above it. -->
+        <div class="support-intro" id="support-intro"></div>
+
+        <!-- Stacked cards. Each title is a button; pressing it drops the
+             section open. Built by dashboard.ts from the story manifest. -->
+        <div class="story-stack" id="story-stack"></div>
+
+        <p class="support-signoff" id="support-signoff"></p>
+        <p class="support-signrole" id="support-signrole"></p>
+
+        <button class="support-back" id="support-back">← Back to Today</button>
       </div>
     </div>
 
@@ -492,6 +689,33 @@
         <button class="btn" id="problem-modal-rollover">Roll over to next week</button>
         <button class="btn btn-primary" id="problem-modal-addressed">Mark addressed</button>
       </div>
+    </div>
+  </div>
+
+  <!-- First-run onboarding / sign-in gate — shown when unlinked. Google OAuth
+       can't run inside the Even Realities webview (disallowed_useragent), so
+       instead of a broken in-app sign-in we hand the user a copy-pastable link
+       to open in their phone browser, subscribe there, and return with a code. -->
+  <div class="onboard-overlay" id="onboard" hidden>
+    <div class="onboard-card">
+      <div class="onboard-mark">Φ</div>
+      <div class="onboard-kicker">ENKIRIDION</div>
+      <h2 class="onboard-title">Speak with every philosopher</h2>
+      <p class="onboard-sub">17 philosophers across 8 traditions. <strong>7 days free</strong>, then $8/month. One membership covers your glasses, the web &amp; Android.</p>
+
+      <div class="onboard-howto">
+        <div class="onboard-step"><span class="onboard-step-n">1</span><span>Copy this link and open it in your phone&rsquo;s browser:</span></div>
+        <div class="onboard-copy">
+          <span class="onboard-url">enkiridion.com/pricing</span>
+          <button class="copy-btn" data-copy="https://enkiridion.com/pricing?src=g2">Copy</button>
+        </div>
+        <div class="onboard-step"><span class="onboard-step-n">2</span><span>Sign in with Google &amp; start your <strong>7-day free trial</strong>.</span></div>
+        <div class="onboard-step"><span class="onboard-step-n">3</span><span>Grab your 6-char code (Settings → G2 Glasses), come back, and link below.</span></div>
+      </div>
+
+      <button class="onboard-primary" id="onboard-pair">I have my code, link my glasses →</button>
+      <button class="onboard-ghost" id="onboard-free">Continue free as a Seeker</button>
+      <p class="onboard-fine">Free forever: all 2,801 quotes + one conversation a day with Enki.</p>
     </div>
   </div>
 
