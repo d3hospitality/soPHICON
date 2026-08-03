@@ -176,14 +176,14 @@ export const EN = {
   // parity chasing, which is the drift that doc exists to prevent.
   // Each string is exactly one page and must fit 7 lines at 528px;
   // scripts/translate_ui.mjs enforces that per language.
-  'g.story1': "Built by one person, after restaurant shifts. I'm Romario. I wait tables in a fine dining room, then go home and build this.",
-  'g.story2': "I am not a trained engineer. I studied architecture, ran a restaurant with my father, and taught myself to code because I kept having ideas for things I wanted to exist. A bootleg engineer.",
-  'g.story3': "It came out of my own life. Setbacks, bad decisions, long stretches of uncertainty, and the particular exhaustion of having ambition while being tired.",
-  'g.story4': "Somewhere in there I noticed how often we treat human-made systems as though they were laws of nature. Schools, credentials, hiring, the unwritten rules. All of it was made by people. I do not think existence is proof of correctness.",
-  'g.story5': "Philosophy is usually handed to you as a shelf of difficult books and a list of names. Most people do not need another reading list. They need a place to begin, and the right question while the problem is still happening.",
-  'g.story6': "So: 2,801 quotes read, rated and tagged one at a time. 391 portraits, 17 philosophers across 23 emotional states, so the face changes when the conversation does.",
-  'g.story7': "I wanted reflection to live somewhere other than another glowing rectangle. Not a feed. Not a notification. Just a thought arriving when it might be useful.",
-  'g.story8': "If a quote landed at the right hour, that was already the whole point. The rest of the story, and the tip jar, are on your phone.",
+  'g.story1': "Built by one person, after restaurant shifts. I’m Romario. I slang hummus at a Michelin-level restaurant, then go home and build this with whatever is left of me.",
+  'g.story2': "I am not a trained engineer. I studied architecture, ran a restaurant with my father, and taught myself to code because I kept imagining things that did not exist yet. A bootleg engineer.",
+  'g.story3': "enkiRIDION came out of my own life. Setbacks, bad decisions, missed chances, and the particular exhaustion of still wanting more from yourself when you are already tired.",
+  'g.story4': "Somewhere in there, I stopped believing the systems around us were permanent. Schools, credentials, hiring, status, all the unwritten rules. People made them. People can be wrong. Existence is not proof of correctness.",
+  'g.story5': "Philosophy is usually handed to you after the battle, as a shelf of difficult books and a list of dead names. I wanted it beside you while the problem was still happening, before fear, anger, or doubt made the decision for you.",
+  'g.story6': "So I built a system around 2,801 quotes and created 391 portraits of 17 philosophers across 23 emotional states, so the face speaking to you changes when the conversation does.",
+  'g.story7': "I wanted reflection to live somewhere other than another glowing rectangle asking for more of your attention. Not a feed. Not a notification. Just a thought arriving while you might still be able to do something with it.",
+  'g.story8': "If one quote reached you before you gave up, that was already enough. I am still building because my war is not over. The rest of the story, and the tip jar, are on your phone.",
 
   'g.pagePrev': 'swipe up',
   'g.pageNext': 'click for more',
