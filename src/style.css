@@ -33,7 +33,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-#app { max-width: 480px; margin: 0 auto; padding: 16px 14px 80px; }
+/* Bottom padding must clear the FIXED tab bar, whose real height varies:
+   it carries env(safe-area-inset-bottom) for gesture/nav bars, and its
+   eight labels are translated, so a longer word can wrap and grow it.
+   A hardcoded 80px clipped the Support pill on Android (reported from
+   device, 2026-08-03). --tabbar-h is measured at runtime by
+   syncTabBarHeight() in dashboard.ts; the literal is only a
+   first-paint fallback. */
+#app { max-width: 480px; margin: 0 auto; padding: 16px 14px calc(var(--tabbar-h, 80px) + 28px); }
 
 /* ═══ HEADER ═══ */
 .header {

@@ -2522,6 +2522,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
 
   // Language first: every render below reads through t().
   initI18n();
+  syncTabBarHeight();
 
   // Support the dev — pill on Home + the page behind it. No-ops entirely
   // when SUPPORT_URL is empty. The latch check catches a Support tap that
@@ -2900,6 +2901,7 @@ function renderLangPicker(): void {
 function onLanguageChanged(): void {
   applyTranslations();
   applyBidiHints();
+  syncTabBarHeight();   // translated labels can change the bar's height
   renderLangPicker();
   renderSupportPage();
   renderTodayQuote();
@@ -2914,4 +2916,29 @@ function initI18n(): void {
   applyTranslations();
   renderLangPicker();
   onLangChange(onLanguageChanged);
+}
+
+// ═══ TAB BAR CLEARANCE ══════════════════════════════════════════════
+/**
+ * Publish the fixed tab bar's real height as --tabbar-h so #app can
+ * reserve exactly enough bottom padding.
+ *
+ * A hardcoded 80px was clipping the Support pill on Android: the bar
+ * adds env(safe-area-inset-bottom) for the system nav bar, and its
+ * eight labels are translated, so a longer word (German "Tagebuch",
+ * Russian "Дневник") can wrap a label and grow the bar. Measuring
+ * covers both, plus rotation and font-scaling, without guessing.
+ */
+function syncTabBarHeight(): void {
+  const bar = document.querySelector<HTMLElement>('.tab-bar');
+  if (!bar) return;
+  const apply = () => {
+    const h = Math.ceil(bar.getBoundingClientRect().height);
+    if (h > 0) document.documentElement.style.setProperty('--tabbar-h', `${h}px`);
+  };
+  apply();
+  // Re-measure when the bar itself changes size: language switch,
+  // rotation, dynamic type.
+  if ('ResizeObserver' in window) new ResizeObserver(apply).observe(bar);
+  window.addEventListener('orientationchange', () => setTimeout(apply, 150));
 }
