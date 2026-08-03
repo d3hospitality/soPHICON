@@ -64,7 +64,6 @@
   "about.data": "Datos",
   "about.clearConvos": "Borrar todo el historial de conversaciones",
   "about.appLog": "Registro de la app",
-  "g.supportBody": "Creado por una persona, después de turnos en el restaurante. Soy Romario, un mesero que aprendió a programar. Esto no es la membresía; eso es Sage, $8/mes, y es aparte. Esta página es opcional y no compra nada. 2,801 citas leídas y etiquetadas a mano. 391 retratos. Sin equipo, sin fondos. Una propina compra noches. Historia completa y jarra de propinas en tu teléfono.",
   "g.philosophies": "Filosofías",
   "support.copyFailed": "Error al copiar",
   "story.hook": "Construido por una sola persona, después de turnos en el restaurante.",
@@ -116,5 +115,13 @@
   "story.signRole": "Servidor de oficio. Ingeniero pirata por necesidad.",
   "g.pagePrev": "desliza arriba",
   "g.pageNext": "haz clic para más",
-  "g.pageEnd": "fin. Historia + propina en tu teléfono."
+  "g.pageEnd": "fin. Historia + propina en tu teléfono.",
+  "g.story1": "Creado por una persona, después de turnos en el restaurante. Soy Romario. Atiendo mesas en un restaurante elegante, luego voy a casa y construyo esto.",
+  "g.story2": "No soy ingeniero. Estudié arquitectura, dirigí un restaurante con mi padre y aprendí a programar porque tenía ideas para cosas que quería que existieran. Un ingeniero pirata.",
+  "g.story3": "Surgió de mi vida. Reveses, malas decisiones, largos períodos de incertidumbre y el agotamiento de tener ambición estando cansado.",
+  "g.story4": "En algún momento noté cómo tratamos sistemas humanos como leyes naturales. Escuelas, credenciales, contratación, reglas no escritas. Todo hecho por personas. No creo que existir pruebe que sea correcto.",
+  "g.story5": "La filosofía suele presentarse como una estantería de libros difíciles y una lista de nombres. La mayoría no necesita otra lista de lectura. Necesitan un inicio y la pregunta correcta mientras el problema ocurre.",
+  "g.story6": "Así que: 2,801 citas leídas, calificadas y etiquetadas una a una. 391 retratos, 17 filósofos en 23 estados emocionales, para que el rostro cambie cuando la conversación lo hace.",
+  "g.story7": "Quería que la reflexión viviera en otro lugar que no fuera otro rectángulo brillante. No un feed. No una notificación. Solo un pensamiento llegando cuando pueda ser útil.",
+  "g.story8": "Si una cita llegaba a la hora correcta, ese era el punto. El resto de la historia, y la propina, están en tu teléfono."
 }

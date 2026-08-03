@@ -64,7 +64,6 @@
   "about.data": "Dados",
   "about.clearConvos": "Limpar todo o histórico de conversas",
   "about.appLog": "Registro do app",
-  "g.supportBody": "Feito por uma pessoa, após turnos no restaurante. Sou Romario, um garçom que aprendeu a programar. Isto não é a assinatura; isso é Sage, $8/mês, e é separado. Esta página é opcional e não compra nada. 2.801 citações lidas e marcadas à mão. 391 retratos. Sem equipe, sem financiamento. Uma gorjeta compra noites. História completa e gorjeta no seu celular.",
   "g.philosophies": "Filosofias",
   "support.copyFailed": "Falha ao copiar",
   "story.hook": "Feito por uma pessoa, depois dos turnos no restaurante.",
@@ -116,5 +115,13 @@
   "story.signRole": "Servidor por profissão. Engenheiro de improviso por necessidade.",
   "g.pagePrev": "deslize para cima",
   "g.pageNext": "clique para mais",
-  "g.pageEnd": "fim. História + gorjeta no celular."
+  "g.pageEnd": "fim. História + gorjeta no celular.",
+  "g.story1": "Feito por uma pessoa, após turnos no restaurante. Sou Romario. Sirvo mesas em um restaurante fino, depois vou para casa e construo isso.",
+  "g.story2": "Não sou engenheiro formado. Estudei arquitetura, gerenciei um restaurante com meu pai e aprendi a programar porque sempre tinha ideias de coisas que queria que existissem. Um engenheiro pirata.",
+  "g.story3": "Surgiu da minha própria vida. Reveses, más decisões, longos períodos de incerteza e o cansaço particular de ter ambição enquanto se está cansado.",
+  "g.story4": "Em algum momento percebi como tratamos sistemas humanos como se fossem leis da natureza. Escolas, credenciais, contratações, regras não escritas. Tudo feito por pessoas. Não acho que existir prova que está certo.",
+  "g.story5": "Filosofia geralmente é apresentada como uma estante de livros difíceis e uma lista de nomes. A maioria não precisa de mais uma lista de leitura. Precisam de um ponto de partida e da pergunta certa enquanto o problema ainda acontece.",
+  "g.story6": "Então: 2.801 citações lidas, avaliadas e marcadas uma a uma. 391 retratos, 17 filósofos em 23 estados emocionais, para que o rosto mude quando a conversa mudar.",
+  "g.story7": "Queria que a reflexão vivesse em outro lugar além de mais um retângulo brilhante. Não um feed. Não uma notificação. Apenas um pensamento chegando quando pode ser útil.",
+  "g.story8": "Se uma citação chegasse na hora certa, esse já era o objetivo. O resto da história, e o pote de gorjetas, estão no seu celular."
 }
