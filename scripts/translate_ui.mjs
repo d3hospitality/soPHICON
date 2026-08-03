@@ -48,6 +48,8 @@ const GLASS_MAX_PX = 380;
 // The support body container: 528px wide, 240px tall, 27px line height.
 const GLASS_BODY_W = 528;
 const GLASS_BODY_LINES = Math.floor(240 / 27);   // 8
+// The paginated story body is 210px = 7 lines.
+const GLASS_STORY_LINES = Math.floor(210 / 27);  // 7
 
 const hash12 = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex').slice(0, 12);
 
@@ -157,6 +159,13 @@ function validate(key, src, out, code) {
   if (placeholdersOf(src) !== placeholdersOf(out)) return `placeholder drift (${placeholdersOf(src)} → ${placeholdersOf(out)})`;
   // The support body is PROSE in one wrapping container, so its budget
   // is wrapped LINE COUNT, not single-line width like every other g.* key.
+  // Glass story pages are one screen each: budget is wrapped LINE
+  // COUNT against the 528px body, not single-line width.
+  if (/^g\.story\d$/.test(key) && measureTextWrap) {
+    const m = measureTextWrap(out, GLASS_BODY_W);
+    if (m.lineCount > GLASS_STORY_LINES) return `wraps to ${m.lineCount} lines, budget is ${GLASS_STORY_LINES}`;
+    return null;
+  }
   if (key === 'g.supportBody' && measureTextWrap && code !== 'ar') {
     const m = measureTextWrap(out, GLASS_BODY_W);
     if (m.lineCount > GLASS_BODY_LINES) return `wraps to ${m.lineCount} lines, budget is ${GLASS_BODY_LINES}`;
@@ -181,7 +190,7 @@ const targets = picked.length ? picked : Object.keys(LANGS);
 // Group keys by the prompt they need — the letter gets its own care.
 const groups = {
   glass:  keys.filter(k => k.startsWith('g.')),
-  letter: keys.filter(k => /^story\./.test(k)),
+  letter: keys.filter(k => /^story\./.test(k) || /^g\.story\d$/.test(k)),
 };
 groups.ui = keys.filter(k => !groups.glass.includes(k) && !groups.letter.includes(k));
 

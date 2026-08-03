@@ -13,7 +13,6 @@
 
 import { tGlass, glassLang } from './i18n';
 import type { DictKey } from './locales/en';
-import { INTRO_COUNT, STORY_SECTIONS } from './story';
 
 // ─── THE DEAD-BUTTON GATE ────────────────────────────────────────────
 // Empty ⇒ the pill, the phone page, AND the on-glass row all disappear.
@@ -105,84 +104,28 @@ export const SUPPORT_ROW = '● Support the dev';
 // the text wraps and the extra lines are simply cut off by the
 // container height, so a too-generous budget silently eats content.
 // These numbers are deliberately conservative.
-// Pagination is modelled in LINES, not characters.
+// The glass story is EIGHT AUTHORED PAGES, one screen each.
 //
-// A character budget looked right and shipped overflow: a Chinese page
-// packed three paragraphs, and every paragraph break costs a blank line
-// the char count never saw, so the last line collided with the pager
-// and LVGL drew its scrollbar stub. Overflow on this panel is never
-// clipped and never errors, so that stub is the only warning you get.
+// It is deliberately not the phone story paginated. The glass is the
+// glance tier (docs/TRANSLATION-SYSTEM.md) and it cannot take money at
+// all, so its whole job is to earn attention and hand off. An earlier
+// version flowed the full letter into 33 pages, which turned a glance
+// surface into a 33-click commitment and put the ask on page 30.
 //
-// The body is 210px = 7 lines at the firmware's 27px line height.
-// CHARS_PER_LINE is measured against the 528px body: Latin ~55, German
-// and Russian ~46 (longer words waste more of each line), CJK ~26
-// glyphs at 20px each.
-const BODY_LINES = 7;
-const CHARS_PER_LINE: Record<string, number> = { zh: 26, ja: 26, de: 46, ru: 46 };
-const CHARS_PER_LINE_DEFAULT = 55;
+// Each key is exactly one page. Nothing is packed or split at runtime,
+// so what an author writes is what a wearer sees, and page count never
+// drifts by language. The 7-line fit is enforced at build time by
+// scripts/translate_ui.mjs, per language.
+const GLASS_STORY_KEYS = [
+  'g.story1', 'g.story2', 'g.story3', 'g.story4',
+  'g.story5', 'g.story6', 'g.story7', 'g.story8',
+] as const;
 
-/** The story as one page of pre-wrapped text per entry.
- *
- * Lines are wrapped HERE, not left to the firmware, and joined with
- * explicit newlines. That makes page height deterministic: the panel
- * renders exactly the lines it is given instead of re-flowing them and
- * silently pushing the last one under the pager.
- *
- * Text flows like a book. An earlier version packed whole paragraphs
- * and refused to split them, which stranded short ones on their own
- * page ("A bootleg engineer." alone on 4/36 with six blank lines under
- * it). Paragraphs may now continue across a page break; the blank line
- * between them is preserved so the structure still reads.
- */
+/** Hard ceiling. If someone adds a ninth key, the glass still shows 8. */
+export const GLASS_MAX_PAGES = 8;
+
 export function supportStoryPages(): string[] {
-  const cpl = CHARS_PER_LINE[glassLang()] ?? CHARS_PER_LINE_DEFAULT;
-
-  /** Word-aware wrap for spaced scripts; hard cut for CJK, which has no
-   *  spaces to break on. */
-  const wrap = (text: string): string[] => {
-    const out: string[] = [];
-    let rest = text.trim();
-    while (rest.length > cpl) {
-      let cut = rest.lastIndexOf(' ', cpl);
-      if (cut <= 0 || cut < cpl * 0.5) cut = cpl;   // CJK / very long token
-      out.push(rest.slice(0, cut).trim());
-      rest = rest.slice(cut).trim();
-    }
-    if (rest) out.push(rest);
-    return out.length ? out : [''];
-  };
-
-  // Reading order: opening paragraphs, then each section under its
-  // title. Titles are upper-cased here; the phone does it in CSS, which
-  // the glass has no equivalent for.
-  const blocks: string[] = [];
-  for (let i = 1; i <= INTRO_COUNT; i++) {
-    blocks.push(tGlass(`story.i${String(i).padStart(2, '0')}` as DictKey));
-  }
-  for (const sec of STORY_SECTIONS) {
-    blocks.push(`— ${tGlass(`${sec.id}.t` as DictKey).toUpperCase()} —`);
-    for (let i = 1; i <= sec.paras; i++) {
-      blocks.push(tGlass(`${sec.id}.p${String(i).padStart(2, '0')}` as DictKey));
-    }
-  }
-
-  // Flatten to a single stream of rendered lines, blank line between
-  // blocks.
-  const lines: string[] = [];
-  blocks.forEach((b, i) => {
-    if (i > 0) lines.push('');
-    lines.push(...wrap(b));
-  });
-
-  // Chunk into pages, never opening a page on a blank line.
-  const pages: string[] = [];
-  for (let i = 0; i < lines.length;) {
-    while (i < lines.length && lines[i] === '') i++;
-    if (i >= lines.length) break;
-    pages.push(lines.slice(i, i + BODY_LINES).join('\n').replace(/\s+$/, ''));
-    i += BODY_LINES;
-  }
-  return pages.length ? pages : [''];
+  return GLASS_STORY_KEYS.slice(0, GLASS_MAX_PAGES).map(k => tGlass(k as DictKey));
 }
 
 export function supportPageCount(): number { return supportStoryPages().length; }

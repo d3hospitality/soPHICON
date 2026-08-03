@@ -162,16 +162,33 @@ export const EN = {
   'g.listening': 'Listening…',
   'g.tapToSpeak': 'Tap to speak',
   'g.finishOnWeb': 'Finish on enkiridion.com →',
+
+  // ─── Glass Support story: EIGHT pages, one screen each ───────────
+  // PURE NARRATIVE. No subscription pitch, no cost accounting, no
+  // justification for asking. The wearer tapped a row called Support
+  // the dev; what earns that is the story, not a case for the money.
+  // The ask lives on the phone, which is the only surface that can
+  // actually take it.
+  //
+  // Deliberately NOT the phone story. The glass is the glance tier
+  // (docs/TRANSLATION-SYSTEM.md): it earns attention and hands off,
+  // and it cannot take money at all. A 33-page letter here was web
+  // parity chasing, which is the drift that doc exists to prevent.
+  // Each string is exactly one page and must fit 7 lines at 528px;
+  // scripts/translate_ui.mjs enforces that per language.
+  'g.story1': "Built by one person, after restaurant shifts. I'm Romario. I wait tables in a fine dining room, then go home and build this.",
+  'g.story2': "I am not a trained engineer. I studied architecture, ran a restaurant with my father, and taught myself to code because I kept having ideas for things I wanted to exist. A bootleg engineer.",
+  'g.story3': "It came out of my own life. Setbacks, bad decisions, long stretches of uncertainty, and the particular exhaustion of having ambition while being tired.",
+  'g.story4': "Somewhere in there I noticed how often we treat human-made systems as though they were laws of nature. Schools, credentials, hiring, the unwritten rules. All of it was made by people. I do not think existence is proof of correctness.",
+  'g.story5': "Philosophy is usually handed to you as a shelf of difficult books and a list of names. Most people do not need another reading list. They need a place to begin, and the right question while the problem is still happening.",
+  'g.story6': "So: 2,801 quotes read, rated and tagged one at a time. 391 portraits, 17 philosophers across 23 emotional states, so the face changes when the conversation does.",
+  'g.story7': "I wanted reflection to live somewhere other than another glowing rectangle. Not a feed. Not a notification. Just a thought arriving when it might be useful.",
+  'g.story8': "If a quote landed at the right hour, that was already the whole point. The rest of the story, and the tip jar, are on your phone.",
+
   'g.pagePrev': 'swipe up',
   'g.pageNext': 'click for more',
   'g.pageEnd': 'end. Full story + tip jar on your phone.',
 
-  // ─── Glass Support body ──────────────────────────────────────────
-  // ONE paragraph in ONE container — a letter should read as a letter,
-  // not as N selectable rows you click down through. Wraps naturally;
-  // the generator budgets it by WRAPPED LINE COUNT (8 lines at 528px),
-  // not by single-line width like the other g.* keys.
-  'g.supportBody': "Built by one person, after restaurant shifts. I'm Romario, a server who taught himself to code. This is not the membership; that's Sage, $8/mo, and it's separate. This page is optional and buys nothing. 2,801 quotes read and tagged by hand. 391 portraits. No team, no funding. A tip buys nights. Full story and tip jar on your phone.",
 } as const;
 
 export type Dict = Record<keyof typeof EN, string>;

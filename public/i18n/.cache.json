@@ -60,7 +60,6 @@
     "g.philosophies": "330df9479cda",
     "g.support": "21ef8399fdef",
     "g.supportHeader": "f8d1fbf18030",
-    "g.supportBody": "d4ca05d82651",
     "story.hook": "1a203b81eedf",
     "story.i01": "a3c7cf006316",
     "story.i02": "7e1226e3d265",
@@ -117,7 +116,15 @@
     "support.back": "c0c75751703e",
     "g.pagePrev": "875251734f82",
     "g.pageNext": "8fcd16241cc3",
-    "g.pageEnd": "668f59ae6731"
+    "g.pageEnd": "668f59ae6731",
+    "g.story1": "228e338c8d82",
+    "g.story2": "2db74f34d41b",
+    "g.story3": "4d559856b85a",
+    "g.story4": "b0893201cfdc",
+    "g.story5": "fd81a72bf675",
+    "g.story6": "1a5167860a92",
+    "g.story7": "0d1279871e34",
+    "g.story8": "26da32f5660e"
   },
   "pt": {
     "app.tagline": "2b83e146d216",
@@ -180,7 +187,6 @@
     "g.philosophies": "330df9479cda",
     "g.support": "21ef8399fdef",
     "g.supportHeader": "f8d1fbf18030",
-    "g.supportBody": "d4ca05d82651",
     "story.hook": "1a203b81eedf",
     "story.i01": "a3c7cf006316",
     "story.i02": "7e1226e3d265",
@@ -237,7 +243,15 @@
     "support.back": "c0c75751703e",
     "g.pagePrev": "875251734f82",
     "g.pageNext": "8fcd16241cc3",
-    "g.pageEnd": "668f59ae6731"
+    "g.pageEnd": "668f59ae6731",
+    "g.story1": "228e338c8d82",
+    "g.story2": "2db74f34d41b",
+    "g.story3": "4d559856b85a",
+    "g.story4": "b0893201cfdc",
+    "g.story5": "fd81a72bf675",
+    "g.story6": "1a5167860a92",
+    "g.story7": "0d1279871e34",
+    "g.story8": "26da32f5660e"
   },
   "de": {
     "app.tagline": "2b83e146d216",
@@ -299,7 +313,6 @@
     "g.finishOnWeb": "220959374648",
     "g.philosophies": "330df9479cda",
     "g.support": "21ef8399fdef",
-    "g.supportBody": "d4ca05d82651",
     "g.supportHeader": "f8d1fbf18030",
     "story.hook": "1a203b81eedf",
     "story.i01": "a3c7cf006316",
@@ -357,7 +370,15 @@
     "support.back": "c0c75751703e",
     "g.pagePrev": "875251734f82",
     "g.pageNext": "8fcd16241cc3",
-    "g.pageEnd": "668f59ae6731"
+    "g.pageEnd": "668f59ae6731",
+    "g.story1": "228e338c8d82",
+    "g.story2": "2db74f34d41b",
+    "g.story3": "4d559856b85a",
+    "g.story4": "b0893201cfdc",
+    "g.story5": "fd81a72bf675",
+    "g.story6": "1a5167860a92",
+    "g.story7": "0d1279871e34",
+    "g.story8": "26da32f5660e"
   },
   "ru": {
     "app.tagline": "2b83e146d216",
@@ -419,7 +440,6 @@
     "g.finishOnWeb": "220959374648",
     "g.philosophies": "330df9479cda",
     "g.support": "21ef8399fdef",
-    "g.supportBody": "d4ca05d82651",
     "g.supportHeader": "f8d1fbf18030",
     "story.hook": "1a203b81eedf",
     "story.i01": "a3c7cf006316",
@@ -477,7 +497,15 @@
     "support.back": "c0c75751703e",
     "g.pagePrev": "875251734f82",
     "g.pageNext": "8fcd16241cc3",
-    "g.pageEnd": "668f59ae6731"
+    "g.pageEnd": "668f59ae6731",
+    "g.story1": "228e338c8d82",
+    "g.story2": "2db74f34d41b",
+    "g.story3": "4d559856b85a",
+    "g.story4": "b0893201cfdc",
+    "g.story5": "fd81a72bf675",
+    "g.story6": "1a5167860a92",
+    "g.story7": "0d1279871e34",
+    "g.story8": "26da32f5660e"
   },
   "zh": {
     "app.tagline": "2b83e146d216",
@@ -540,7 +568,6 @@
     "g.philosophies": "330df9479cda",
     "g.support": "21ef8399fdef",
     "g.supportHeader": "f8d1fbf18030",
-    "g.supportBody": "d4ca05d82651",
     "story.hook": "1a203b81eedf",
     "story.i01": "a3c7cf006316",
     "story.i02": "7e1226e3d265",
@@ -597,7 +624,15 @@
     "support.back": "c0c75751703e",
     "g.pagePrev": "875251734f82",
     "g.pageNext": "8fcd16241cc3",
-    "g.pageEnd": "668f59ae6731"
+    "g.pageEnd": "668f59ae6731",
+    "g.story1": "228e338c8d82",
+    "g.story2": "2db74f34d41b",
+    "g.story3": "4d559856b85a",
+    "g.story4": "b0893201cfdc",
+    "g.story5": "fd81a72bf675",
+    "g.story6": "1a5167860a92",
+    "g.story7": "0d1279871e34",
+    "g.story8": "26da32f5660e"
   },
   "ja": {
     "app.tagline": "2b83e146d216",
@@ -660,7 +695,6 @@
     "g.philosophies": "330df9479cda",
     "g.support": "21ef8399fdef",
     "g.supportHeader": "f8d1fbf18030",
-    "g.supportBody": "d4ca05d82651",
     "story.hook": "1a203b81eedf",
     "story.i01": "a3c7cf006316",
     "story.i02": "7e1226e3d265",
@@ -717,6 +751,14 @@
     "support.back": "c0c75751703e",
     "g.pagePrev": "875251734f82",
     "g.pageNext": "8fcd16241cc3",
-    "g.pageEnd": "668f59ae6731"
+    "g.pageEnd": "668f59ae6731",
+    "g.story1": "228e338c8d82",
+    "g.story2": "2db74f34d41b",
+    "g.story3": "4d559856b85a",
+    "g.story4": "b0893201cfdc",
+    "g.story5": "fd81a72bf675",
+    "g.story6": "1a5167860a92",
+    "g.story7": "0d1279871e34",
+    "g.story8": "26da32f5660e"
   }
 }
