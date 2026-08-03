@@ -1369,3 +1369,260 @@ body {
 .today-quote .tq-attr { font-family: var(--mono); font-size: 12px; color: var(--gold); }
 .today-quote .tq-refresh { background:none; border:0; color: var(--dim); cursor:pointer; padding:2px; line-height:0; }
 .today-quote .tq-refresh svg { width:18px; height:18px; }
+
+
+/* ═══ SUPPORT THE DEV ═══
+   The pill is the ONE saturated object in the app and it deliberately
+   does NOT follow the palette — every colour below is a hardcoded
+   literal, never a var(). If the theme is ever retinted, this must stay
+   exactly where it is; it works precisely because it doesn't belong. */
+button.supportline {
+  display: flex; flex-direction: column; gap: 1px;
+  width: 100%; margin: 16px 0 0; padding: 11px 14px;
+  border: 2px solid transparent; border-radius: 999px;
+  cursor: pointer; font: inherit; text-align: center;
+  color: #fff1ea; text-transform: uppercase;
+  background:
+    linear-gradient(168deg, #e2453a 0%, #c8322c 46%, #a3211f 100%) padding-box,
+    linear-gradient(100deg, #ffd9a0 0%, #f0b46a 30%, #ffe9c4 52%, #d98a4a 74%, #8f1d1a 100%) border-box;
+  box-shadow: 0 1px 0 rgba(255,235,220,.3) inset, 0 3px 14px rgba(163,33,31,.32);
+}
+/* display:flex above would otherwise beat the `hidden` attribute, and
+   `hidden` is exactly how the dead-button gate hides this. */
+button.supportline[hidden] { display: none; }
+.supportline .sl1 { font-size: 10.5px; letter-spacing: .13em; color: #ffd8c6; }
+.supportline .sl2 { font-size: 14px; font-weight: 800; letter-spacing: .09em;
+                    color: #fff6ef; text-shadow: 0 1px 0 rgba(120,20,18,.55); }
+
+/* ─── The page behind the pill ─── */
+.support-page {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 22px 18px 18px;
+  text-align: center;   /* chrome is centred… */
+}
+.support-mark {
+  width: 60px; height: 60px; border-radius: 14px; object-fit: cover;
+  object-position: top; background: #000; image-rendering: pixelated;
+  border: 1px solid rgba(212,175,55,0.45);
+}
+.support-hook {
+  font-family: 'Crimson Text', Georgia, serif; font-style: italic;
+  font-size: 20px; line-height: 1.4; color: var(--ink); margin: 14px 0 0;
+}
+.support-para {
+  font-size: 13.5px; line-height: 1.6; color: var(--dim);
+  margin: 12px auto 0; max-width: 34em; text-align: left;
+}
+.support-cta {
+  /* The SAME red-and-gold-rim treatment as the .supportline pill on Home.
+     The pill is what the user tapped to get here, so the button they land
+     on has to be visibly the same object — a gold-tinted button would read
+     as a different, lesser action. Hardcoded literals, not palette tokens,
+     for the same reason as the pill: this must never follow the theme. */
+  display: block; width: 100%; margin: 20px 0 0; padding: 15px 18px;
+  border: 2px solid transparent; border-radius: 999px;
+  text-align: center; text-decoration: none;
+  font-size: 15.5px; font-weight: 800; letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #fff6ef; text-shadow: 0 1px 0 rgba(120,20,18,.55);
+  background:
+    linear-gradient(168deg, #e2453a 0%, #c8322c 46%, #a3211f 100%) padding-box,
+    linear-gradient(100deg, #ffd9a0 0%, #f0b46a 30%, #ffe9c4 52%, #d98a4a 74%, #8f1d1a 100%) border-box;
+  box-shadow: 0 1px 0 rgba(255,235,220,.3) inset, 0 3px 16px rgba(163,33,31,.34);
+}
+.support-cta:active { box-shadow: 0 1px 0 rgba(255,235,220,.2) inset, 0 1px 8px rgba(163,33,31,.3); }
+.support-cta-note {
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.5;
+  color: var(--dimmer); margin: 8px 0 0;
+}
+.support-crypto {
+  margin: 18px 0 0; padding: 14px 12px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface-2);
+}
+.support-crypto[hidden] { display: none; }
+.support-crypto-head {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--dimmer); margin-bottom: 10px;
+}
+.support-crypto-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+.support-signoff {
+  font-family: 'Crimson Text', Georgia, serif; font-style: italic;
+  font-size: 15px; color: var(--gold); text-align: left; margin: 4px 0 0;
+}
+.support-back {
+  display: block; width: 100%; margin: 20px 0 0; padding: 11px;
+  background: none; border: 1px solid var(--border); border-radius: 10px;
+  color: var(--dim); font: inherit; font-size: 13px; cursor: pointer;
+}
+
+
+/* ═══ LANGUAGE PICKER ═══ */
+.lang-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.lang-btn {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer; font: inherit;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--ink);
+  text-align: left;
+}
+.lang-btn.active { border-color: var(--gold); background: var(--gold-dim); }
+.lang-btn .ln { font-size: 14px; }
+.lang-btn .le { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em;
+                text-transform: uppercase; color: var(--dimmer); }
+.lang-btn .lg { font-family: var(--mono); font-size: 9px; color: var(--warn); margin-top: 2px; }
+.lang-note { font-size: 11.5px; line-height: 1.5; margin-top: 10px; }
+.lang-note[hidden] { display: none; }
+
+/* RTL: the browser mirrors layout from dir="rtl"; these are the few
+   places we pinned a side explicitly and therefore have to unpin. */
+[dir="rtl"] .support-para,
+[dir="rtl"] .support-signoff,
+
+[dir="rtl"] .lang-btn { text-align: right; align-items: flex-end; }
+/* Addresses and URLs stay LTR even inside an RTL page — bidi would
+   otherwise reorder the characters of a payment address on screen. */
+[dir="rtl"] .tp-addr { direction: ltr; unicode-bidi: embed; }
+
+/* ─── RTL + partially-translated content ───────────────────────────
+   dir="rtl" on <html> gives us mirrored LAYOUT, which is what we want.
+   But it also makes every RTL paragraph the bidi base direction — so
+   any string still in English (an untranslated panel, a brand name, a
+   URL) gets its terminal punctuation flung to the wrong end: ".web &
+   Android", ":browser". Verified in the simulator, 2026-08-02.
+
+   `unicode-bidi: plaintext` is the CSS form of dir="auto": each element
+   resolves its own direction from its first strong character. Arabic
+   blocks stay RTL, English blocks stay LTR, and a half-translated page
+   reads correctly in both — which is the state this app will actually
+   ship in while the string sweep finishes. */
+[dir="rtl"] p,
+[dir="rtl"] li,
+[dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3,
+[dir="rtl"] .card-header,
+[dir="rtl"] .card-body,
+[dir="rtl"] .muted,
+[dir="rtl"] button,
+[dir="rtl"] label,
+[dir="rtl"] .onboard-card {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+/* Latin brand marks and machine strings never flip. */
+[dir="rtl"] .header h1,
+[dir="rtl"] .onboard-url,
+[dir="rtl"] .howto-link,
+[dir="rtl"] code {
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+/* ─── Tip pills ─────────────────────────────────────────────────────
+   The WHOLE pill is the button — one address, one tap target. The
+   address span is truncated for display only; the full string lives in
+   data-copy and in the title attribute. */
+.support-crypto-list .tippill {
+  display: grid;
+  grid-template-columns: 4.6em 1fr auto;
+  align-items: center; gap: 10px;
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface-3); color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.support-crypto-list .tippill:hover { border-color: var(--border-hi); }
+.support-crypto-list .tippill:active { background: var(--surface-2); }
+.tippill .tp-chain { font-size: 12.5px; color: var(--ink); }
+.tippill .tp-addr {
+  font-family: var(--mono); font-size: 11px; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* An address is never bidi text — never let RTL reorder its glyphs. */
+  direction: ltr; unicode-bidi: embed;
+}
+.tippill .tp-act {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--dimmer);
+}
+/* Feedback lands on the pill itself, for 1600ms — no toast to miss. */
+.tippill.copied { border-color: var(--ok); background: rgba(74,222,128,.09); }
+.tippill.copied .tp-act { color: var(--ok); }
+.tippill.copyfail { border-color: var(--err); background: rgba(248,113,113,.09); }
+.tippill.copyfail .tp-act { color: var(--err); }
+
+/* ─── The story: opening + stacked cards ────────────────────────────
+   The chrome of the page is centred; every block of prose is left-
+   aligned. Centred body copy stops being readable after two lines. */
+.support-intro { margin: 18px 0 0; text-align: left; }
+.support-intro p {
+  font-size: 14px; line-height: 1.72; color: var(--ink); margin: 0 0 14px;
+}
+
+/* Cards stack flush against each other — one object with seams, not a
+   list of floating boxes. Only the outer corners are rounded, so the
+   run reads as a single stack. */
+.story-stack { margin: 24px 0 0; text-align: left; }
+.story-card {
+  border: 1px solid var(--border);
+  border-bottom-width: 0;
+  background: var(--surface-2);
+}
+.story-card:first-child { border-radius: 12px 12px 0 0; }
+.story-card:last-child  { border-radius: 0 0 12px 12px; border-bottom-width: 1px; }
+.story-card.open { background: var(--surface-3); }
+
+.story-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; padding: 15px 14px;
+  background: none; border: 0; cursor: pointer; font: inherit;
+  color: var(--ink); text-align: left;
+}
+.story-title {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em;
+  /* Uppercased HERE, not in the dictionary — the source strings stay in
+     natural case so translations aren't forced into English caps rules. */
+  text-transform: uppercase; color: var(--ink); line-height: 1.4;
+}
+.story-card.open .story-title { color: var(--gold); }
+.story-chev {
+  flex-shrink: 0; font-size: 11px; color: var(--dimmer);
+  transition: transform .22s ease, color .22s ease;
+}
+.story-card.open .story-chev { transform: rotate(180deg); color: var(--gold); }
+
+/* max-height rather than height:auto — auto does not transition. The
+   value is deliberately generous; these panels are text, so an
+   over-large ceiling costs nothing and avoids measuring each panel on
+   every language switch. */
+.story-panel {
+  max-height: 0; overflow: hidden;
+  transition: max-height .3s ease;
+}
+.story-card.open .story-panel { max-height: 400vh; }
+.story-panel-inner { padding: 0 14px 16px; }
+.story-panel-inner p {
+  font-size: 13.5px; line-height: 1.7; color: var(--dim); margin: 0 0 12px;
+}
+.story-panel-inner p:last-child { margin-bottom: 0; }
+
+.support-signoff {
+  font-family: 'Crimson Text', Georgia, serif; font-size: 17px;
+  color: var(--gold); text-align: left; margin: 20px 0 0;
+}
+.support-signrole {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+  color: var(--dimmer); text-align: left; margin: 3px 0 0;
+}
+
+[dir="rtl"] .support-intro,
+[dir="rtl"] .story-stack,
+[dir="rtl"] .support-signoff,
+[dir="rtl"] .support-signrole { text-align: right; }
+[dir="rtl"] .story-head { text-align: right; }
+
+/* The intro now sits BELOW the ask, so it needs a seam — otherwise the
+   story reads as a caption hanging off the crypto block. */
+.support-intro {
+  margin-top: 26px; padding-top: 22px;
+  border-top: 1px solid var(--border);
+}

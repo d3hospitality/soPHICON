@@ -2,18 +2,31 @@
   "package_id": "com.d3hospitality.sophicon",
   "edition": "202601",
   "name": "enkiRIDION",
-  "version": "1.0.11",
+  "version": "1.5.0",
   "description": "Philosophy on Glass — speak with 17 philosophers, collect wisdom, and think deeper.",
   "author": "D3 Hospitality",
   "entrypoint": "index.html",
   "min_app_version": "1.0.0",
-  "min_sdk_version": "0.0.11",
-  "supported_languages": ["en", "de", "fr", "es", "it", "zh", "ja", "ko"],
+  "min_sdk_version": "0.0.12",
+  "supported_languages": [
+    "en",
+    "es",
+    "de",
+    "zh",
+    "ja"
+  ],
   "permissions": [
     {
       "name": "network",
-      "desc": "Sync your account and conversations, and load quotes, sprites, and the Aphorica community feed.",
-      "whitelist": ["https://sophicon-api.vercel.app", "https://enkiridion.com", "https://afdrjzhcfltsngyxaqhb.supabase.co", "https://fonts.googleapis.com", "https://fonts.gstatic.com"]
+      "desc": "Sync your account and conversations, and load quotes, sprites, and the Aphorica community feed. An optional Support the dev page opens a Stripe-hosted tip page in your browser; it unlocks nothing, and none of your conversations, journal or account data is sent there.",
+      "whitelist": [
+        "https://sophicon-api.vercel.app",
+        "https://enkiridion.com",
+        "https://afdrjzhcfltsngyxaqhb.supabase.co",
+        "https://fonts.googleapis.com",
+        "https://fonts.gstatic.com",
+        "https://buy.stripe.com"
+      ]
     },
     {
       "name": "g2-microphone",

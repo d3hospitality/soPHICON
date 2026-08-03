@@ -62,7 +62,15 @@ import {
   deleteItem,
 } from './checklist';
 import { CATEGORY_HUE } from './weekly';
+import { INTRO_COUNT, STORY_SECTIONS } from './story';
 import { log } from './ui';
+import {
+  SUPPORT_URL, SUPPORT_LATCH_KEY, PILL_LINE_1, PILL_LINE_2,
+  supportEnabled, activeCrypto,
+} from './support';
+import {
+  t, tQuote, lang, setLang, initLang, onLangChange, applyBidiHints, LANGS, isPhoneOnly, type LangCode,
+} from './i18n';
 
 // ─── Handles we fill in initDashboard ─────────────────────────────
 let bridge: EvenAppBridge | null = null;
@@ -74,13 +82,15 @@ function $$(sel: string): HTMLElement[] { return Array.from(document.querySelect
 
 function pageLabel(page: string): string {
   switch (page) {
-    case 'home':                return 'Home — traditions';
+    case 'home':                return 'Home: traditions';
     case 'philosophers':        return 'Philosophers';
     case 'mindstate':           return 'Mindstate';
     case 'quote':               return 'Quote';
-    case 'speak-traditions':    return 'Speak — traditions';
-    case 'speak-philosophers':  return 'Speak — philosophers';
+    case 'speak-traditions':    return 'Speak: traditions';
+    case 'speak-philosophers':  return 'Speak: philosophers';
     case 'speak-conversation':  return 'Conversation';
+    case 'traditions':          return 'Philosophies';
+    case 'support':             return 'Support the dev';
     default:                    return page;
   }
 }
@@ -195,7 +205,7 @@ function renderPhilSelectMirror(s: GlassesState): void {
   card.style.display = '';
 
   // Header
-  title.textContent = s.page === 'philosophers' ? 'Browsing philosophers' : 'Speak — pick a philosopher';
+  title.textContent = s.page === 'philosophers' ? 'Browsing philosophers' : 'Speak: pick a philosopher';
   trad.textContent = (s.tradition || s.hoveredPhilosopher?.tradition || '—');
 
   // Re-render the list only when tradition or list-size changes (avoids
@@ -1761,7 +1771,7 @@ function renderTodayQuote(shuffle = false): void {
   const textEl = document.getElementById('tq-text');
   const attrEl = document.getElementById('tq-attr');
   const rarEl = document.getElementById('tq-rarity');
-  if (textEl) textEl.textContent = '\u201C' + q.text + '\u201D';
+  if (textEl) textEl.textContent = '\u201C' + tQuote(q.text) + '\u201D';
   if (attrEl) attrEl.textContent = '\u2014 ' + q.philName + ' \u00B7 ' + q.source;
   if (rarEl) {
     rarEl.textContent = getRaritySymbol(q.rarity) + ' ' + String(q.rarity).toUpperCase();
@@ -2375,10 +2385,27 @@ async function renderAphHome(): Promise<void> {
 
 async function voteAphorism(aphorismId: string, dir: 1 | -1): Promise<void> {
   const handle = await linkedHandle();
-  if (!handle) { aphHint('Link your glasses to vote'); return; }
+  if (!handle) {
+    // A hidden-tab hint reads as "voting is broken" when tapped from the
+    // Home preview — surface the actionable sign-in gate instead (it has
+    // the pairing CTA), plus the hint for the Aphorica-tab context.
+    aphHint('Link your glasses to vote');
+    const overlay = document.getElementById('onboard') as HTMLElement | null;
+    if (overlay) overlay.hidden = false;
+    return;
+  }
   const post = aphPosts.find(p => p.id === aphorismId);
   if (!post) return;
   const vote = post.myVote === dir ? 0 : dir;      // tap again = retract
+  // Optimistic: apply locally first so the heart reacts instantly, then
+  // reconcile with the server's authoritative counts (revert on failure).
+  const prev = { myVote: post.myVote, up: post.upvotes, down: post.downvotes };
+  if (prev.myVote === 1) post.upvotes = Math.max(0, post.upvotes - 1);
+  if (prev.myVote === -1) post.downvotes = Math.max(0, post.downvotes - 1);
+  if (vote === 1) post.upvotes += 1;
+  if (vote === -1) post.downvotes += 1;
+  post.myVote = vote;
+  renderAphEverywhere();
   try {
     const resp = await fetch(APH_VOTE_URL, {
       method: 'POST',
@@ -2387,14 +2414,24 @@ async function voteAphorism(aphorismId: string, dir: 1 | -1): Promise<void> {
     });
     if (!resp.ok) throw new Error(`vote ${resp.status}`);
     const data = await resp.json();
-    post.myVote = vote;
     if (typeof data.upvotes === 'number') post.upvotes = data.upvotes;
     if (typeof data.downvotes === 'number') post.downvotes = data.downvotes;
-    renderAphList();
+    renderAphEverywhere();
   } catch (e) {
+    post.myVote = prev.myVote;
+    post.upvotes = prev.up;
+    post.downvotes = prev.down;
+    renderAphEverywhere();
     aphHint('Vote failed — try again');
     console.error('[APHORICA] vote failed', e);
   }
+}
+
+/** Votes show on the Aphorica tab AND the Home preview — repaint both so
+ * an optimistic tap reacts wherever the user actually tapped. */
+function renderAphEverywhere(): void {
+  renderAphList();
+  renderAphHome().catch(() => {});
 }
 
 function initAphoricaPanel(): void {
@@ -2483,6 +2520,15 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
     setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1600);
   }));
 
+  // Language first: every render below reads through t().
+  initI18n();
+
+  // Support the dev — pill on Home + the page behind it. No-ops entirely
+  // when SUPPORT_URL is empty. The latch check catches a Support tap that
+  // happened on the glasses while this webview was backgrounded.
+  initSupport();
+  consumeSupportLatch().catch(() => {});
+
   // Device-sync spine: pull the account's checklist/habits/weekly rows
   // on dashboard open, then re-render whatever a merge touched. Pure
   // no-op when unlinked — local seeker experience is never gated.
@@ -2525,6 +2571,9 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
       // Re-render the phone compose thread if it's showing that philosopher.
       if (speakActivePhil) renderSpeakThread(speakActivePhil).catch(() => {});
     }
+    // The wearer may have tapped Support on-glass while this webview was
+    // asleep; every state tick is a chance to notice the latch they left.
+    consumeSupportLatch().catch(() => {});
     lastGlassPage = s.page || '';
   });
   // Deep-link: a #<tab> hash activates that tab on load (e.g. #speak, #philosophers).
@@ -2533,4 +2582,336 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
     setTimeout(() => document.querySelector<HTMLElement>(`.tab-btn[data-tab="${deepTab}"]`)?.click(), 600);
   }
   log('[DASHBOARD] Ready', 'success');
+}
+
+// ═══ SUPPORT THE DEV ═══════════════════════════════════════════════
+// One pill on Home, one page behind it, one hosted checkout. The page
+// has no .tab-btn, so the functions below are the only way in or out of
+// it — and every one of them is gated on supportEnabled(), so an empty
+// SUPPORT_URL hides the pill AND the page rather than shipping a button
+// that goes nowhere.
+
+/** Activate the Support panel. Deliberately NOT switchTab(): there is no
+ *  tab button to click, so this clears the bar's active state by hand
+ *  and toggles the panel directly. */
+function openSupportPanel(): void {
+  $$('.tab-btn').forEach(b => b.classList.remove('active'));
+  $$('.tab-panel').forEach(p => p.classList.toggle('active', p.getAttribute('data-panel') === 'support'));
+  window.scrollTo({ top: 0 });
+}
+
+/** How long a latch set on the glasses stays live. Long enough to survive
+ *  a walk home with the phone in a pocket; short enough that opening the
+ *  dashboard days later doesn't ambush anyone with a tip jar. */
+const SUPPORT_LATCH_TTL_MS = 15 * 60 * 1000;
+
+/** Consume the on-glass latch if one is waiting and still fresh.
+ *  Nothing on the glasses can foreground this webview, so tapping
+ *  Support on-glass leaves a note here instead; this is where it lands. */
+async function consumeSupportLatch(): Promise<void> {
+  if (!bridge || !supportEnabled()) return;
+  let raw = '';
+  try { raw = (await bridge.getLocalStorage(SUPPORT_LATCH_KEY)) || ''; } catch { return; }
+  if (!raw) return;
+  // Clear first: a latch that fails to open should still never re-fire.
+  try { await bridge.setLocalStorage(SUPPORT_LATCH_KEY, ''); } catch { /* best effort */ }
+  const at = Number(raw);
+  if (!Number.isFinite(at) || Date.now() - at > SUPPORT_LATCH_TTL_MS) return;
+  openSupportPanel();
+  log('[SUPPORT] opened from glasses', 'success');
+}
+
+/** Display form: 8 characters from each end — enough to eyeball against
+ *  your wallet before sending. The FULL string is what gets copied; this
+ *  shortening is cosmetic and must never reach a clipboard or a QR. */
+function shortAddr(addr: string): string {
+  return addr.length <= 20 ? addr : `${addr.slice(0, 8)}…${addr.slice(-8)}`;
+}
+
+/** Clipboard write with a fallback path.
+ *
+ * navigator.clipboard requires a SECURE CONTEXT, and the Even App
+ * webview is not guaranteed to be one — on a plain http:// origin the
+ * API is either absent or its promise rejects. A tip address that
+ * silently fails to copy is indistinguishable from a broken app, so
+ * both the missing-API case and the rejection case fall through to the
+ * legacy execCommand path rather than doing nothing.
+ *
+ * Returns true if either path reported success. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* fall through — the rejection path matters as much as the absent-API one */ }
+  return legacyCopy(text);
+}
+
+/** execCommand('copy') via an off-screen textarea. Deprecated, still the
+ *  only thing that works in a non-secure webview. */
+function legacyCopy(text: string): boolean {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    // Off-screen but still selectable; display:none would break selection.
+    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);   // iOS needs the explicit range
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch { return false; }
+}
+
+function renderSupportCrypto(): void {
+  const wrap = $('support-crypto');
+  const list = $('support-crypto-list');
+  if (!wrap || !list) return;
+  const rows = activeCrypto();
+  if (rows.length === 0) { wrap.hidden = true; return; }   // gated: nothing filled in yet
+  wrap.hidden = false;
+  list.innerHTML = '';
+  for (const c of rows) {
+    const li = document.createElement('li');
+
+    // The WHOLE pill is the button, not a label with a small Copy target
+    // beside it. One address, one tap area — nothing to miss on a phone.
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'tippill';
+    // Full address on the element: data-copy is what gets written to the
+    // clipboard, title is the hover/long-press reveal. Only the SPAN is
+    // ever truncated.
+    pill.setAttribute('data-copy', c.address);
+    pill.title = c.address;
+    pill.setAttribute('aria-label', `${c.label} — ${t('support.copy')}`);
+
+    const chain = document.createElement('span');
+    chain.className = 'tp-chain';
+    chain.textContent = c.label;
+
+    const addr = document.createElement('span');
+    addr.className = 'tp-addr';
+    addr.textContent = shortAddr(c.address);
+
+    const act = document.createElement('span');
+    act.className = 'tp-act';
+    act.textContent = t('support.copy');
+
+    pill.addEventListener('click', async () => {
+      // Copy the FULL address from data-copy, never the elided display.
+      const ok = await copyText(pill.getAttribute('data-copy') || '');
+      // Feedback lands on the pill itself — no toast to miss or mis-time.
+      act.textContent = ok ? t('support.copied') : t('support.copyFailed');
+      pill.classList.add(ok ? 'copied' : 'copyfail');
+      setTimeout(() => {
+        act.textContent = t('support.copy');
+        pill.classList.remove('copied', 'copyfail');
+      }, 1600);
+    });
+
+    pill.append(chain, addr, act);
+    li.appendChild(pill);
+    list.appendChild(li);
+  }
+}
+
+function renderSupportPage(): void {
+  const hook = $('support-hook'); if (hook) hook.textContent = t('story.hook');
+
+  const cta = $('support-cta') as HTMLAnchorElement | null;
+  if (cta) { cta.href = SUPPORT_URL; cta.textContent = t('support.cta'); }
+  const note = $('support-cta-note'); if (note) note.textContent = t('support.ctaNote');
+  const back = $('support-back');     if (back) back.textContent = t('support.back');
+  const ch = $('support-crypto-head'); if (ch) ch.textContent = t('support.cryptoHead');
+
+  // The opening — always visible, never behind a tap.
+  const intro = $('support-intro');
+  if (intro) {
+    intro.innerHTML = '';
+    for (let i = 1; i <= INTRO_COUNT; i++) {
+      const p = document.createElement('p');
+      p.textContent = t(`story.i${String(i).padStart(2, '0')}` as any);
+      intro.appendChild(p);
+    }
+  }
+
+  renderStoryStack();
+
+  const signoff = $('support-signoff'); if (signoff) signoff.textContent = t('story.signName');
+  const signrole = $('support-signrole'); if (signrole) signrole.textContent = t('story.signRole');
+  renderSupportCrypto();
+  applyBidiHints();
+}
+
+/**
+ * The stacked story cards.
+ *
+ * Each section is a flush-stacked card whose title is a <button>;
+ * pressing it drops that section open. Several can be open at once —
+ * this is a story someone may want to read straight through, and an
+ * accordion that closes the section you just read to open the next one
+ * fights that.
+ *
+ * Height is animated via max-height rather than `height: auto` (which
+ * doesn't transition), and set generously — the panels are text, so an
+ * over-large max-height costs nothing visually and avoids measuring
+ * every panel on every language change.
+ */
+function renderStoryStack(): void {
+  const stack = $('story-stack');
+  if (!stack) return;
+  stack.innerHTML = '';
+
+  STORY_SECTIONS.forEach((section, idx) => {
+    const card = document.createElement('section');
+    card.className = 'story-card';
+
+    const panelId = `story-panel-${idx}`;
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'story-head';
+    head.setAttribute('aria-expanded', 'false');
+    head.setAttribute('aria-controls', panelId);
+
+    const title = document.createElement('span');
+    title.className = 'story-title';
+    // Natural case in the dictionary; CSS uppercases it. Hand-uppercasing
+    // would not survive translation — German nouns and Russian casing
+    // rules make an all-caps source string wrong in the target.
+    title.textContent = t(`${section.id}.t` as any);
+
+    const chev = document.createElement('span');
+    chev.className = 'story-chev';
+    chev.setAttribute('aria-hidden', 'true');
+    chev.textContent = '▾';
+
+    head.append(title, chev);
+
+    const panel = document.createElement('div');
+    panel.className = 'story-panel';
+    panel.id = panelId;
+    const inner = document.createElement('div');
+    inner.className = 'story-panel-inner';
+    for (let i = 1; i <= section.paras; i++) {
+      const p = document.createElement('p');
+      p.textContent = t(`${section.id}.p${String(i).padStart(2, '0')}` as any);
+      inner.appendChild(p);
+    }
+    panel.appendChild(inner);
+
+    head.addEventListener('click', () => {
+      const opening = !card.classList.contains('open');
+      // One at a time: opening a section closes whichever was open. With
+      // eight sections the page otherwise grows without bound and the
+      // stack stops reading as a stack.
+      stack.querySelectorAll('.story-card.open').forEach(other => {
+        other.classList.remove('open');
+        other.querySelector('.story-head')?.setAttribute('aria-expanded', 'false');
+      });
+      card.classList.toggle('open', opening);
+      head.setAttribute('aria-expanded', opening ? 'true' : 'false');
+      // Re-opened content can land off-screen when a taller section above
+      // it just collapsed — bring the header back into view.
+      if (opening) head.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+
+    card.append(head, panel);
+    stack.appendChild(card);
+  });
+  applyBidiHints();
+}
+
+function initSupport(): void {
+  const pill = $('supportline');
+  // The dead-button gate. With no destination there is nothing to show,
+  // so the pill stays hidden and the page is never rendered or reachable.
+  if (!supportEnabled()) { if (pill) pill.hidden = true; return; }
+
+  const l1 = $('supportline-1'); if (l1) l1.textContent = PILL_LINE_1;
+  const l2 = $('supportline-2'); if (l2) l2.textContent = PILL_LINE_2;
+  if (pill) {
+    pill.hidden = false;
+    pill.addEventListener('click', openSupportPanel);
+  }
+  $('support-back')?.addEventListener('click', () => switchTab('home'));
+  renderSupportPage();
+}
+
+// ═══ LANGUAGE ══════════════════════════════════════════════════════
+// One choice drives three surfaces: this webapp, the glasses display,
+// and the quote corpus. See src/i18n.ts for the loading model and for
+// why Arabic is phone-only.
+
+/** Repaint every string tagged `data-i18n="key"` in the static markup.
+ *  Dynamic content re-renders through its own render function; this only
+ *  covers what index.html declares. */
+function applyTranslations(): void {
+  $$('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (key) el.textContent = t(key as any);
+  });
+}
+
+function renderLangPicker(): void {
+  const grid = $('lang-grid');
+  const note = $('lang-note');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const l of LANGS) {
+    const btn = document.createElement('button');
+    btn.className = 'lang-btn' + (l.code === lang() ? ' active' : '');
+    btn.type = 'button';
+
+    const native = document.createElement('span');
+    native.className = 'ln';
+    native.textContent = l.native;
+    const english = document.createElement('span');
+    english.className = 'le';
+    english.textContent = l.english;
+    btn.append(native, english);
+
+    // Say the caveat in the picker, not after the fact. A language that
+    // cannot render on the HUD should never be a surprise.
+    if (!l.onGlass) {
+      const warn = document.createElement('span');
+      warn.className = 'lg';
+      warn.textContent = t('lang.phoneOnly');
+      btn.appendChild(warn);
+    }
+
+    btn.addEventListener('click', async () => {
+      await setLang(l.code as LangCode, bridge);
+      log(`[LANG] → ${l.code}`, 'success');
+    });
+    grid.appendChild(btn);
+  }
+  if (note) {
+    note.textContent = t('lang.phoneOnlyWhy');
+    note.hidden = !isPhoneOnly();
+  }
+}
+
+/** Everything that must repaint when the language changes. Glass pages
+ *  repaint separately — events.ts owns that half. */
+function onLanguageChanged(): void {
+  applyTranslations();
+  applyBidiHints();
+  renderLangPicker();
+  renderSupportPage();
+  renderTodayQuote();
+  renderChecklist().catch(() => {});
+  renderHabits().catch(() => {});
+}
+
+/** Main.ts calls initLang() before it builds the first glass page, so by
+ *  the time the dashboard boots the tables are already loaded — this
+ *  only paints and subscribes. */
+function initI18n(): void {
+  applyTranslations();
+  renderLangPicker();
+  onLangChange(onLanguageChanged);
 }

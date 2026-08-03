@@ -30,15 +30,18 @@ import {
   rebuildHomePage, loadGlanceLine, buildPhilosopherSelectPage,
   buildMindstatePage, getMindstateSelections,
   buildQuoteViewPage,
-  HOME_LIST_ITEMS, BROWSABLE_TRADITIONS, SPEAK_INDEX,
-  APHORICA_INDEX, TRAD_OFFSET, buildAphoricaPage, buildAphoricaReadPage,
+  homeListItems, BROWSABLE_TRADITIONS, SPEAK_INDEX,
+  APHORICA_INDEX, PHILOSOPHIES_INDEX, buildTraditionsPage,
+  buildAphoricaPage, buildAphoricaReadPage,
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
   buildSpeakConversationPage,
   speakConversationPageCount,
   composeSpeakResponseContent,
   buildMindfulnessBlankPage,
+  SUPPORT_INDEX, buildSupportPage,
 } from './pages';
-import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl } from './image-utils';
+import { SUPPORT_LATCH_KEY } from './support';
+import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl, ghostPreset } from './image-utils';
 import { isFavorite } from './favorites';
 import { setAccountBridge } from './enkiAccount';
 import {
@@ -51,11 +54,14 @@ import {
 import { log } from './ui';
 
 // ═══ STATE ═══
-type Page = "home" | "philosophers" | "mindstate" | "quote"
+type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
-  | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read";
+  | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read"
+  | "support";
 
 let currentPage: Page = "home";
+/** Cursor into supportStoryPages() while reading the Support story. */
+let supportPageIndex = 0;
 let currentTradition: Tradition | null = null;
 
 // Public Aphorica (on-glass community) state. Two levels: an author list
@@ -63,7 +69,14 @@ let currentTradition: Tradition | null = null;
 // philosophers) → one member's thoughts, shuffled, with peer reactions.
 const APH_FEED_URL = 'https://sophicon-api.vercel.app/api/aphorica/supafeed';
 type AphPost = { text: string; up: number; down: number };
-type AphAuthor = { handle: string; badge: string; sprite: string | null; posts: AphPost[] };
+// Profile insight fields mirror enkiridion.com/profile (served by the
+// backend via public_profiles → supafeed author object).
+type AphAuthor = {
+  handle: string; badge: string; sprite: string | null;
+  tradition: string | null; role: string | null; about: string | null;
+  values: string[]; currentFocus: string | null;
+  posts: AphPost[];
+};
 // Default community avatar (the ENKI mascot) when a member has no sprite.
 const APH_DEFAULT_AVATAR = 'sprites/enki/enki-neutral.png';
 /** Resolve a member's stored sprite to a source the glasses can fetch:
@@ -114,7 +127,18 @@ async function openAphorica(bridge: EvenAppBridge): Promise<void> {
       const text = String(p.text || '').replace(/\s+/g, ' ').trim();
       if (!text) continue;
       let a = byHandle.get(handle);
-      if (!a) { a = { handle, badge: aphBadge(p.author?.tier), sprite: p.author?.spritePath || null, posts: [] }; byHandle.set(handle, a); }
+      if (!a) {
+        a = {
+          handle, badge: aphBadge(p.author?.tier), sprite: p.author?.spritePath || null,
+          tradition: p.author?.tradition || null,
+          role: p.author?.role || null,
+          about: p.author?.about || null,
+          values: Array.isArray(p.author?.values) ? p.author.values.map(String) : [],
+          currentFocus: p.author?.currentFocus || null,
+          posts: [],
+        };
+        byHandle.set(handle, a);
+      }
       a.posts.push({ text, up: Number(p.upvotes) || 0, down: Number(p.downvotes) || 0 });
     }
     // Shuffle each member's posts so re-entry reshuffles like a philosopher.
@@ -142,7 +166,10 @@ async function renderAphoricaRead(bridge: EvenAppBridge): Promise<void> {
   const idx = ((aphReadIdx % n) + n) % n;
   const post = a.posts[idx];
   await bridge.rebuildPageContainer(
-    buildAphoricaReadPage(`@${a.handle} · ${a.badge}`, post.text, post.up, post.down, idx, n),
+    buildAphoricaReadPage(`@${a.handle} · ${a.badge}`, post.text, post.up, post.down, idx, n, {
+      tradition: a.tradition, role: a.role, about: a.about,
+      values: a.values, currentFocus: a.currentFocus,
+    }),
   );
   // Push the member's avatar into the portrait slot (falls back to ENKI).
   await pushSpriteFromUrl(bridge, aphSpriteSource(a.sprite), 3, "sprite", 100, 100);
@@ -473,17 +500,30 @@ async function setMindstateSelectedIndex(index: number): Promise<void> {
   log(`[MINDSTATE] ${phil.name} · ${capitalize(emotion)} (${wrapped + 1}/${selections.length})`);
 }
 
-/** Mindstate navpad commit — filter quotes by the highlighted emotion
- * and navigate to the quote viewer. */
+/** Mindstate navpad commit — "Shuffle All" plays the philosopher's whole
+ * quote pool in random order; an emotion filters to that emotion. Either
+ * way we navigate to the quote viewer. */
 async function commitMindstateSelection(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   if (!currentPhilosopher) return;
   const selections = getMindstateSelections(currentPhilosopher);
   if (selections.length === 0) return;
   const idx = Math.max(0, Math.min(mindstateSelectedIndex, selections.length - 1));
-  const emotion = selections[idx].value;
-  currentQuotes = getQuotesByEmotion(currentPhilosopher, emotion);
-  currentFilter = capitalize(emotion);
-  shuffleMode = false;
+  const sel = selections[idx];
+  if (sel.type === "shuffle") {
+    // Fisher–Yates over a copy — never mutate the philosopher's pool.
+    const pool = [...currentPhilosopher.quotes];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    currentQuotes = pool;
+    currentFilter = "Shuffle";
+    shuffleMode = true; // single click on the quote page re-randomizes
+  } else {
+    currentQuotes = getQuotesByEmotion(currentPhilosopher, sel.value);
+    currentFilter = capitalize(sel.value);
+    shuffleMode = false;
+  }
   currentQuoteIndex = 0;
   currentPage = 'quote';
   lastNavigationTime = Date.now();
@@ -624,11 +664,27 @@ async function pushPhilPortrait(
 // Container size MUST match pages.layout.ts buildSpeakConversationPage —
 // containerID 1 'portrait' is declared 100×100. If we push a different
 // size the G2 firmware silently rejects it (simulator is more permissive).
+//
+// GHOST MOOD LAYER: the same emotion sprite also lands behind the reply
+// text as a 200×200 halftone backdrop split across containers 21/22
+// ('ghost-top'/'ghost-bottom', zOrderIndex 1–2) — the proven portrait-
+// halves push path. Depth styling (dot coverage/brightness/blur and the
+// occlusion x-offset) comes from ghostPreset() — override per run with
+// ?ghost=faint|dense|soft|occlude on the app URL. Pushes are SERIAL —
+// never concurrent on the same bridge. Dedupe comes for free:
+// updateEmotionSprite only calls this when the normalized emotion changes.
 async function pushEmotionPortrait(
   bridge: EvenAppBridge, baseUrl: string, philId: string, emotion: string,
 ): Promise<void> {
   const sprite = emotionToSprite(philId, emotion);
+  const preset = ghostPreset();
   await pushSpriteSingle(bridge, baseUrl, sprite, 1, "portrait", 100, 100);
+  await pushSpritesSplit(bridge, baseUrl, sprite, 21, "ghost-top", 22, "ghost-bottom", preset.style);
+  if (preset.echo) {
+    // Third depth plane (?ghost=jumble) — serial after the ghost halves.
+    await pushSpriteSingle(bridge, baseUrl, sprite, 23, "ghost-echo",
+      preset.echo.size, preset.echo.size, preset.echo.style);
+  }
 }
 
 // ═══ SHOW CURRENT QUOTE ═══
@@ -708,6 +764,16 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       log("< Back to philosophers", "success");
     }
     else if (currentPage === "philosophers") {
+      // Up one level to the tradition list, not all the way home — the
+      // traditions moved off the home page, so home is no longer the
+      // parent of a philosopher-select screen.
+      await bridge.rebuildPageContainer(buildTraditionsPage());
+      currentPage = "traditions"; currentTradition = null; lastHoveredPhilIndex = -1;
+      lastNavigationTime = Date.now();
+      await pushLogoToGlasses(bridge, baseUrl);
+      log("< Back to Philosophies", "success");
+    }
+    else if (currentPage === "traditions") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
       await bridge.rebuildPageContainer(rebuildHomePage());
       currentPage = "home"; currentTradition = null; lastHoveredPhilIndex = -1;
@@ -774,6 +840,14 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       log("< Back to Public Aphorica", "success");
     }
     else if (currentPage === "aphorica") {
+      try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
+      await bridge.rebuildPageContainer(rebuildHomePage());
+      currentPage = "home"; lastHoveredPhilIndex = -1;
+      lastNavigationTime = Date.now();
+      await pushLogoToGlasses(bridge, baseUrl);
+      log("< Back to Home", "success");
+    }
+    else if (currentPage === "support") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
       await bridge.rebuildPageContainer(rebuildHomePage());
       currentPage = "home"; lastHoveredPhilIndex = -1;
@@ -981,6 +1055,26 @@ async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> 
   }, EMPATHY_HOLD_MS);
 }
 
+// ═══ SUPPORT ═══
+/** Open the on-glass Support excerpt AND set the phone latch.
+ *
+ * Nothing on the glasses can foreground the phone app — there's no SDK
+ * call for it, and the webview is backgrounded while the wearer is on
+ * glass. So this does both halves: the glass page opens now, and the
+ * latch gets consumed by the dashboard on its next refresh — opening
+ * straight away if the phone is in hand, waiting quietly if it's in a
+ * pocket. The latch stores a timestamp so the dashboard can ignore one
+ * that's gone stale rather than ambushing someone days later. */
+async function openSupport(bridge: EvenAppBridge): Promise<void> {
+  supportPageIndex = 0;
+  await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
+  currentPage = "support";
+  // Best-effort: a storage failure must never cost the wearer the page
+  // they actually asked for.
+  try { await bridge.setLocalStorage(SUPPORT_LATCH_KEY, String(Date.now())); }
+  catch (e) { console.warn("[SUPPORT] latch write failed:", e); }
+}
+
 // ═══ HANDLE CLICK ═══
 async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string): Promise<void> {
   if (navigating) return;
@@ -1000,27 +1094,41 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         await openAphorica(bridge);
         lastNavigationTime = Date.now();
         log("> Public Aphorica", "success");
-      } else {
-        // Index into BROWSABLE_TRADITIONS. enkiSPEAKS + Public Aphorica sit
-        // ahead of the traditions, so offset the click index by TRAD_OFFSET.
-        const tradIdx = idx - TRAD_OFFSET;
-        if (tradIdx >= 0 && tradIdx < BROWSABLE_TRADITIONS.length) {
-          currentTradition = BROWSABLE_TRADITIONS[tradIdx];
-          picksSelectedIndex = 0;
-          await bridge.rebuildPageContainer(buildPhilosopherSelectPage(currentTradition, 0));
-          currentPage = "philosophers"; lastHoveredPhilIndex = 0;
-          lastNavigationTime = Date.now();
-          const phils = getQuotePhilosophersByTradition(currentTradition);
-          if (phils.length > 0) {
-            await pushPhilPortrait(bridge, baseUrl, phils[0], 3, "portrait", 11, "portrait-2");
-            // Publish initial hover so the dashboard mirror lights up immediately.
-            publishState({
-              hoveredPhilosopher: { name: phils[0].name, philId: phils[0].philId, tradition: currentTradition, index: 0, total: phils.length },
-              spritePath: `${phils[0].philId}/${phils[0].philId}-neutral.png`,
-            });
-          }
-          log(`> ${currentTradition}`, "success");
+      } else if (idx === PHILOSOPHIES_INDEX) {
+        await bridge.rebuildPageContainer(buildTraditionsPage());
+        currentPage = "traditions";
+        lastNavigationTime = Date.now();
+        await pushLogoToGlasses(bridge, baseUrl);
+        log("> Philosophies", "success");
+      } else if (idx === SUPPORT_INDEX) {
+        await openSupport(bridge);
+        lastNavigationTime = Date.now();
+        log("> Support the dev", "success");
+      }
+      return;
+    }
+
+    // ── PHILOSOPHIES (tradition list) ──
+    // Indexed straight into BROWSABLE_TRADITIONS — no offset, because
+    // this page holds nothing but traditions plus a trailing Back row.
+    if (currentPage === "traditions") {
+      if (idx === BROWSABLE_TRADITIONS.length) { navigating = false; await goBack(bridge, baseUrl); return; }
+      if (idx >= 0 && idx < BROWSABLE_TRADITIONS.length) {
+        currentTradition = BROWSABLE_TRADITIONS[idx];
+        picksSelectedIndex = 0;
+        await bridge.rebuildPageContainer(buildPhilosopherSelectPage(currentTradition, 0));
+        currentPage = "philosophers"; lastHoveredPhilIndex = 0;
+        lastNavigationTime = Date.now();
+        const phils = getQuotePhilosophersByTradition(currentTradition);
+        if (phils.length > 0) {
+          await pushPhilPortrait(bridge, baseUrl, phils[0], 3, "portrait", 11, "portrait-2");
+          // Publish initial hover so the dashboard mirror lights up immediately.
+          publishState({
+            hoveredPhilosopher: { name: phils[0].name, philId: phils[0].philId, tradition: currentTradition, index: 0, total: phils.length },
+            spritePath: `${phils[0].philId}/${phils[0].philId}-neutral.png`,
+          });
         }
+        log(`> ${currentTradition}`, "success");
       }
       return;
     }
@@ -1202,6 +1310,13 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
     const up = type === OsEventTypeList.SCROLL_TOP_EVENT;     // 1
     const down = type === OsEventTypeList.SCROLL_BOTTOM_EVENT; // 2
 
+    // Support story: swipe pages the letter both ways. Same grammar as
+    // the quote page, so nothing new to learn.
+    if (currentPage === "support") {
+      if (up)   { supportPageIndex -= 1; await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex)); return; }
+      if (down) { supportPageIndex += 1; await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex)); return; }
+    }
+
     if (currentPage === "quote") {
       if (up)   { await handleQuoteScroll(bridge, baseUrl, "up"); return; }
       if (down) { await handleQuoteScroll(bridge, baseUrl, "down"); return; }
@@ -1305,6 +1420,11 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
 
     // Single click (eventType 0, which arrives as undefined → ?? 0)
     if (type === OsEventTypeList.CLICK_EVENT) { // 0
+      if (currentPage === "support") {
+        supportPageIndex += 1;                       // buildSupportPage wraps
+        await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
+        return;
+      }
       if (currentPage === "quote")              { await handleClick(bridge, 0, baseUrl); return; }
       if (currentPage === "speak-conversation") { await toggleMic(bridge, baseUrl); return; }
       // Public Aphorica member list: click opens that member's thoughts.
@@ -1359,5 +1479,36 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       await onAppExiting(bridge);
       return;
     }
+  }
+}
+
+// ═══ LANGUAGE REPAINT ═══════════════════════════════════════════════
+/** Repaint the glass after a language switch made on the phone.
+ *
+ * Only the two list-driven pages are rebuilt: Home, and Support if the
+ * wearer is sitting on it. Deeper pages (a live conversation, a quote
+ * mid-rotation) are deliberately left alone — yanking a page out from
+ * under someone mid-thought to restyle it is worse than letting the new
+ * language apply on their next navigation. */
+export async function repaintGlassForLanguage(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  try {
+    if (currentPage === "home") {
+      try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
+      await bridge.rebuildPageContainer(rebuildHomePage());
+      await pushLogoToGlasses(bridge, baseUrl);
+      log("[LANG] home repainted", "success");
+    } else if (currentPage === "traditions") {
+      await bridge.rebuildPageContainer(buildTraditionsPage());
+      await pushLogoToGlasses(bridge, baseUrl);
+      log("[LANG] philosophies repainted", "success");
+    } else if (currentPage === "support") {
+      // Page boundaries differ per language, so an index from the old
+      // language points nowhere sensible in the new one.
+      supportPageIndex = 0;
+      await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
+      log("[LANG] support repainted", "success");
+    }
+  } catch (e) {
+    console.warn("[LANG] glass repaint failed:", e);
   }
 }

@@ -14,8 +14,10 @@
 //   5. Both user and assistant turns are appended to conversationHistory
 //      and persisted to bridge.setLocalStorage under speak_history_<philId>
 //   6. getConversationDisplay() formats the history for the on-glass
-//      text window; user messages get a "▌ YOU: " prefix (grayscale
-//      "glow" since the G2 panel has no color)
+//      text window; user turns get a plain-caps "YOU: " prefix (the
+//      LVGL glass font lacks ▌ ◦ ⋯ — see the glyph note above
+//      getConversationDisplay; stick to the official useful-characters
+//      set: ▶◀▲▼ ●○■□ ★☆ ━─ ╭╮╰╯│ ♥)
 //
 // NO API KEYS LIVE IN THIS FILE. The only outbound calls are to the
 // Vercel proxy at sophicon-api.vercel.app — OPENAI_API_KEY is read
@@ -553,8 +555,10 @@ export async function startConversation(philId: string): Promise<{ opening: stri
 // Newest at the end. Both speakers' names render in ALL-CAPS — the
 // closest we get to visual emphasis on a grayscale display with no
 // per-line styling. No fancy Unicode prefix characters — the LVGL
-// font on-glass doesn't include ▌, ●, ◦, ⋯ etc. so they render as
-// empty tofu boxes. ASCII caps alone do the differentiation work.
+// font on-glass lacks ▌ ◦ ⋯ (tofu). Note ● IS supported (the speak
+// status line ships "● Listening"); stick to the official useful-
+// characters set (▶◀▲▼ ●○■□ ★☆ ━─ ╭╮╰╯│ ♥) for anything decorative.
+// ASCII caps alone do the differentiation work here.
 export function getConversationDisplay(philName: string): string[] {
   const PHIL = philName.toUpperCase();
   return conversationHistory.map(m =>
@@ -725,7 +729,9 @@ export async function sendMessage(userText: string): Promise<{ text: string; emo
       if (resp.status === 401) {
         await handleUnauthorized();
         return {
-          text: "Your glasses link expired. Re-pair from enkiridion.com → Settings.",
+          // ▶ is on the official G2 useful-characters set; → (U+2192)
+          // is not and risks tofu on the LVGL glass font.
+          text: "Your glasses link expired. Re-pair from enkiridion.com ▶ Settings.",
           emotion: "contemplation", userMood: "neutral",
         };
       }

@@ -1,13 +1,15 @@
 import { requireEntitlement } from './_entitlements.js';
 /**
  * Transcribe audio to text using OpenAI's Whisper API (gpt-4o-transcribe).
- * Accepts base64-encoded raw PCM audio, wraps it in a WAV container,
- * and locks Whisper to a specific language to prevent auto-detect drift.
+ * Accepts base64-encoded raw PCM audio (wrapped server-side in a WAV container)
+ * or a compressed AAC/.m4a upload, and locks Whisper to a specific language to
+ * prevent auto-detect drift.
  *
  * @description Convert speech audio to text
  * @method POST
  * @param {object} req.body
- * @param {string} req.body.audio - Base64-encoded 16kHz 16-bit mono PCM audio
+ * @param {string} req.body.audio - Base64 audio: raw 16kHz 16-bit mono PCM, or an .m4a file
+ * @param {string} [req.body.format] - 'm4a' for compressed uploads (also auto-detected); default raw PCM
  * @param {string} [req.body.language='en'] - ISO 639-1 language code for transcription
  * @returns {object} { text: string }
  */
@@ -17,7 +19,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   // Authorization allowed so browser callers (web tap-to-talk) can send
   // their Bearer identity — matches speak.js / extract-memory.js.
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Device-Id');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
@@ -29,7 +31,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { audio, language } = req.body;
+    const { audio, language, format } = req.body || {};
 
     if (!audio) {
       return res.status(400).json({ error: 'Missing audio data' });
@@ -45,19 +47,29 @@ export default async function handler(req, res) {
       ? language
       : 'en';
 
-    // Decode base64 PCM to buffer
-    const pcmBuffer = Buffer.from(audio, 'base64');
+    // Decode base64 audio to buffer
+    const audioBuffer = Buffer.from(audio, 'base64');
 
-    // Create WAV header for 16kHz, 16-bit, mono PCM
-    const wavHeader = createWavHeader(pcmBuffer.length);
-    const wavBuffer = Buffer.concat([wavHeader, pcmBuffer]);
+    // Compressed uploads: Apple Watch / iOS send AAC in an .m4a container —
+    // ~8× smaller than raw PCM, which matters enormously on the watch radio.
+    // Detected by the MP4 'ftyp' magic as well as the explicit field, so a
+    // client/server version skew can never WAV-wrap an m4a by mistake.
+    const isM4A = format === 'm4a'
+      || (audioBuffer.length > 12 && audioBuffer.toString('ascii', 4, 8) === 'ftyp');
 
-    // Create form data with WAV file
+    // Raw PCM gets a WAV header for 16kHz, 16-bit, mono; m4a passes through.
+    const fileBuffer = isM4A
+      ? audioBuffer
+      : Buffer.concat([createWavHeader(audioBuffer.length), audioBuffer]);
+    const fileName = isM4A ? 'audio.m4a' : 'audio.wav';
+    const fileMime = isM4A ? 'audio/mp4' : 'audio/wav';
+
+    // Create form data with the audio file
     const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
     const formParts = [
       `--${boundary}\r\n`,
-      `Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n`,
-      `Content-Type: audio/wav\r\n\r\n`,
+      `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n`,
+      `Content-Type: ${fileMime}\r\n\r\n`,
     ];
 
     const modelPart = [
@@ -73,13 +85,13 @@ export default async function handler(req, res) {
       lockedLang,
     ];
 
-    console.log('[/api/transcribe] language locked to:', lockedLang, '| audio bytes:', pcmBuffer.length);
+    console.log('[/api/transcribe] language locked to:', lockedLang, '| format:', isM4A ? 'm4a' : 'pcm/wav', '| audio bytes:', audioBuffer.length);
 
     const endPart = [`\r\n--${boundary}--\r\n`];
 
     const formBody = Buffer.concat([
       Buffer.from(formParts.join('')),
-      wavBuffer,
+      fileBuffer,
       Buffer.from(modelPart.join('')),
       Buffer.from(langPart.join('')),
       Buffer.from(endPart.join('')),

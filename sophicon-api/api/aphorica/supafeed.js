@@ -49,9 +49,12 @@ export default async function handler(req, res) {
     const authorIds = [...new Set((rows || []).map(r => r.user_id))];
     const authors = {};
     if (authorIds.length) {
+      // public_profiles also projects the display-safe persona fields
+      // (tradition/about/role/current_focus/values) — the same data the
+      // enkiridion.com/profile page edits. Never the whole persona jsonb.
       const { data: profs } = await admin()
         .from('public_profiles')
-        .select('id, handle, tier, sprite_path')
+        .select('id, handle, tier, sprite_path, tradition, about, role, current_focus, values')
         .in('id', authorIds);
       for (const p of profs || []) authors[p.id] = p;
     }
@@ -82,8 +85,17 @@ export default async function handler(req, res) {
         downvotes: r.downvotes,
         createdAt: r.created_at,
         author: authors[r.user_id]
-          ? { handle: authors[r.user_id].handle, tier: authors[r.user_id].tier, spritePath: authors[r.user_id].sprite_path }
-          : { handle: 'seeker', tier: 'seeker', spritePath: null },
+          ? {
+              handle: authors[r.user_id].handle,
+              tier: authors[r.user_id].tier,
+              spritePath: authors[r.user_id].sprite_path,
+              tradition: authors[r.user_id].tradition || null,
+              role: authors[r.user_id].role || null,
+              about: authors[r.user_id].about || null,
+              values: Array.isArray(authors[r.user_id].values) ? authors[r.user_id].values : [],
+              currentFocus: authors[r.user_id].current_focus || null,
+            }
+          : { handle: 'seeker', tier: 'seeker', spritePath: null, tradition: null, role: null, about: null, values: [], currentFocus: null },
         myVote: myVotes[r.id] || 0,
         _hot: clout / Math.pow(ageHrs, 0.8),
       };

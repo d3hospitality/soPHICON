@@ -55,6 +55,12 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   try {
+    const t0 = Date.now();
+    const marks = [];
+    const stage = (name) => { marks.push(`${name}=${Date.now() - t0}ms`); };
+    res.setHeader('X-TTS-Timing-Ref', '1');
+    const _send = res.send.bind(res);
+    res.send = (body) => { try { res.setHeader('X-TTS-Timing', marks.join(',')); } catch {} return _send(body); };
     const { text, philosopherId, emotion } = req.body || {};
     if (!text || typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({ error: 'Missing text' });
@@ -69,10 +75,7 @@ export default async function handler(req, res) {
     // who is asking so the private rate limit below has a stable key.
     const gate = await requireEntitlement(req, res, 'tts');
     if (!gate) return;
-    const overLimit = await overTtsDailyLimit(req, gate);
-    if (overLimit) {
-      return res.status(429).json({ error: 'daily_limit', feature: 'tts', limit: TTS_PER_DAY });
-    }
+    stage('gate');
 
     const requested = activeProvider();
     let provider = resolveConfiguredProvider(requested);
@@ -101,7 +104,15 @@ export default async function handler(req, res) {
       .createHash('sha256')
       .update(`${input}|${v.voiceId}|${v.style}`)
       .digest('hex')}`;
-    const cached = await kvGet(cacheKey);
+    // Rate-limit check and cache lookup ride the same KV; overlap them.
+    const [overLimit, cached] = await Promise.all([
+      overTtsDailyLimit(req, gate),
+      kvFast(() => kv.get(cacheKey), null),
+    ]);
+    stage('ratelimit+cache-read');
+    if (overLimit) {
+      return res.status(429).json({ error: 'daily_limit', feature: 'tts', limit: TTS_PER_DAY });
+    }
     if (cached) {
       return sendAudio(res, Buffer.from(cached, 'base64'), provider, v.voiceId, 'hit');
     }
@@ -118,12 +129,14 @@ export default async function handler(req, res) {
     if (provider === 'elevenlabs') audio = await synthesizeElevenLabs(input, v);
     else if (provider === 'cartesia') audio = await synthesizeCartesia(input, v);
     else audio = await synthesizeOpenAI(input, v);
+    stage('synth');
 
     // Best-effort cache write — KV outage must never take TTS down.
     const b64 = audio.toString('base64');
     if (b64.length <= CACHE_MAX_B64) {
-      try { await kv.set(cacheKey, b64, { ex: CACHE_TTL_SECONDS }); } catch { /* noop */ }
+      await kvFast(() => kv.set(cacheKey, b64, { ex: CACHE_TTL_SECONDS }), null);
     }
+    stage('cache-write');
 
     return sendAudio(res, audio, provider, v.voiceId, 'miss');
   } catch (err) {
@@ -232,6 +245,20 @@ async function kvGet(key) {
 }
 
 /**
+ * Budgeted KV. The backing store has been observed answering in ~4.3 s per
+ * op — three ops made every TTS call ~14 s while synthesis itself is <1 s.
+ * Cache + rate-cap are best-effort by design, so no KV op may ever cost
+ * more than this budget; on timeout we behave as if KV were down.
+ */
+const KV_BUDGET_MS = 400;
+function kvFast(op, fallback) {
+  return Promise.race([
+    Promise.resolve().then(op).catch(() => fallback),
+    new Promise((resolve) => setTimeout(() => resolve(fallback), KV_BUDGET_MS)),
+  ]);
+}
+
+/**
  * Private daily cap — same kv.incr pattern as _entitlements.js
  * overDailyLimit, own key prefix so it never collides with speak's
  * counter. Fails open: a KV outage must never silence the voices.
@@ -242,11 +269,16 @@ async function overTtsDailyLimit(req, gate) {
     || (String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown');
   const day = new Date().toISOString().slice(0, 10);
   const key = `tts:rl:${who}:${day}`;
-  try {
-    const n = await kv.incr(key);
-    if (n === 1) await kv.expire(key, 86400);
-    return n > TTS_PER_DAY;
-  } catch {
-    return false;
-  }
+  // Second counter keyed on IP: X-Device-Id is client-controlled, so rotating
+  // it must not mint fresh budgets. The IP cap is looser (NAT'd offices).
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  const ipKey = `tts:rl:ip:${ip}:${day}`;
+  const [n, ipN] = await Promise.all([
+    kvFast(() => kv.incr(key), null),
+    kvFast(() => kv.incr(ipKey), null),
+  ]);
+  if (n === 1) await kvFast(() => kv.expire(key, 86400), null);
+  if (ipN === 1) await kvFast(() => kv.expire(ipKey, 86400), null);
+  return (typeof n === 'number' && n > TTS_PER_DAY)
+    || (typeof ipN === 'number' && ipN > TTS_PER_DAY * 4);
 }
