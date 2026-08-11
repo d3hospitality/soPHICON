@@ -49,7 +49,7 @@ import {
 } from './habits';
 import { authHeaders, linkedHandle, linkedTier, linkWithCode, unlink, setAccountBridge } from './enkiAccount';
 import { isFavoriteText, toggleFavoriteText, onFavoritesChange } from './favorites';
-import { getWisdomEntries, onWisdomLogChange, addWisdomEntry } from './wisdomlog';
+import { getWisdomEntries, onWisdomLogChange, addWisdomEntry, hasWisdomEntry } from './wisdomlog';
 import {
   setSyncBridge, syncNow, schedulePush, markDirty, captureChecklistDelete,
   onSyncApplied, getSyncStatus, updateGlance,
@@ -863,6 +863,7 @@ function renderCollected(): void {
       ts: w.ts,
       icon: w.kind === 'reply' ? '●' : '♥',
       label: w.kind === 'like' ? `Liked @${w.who}`
+           : w.kind === 'post' ? `Kept @${w.who}`
            : w.kind === 'reply' ? `Reply from ${w.who}`
            : `Saved · ${w.who}`,
       text: w.text,
@@ -2388,6 +2389,7 @@ function aphPostHtml(p: AphPost): string {
       <div class="aph-votes">
         <button class="aph-vote up ${p.myVote === 1 ? 'mine' : ''}" data-v="1">♥ ${p.upvotes || 0}</button>
         <button class="aph-vote down ${p.myVote === -1 ? 'mine' : ''}" data-v="-1">▼ ${p.downvotes || 0}</button>
+        <button class="aph-keep ${hasWisdomEntry('post', p.text || '') ? 'kept' : ''}" title="Keep in your journal">${hasWisdomEntry('post', p.text || '') ? '★ kept' : '☆ keep'}</button>
       </div>
     </li>`;
 }
@@ -2397,6 +2399,20 @@ function wireAphVotes(container: HTMLElement, after?: () => void): void {
     const aid = row.dataset.aid || '';
     row.querySelectorAll<HTMLButtonElement>('.aph-vote').forEach(btn => {
       btn.addEventListener('click', () => voteAphorism(aid, Number(btn.dataset.v) as 1 | -1).then(() => after?.()));
+    });
+    // Keep = PRIVATE save into the wisdom log. Deliberately not gated
+    // on an account: the vote is public and needs identity; keeping a
+    // thought for yourself needs nothing. Free tier gets a working
+    // bookmark; the calendar and Collected show it like any capture.
+    row.querySelector<HTMLButtonElement>('.aph-keep')?.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const post = aphPosts.find(pp => pp.id === aid);
+      if (!post || hasWisdomEntry('post', post.text || '')) return;
+      const btn = ev.currentTarget as HTMLButtonElement;
+      await addWisdomEntry('post', post.text || '', post.author?.handle || 'anon');
+      btn.textContent = '★ kept';
+      btn.classList.add('kept');
+      aphHint('Kept — see Journal › Collected');
     });
   });
 }
@@ -2433,9 +2449,10 @@ async function voteAphorism(aphorismId: string, dir: 1 | -1): Promise<void> {
     // A hidden-tab hint reads as "voting is broken" when tapped from the
     // Home preview — surface the actionable sign-in gate instead (it has
     // the pairing CTA), plus the hint for the Aphorica-tab context.
-    aphHint('Link your glasses to vote');
-    const overlay = document.getElementById('onboard') as HTMLElement | null;
-    if (overlay) overlay.hidden = false;
+    // Hint only — the overlay ambush made a tap on a heart feel like a
+    // paywall slam. The About tab keeps the pairing CTA for when the
+    // user goes looking.
+    aphHint('Link your glasses to vote (About tab) — or ☆ keep it, no account needed');
     return;
   }
   const post = aphPosts.find(p => p.id === aphorismId);

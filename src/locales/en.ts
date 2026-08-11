@@ -215,6 +215,7 @@ export const EN = {
   'g.calSpoke': 'Spoke with {name}, {n} turns',
   'g.calLogged': 'Reply from {name}',
   'g.calLiked': 'Liked @{name}',
+  'g.calKept': 'Kept @{name}',
   'g.likeDone': '♥ Liked',
   'g.likeLinkFirst': 'Link your glasses on the phone to like',
   'g.likeFailed': 'Like failed, try again',

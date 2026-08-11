@@ -159,7 +159,8 @@
     "g.calNoActivity": "b0c42d1a9756",
     "g.menuPrevMonth": "6a2769502a5d",
     "g.menuNextMonth": "74e53211fef4",
-    "g.calQuietDay": "008f0747f4e2"
+    "g.calQuietDay": "008f0747f4e2",
+    "g.calKept": "7f1c6083286a"
   },
   "pt": {
     "app.tagline": "2b83e146d216",
@@ -321,7 +322,8 @@
     "g.calNoActivity": "b0c42d1a9756",
     "g.menuPrevMonth": "6a2769502a5d",
     "g.menuNextMonth": "74e53211fef4",
-    "g.calQuietDay": "008f0747f4e2"
+    "g.calQuietDay": "008f0747f4e2",
+    "g.calKept": "7f1c6083286a"
   },
   "de": {
     "app.tagline": "2b83e146d216",
@@ -483,7 +485,8 @@
     "g.calNoActivity": "b0c42d1a9756",
     "g.menuPrevMonth": "6a2769502a5d",
     "g.menuNextMonth": "74e53211fef4",
-    "g.calQuietDay": "008f0747f4e2"
+    "g.calQuietDay": "008f0747f4e2",
+    "g.calKept": "7f1c6083286a"
   },
   "ru": {
     "app.tagline": "2b83e146d216",
@@ -645,7 +648,8 @@
     "g.calNoActivity": "b0c42d1a9756",
     "g.menuPrevMonth": "6a2769502a5d",
     "g.menuNextMonth": "74e53211fef4",
-    "g.calQuietDay": "008f0747f4e2"
+    "g.calQuietDay": "008f0747f4e2",
+    "g.calKept": "7f1c6083286a"
   },
   "zh": {
     "app.tagline": "2b83e146d216",
@@ -807,7 +811,8 @@
     "g.calNoActivity": "b0c42d1a9756",
     "g.menuPrevMonth": "6a2769502a5d",
     "g.menuNextMonth": "74e53211fef4",
-    "g.calQuietDay": "008f0747f4e2"
+    "g.calQuietDay": "008f0747f4e2",
+    "g.calKept": "7f1c6083286a"
   },
   "ja": {
     "app.tagline": "2b83e146d216",
@@ -969,6 +974,7 @@
     "g.calNoActivity": "b0c42d1a9756",
     "g.menuPrevMonth": "6a2769502a5d",
     "g.menuNextMonth": "74e53211fef4",
-    "g.calQuietDay": "008f0747f4e2"
+    "g.calQuietDay": "008f0747f4e2",
+    "g.calKept": "7f1c6083286a"
   }
 }

@@ -214,8 +214,8 @@ export function dayEntryBlocks(key: string, map: ActivityMap): string[] {
     items.push({ ts: s.ts, text: `${hhmm(s.ts)} ♥ "${s.text}"` });
   }
   for (const w of d.logs) {
-    const label = w.kind === 'like'
-      ? tGlass('g.calLiked').replace('{name}', w.who)
+    const label = w.kind === 'like' ? tGlass('g.calLiked').replace('{name}', w.who)
+      : w.kind === 'post' ? tGlass('g.calKept').replace('{name}', w.who)
       : tGlass('g.calLogged').replace('{name}', w.who);
     items.push({ ts: w.ts, text: `${hhmm(w.ts)} ● ${label}: "${w.text}"` });
   }

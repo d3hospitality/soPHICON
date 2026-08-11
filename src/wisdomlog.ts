@@ -4,7 +4,8 @@
 // Every explicit "keep this" action lands here as one dated entry:
 //   fav    — saved a quote to favorites (glass ♥ or Picks ★)
 //   reply  — logged a philosopher's reply mid-conversation (glass menu)
-//   like   — liked an Aphorica post (glass menu or Picks heart)
+//   like   — liked an Aphorica post (public vote + a log entry)
+//   post   — KEPT an Aphorica post (private save, no vote, no account)
 //
 // This is DELIBERATELY separate from speak_journal: the journal records
 // whole sessions the system made; the wisdom log records moments the
@@ -23,7 +24,7 @@ const STORAGE_KEY = "wisdom_log";
 const MAX_ENTRIES = 500;
 const TEXT_CAP = 300;
 
-export type WisdomKind = 'fav' | 'reply' | 'like';
+export type WisdomKind = 'fav' | 'reply' | 'like' | 'post';
 
 export interface WisdomEntry {
   /** Epoch ms of the capture. */
@@ -57,7 +58,7 @@ export async function initWisdomLog(bridge: EvenAppBridge): Promise<void> {
     const arr = raw ? JSON.parse(raw) : [];
     entries = Array.isArray(arr)
       ? arr.filter((e: any) => e && typeof e.ts === 'number' && typeof e.text === 'string'
-          && (e.kind === 'fav' || e.kind === 'reply' || e.kind === 'like'))
+          && (e.kind === 'fav' || e.kind === 'reply' || e.kind === 'like' || e.kind === 'post'))
       : [];
     loadFailed = false;
   } catch { entries = []; loadFailed = true; }
@@ -97,3 +98,10 @@ export async function addWisdomEntry(kind: WisdomKind, text: string, who: string
 // STORE (and the glass viewer), never the calendar's past.
 
 export function getWisdomEntries(): WisdomEntry[] { return [...entries]; }
+
+/** Already kept? (dedupe for the post-save button — the log itself is
+ *  append-only, but a save button that stacks duplicates reads broken.) */
+export function hasWisdomEntry(kind: WisdomKind, text: string): boolean {
+  const clean = text.replace(/\s+/g, ' ').trim().slice(0, TEXT_CAP);
+  return entries.some(e => e.kind === kind && e.text === clean);
+}

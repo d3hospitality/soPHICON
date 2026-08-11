@@ -52,7 +52,13 @@ body {
 .header-logo {
   width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
   object-fit: cover; object-position: top; background: #000;
-  border: 1px solid rgba(212, 175, 55, 0.45); image-rendering: pixelated;
+  /* NO pixelated here: the source is 1024px art rendered at 36px.
+     Nearest-neighbour DOWNSCALING samples stray pixels and turns any
+     large image into bleached speckle — pixelated is only correct when
+     pixel art is drawn at or ABOVE its native size. Same fix applied to
+     every avatar-sized downscale below (found 2026-08-11 after painted
+     1500x2000 Aphorica sprites rendered as 26px noise). */
+  border: 1px solid rgba(212, 175, 55, 0.45);
 }
 .header h1 {
   font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
@@ -666,7 +672,7 @@ body {
   background: var(--surface-3); border: 1px solid var(--border);
   overflow: hidden; display: flex; align-items: center; justify-content: center;
 }
-.habit-sprite img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+.habit-sprite img { width: 100%; height: 100%; object-fit: cover; }
 .habit-sprite-fallback { font-family: var(--mono); font-size: 18px; color: var(--gold); }
 .habit-info { flex: 1; min-width: 0; }
 .habit-title {
@@ -711,7 +717,7 @@ body {
   background: var(--surface-3); border: 1px solid var(--border-hi);
   overflow: hidden; display: flex; align-items: center; justify-content: center;
 }
-.checkin-sprite img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+.checkin-sprite img { width: 100%; height: 100%; object-fit: cover; }
 .checkin-body { flex: 1; min-width: 0; }
 .checkin-q {
   font-size: 13px; line-height: 1.5; color: var(--ink);
@@ -1091,7 +1097,8 @@ body {
 .aph-author-sprite {
   width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0;
   background: #000; border: 1px solid var(--border);
-  image-rendering: pixelated; object-fit: cover; object-position: top;
+  /* smooth: painted uploads downscaled ~58x; pixelated = noise */
+  object-fit: cover; object-position: top;
 }
 .aph-handle { color: var(--ink); font-weight: 500; }
 .aph-post-head .tier-chip {
@@ -1171,7 +1178,7 @@ body {
 .speak-turn-sprite {
   width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
   background: #000; border: 1px solid var(--border);
-  image-rendering: pixelated; object-fit: contain; object-position: top;
+  object-fit: contain; object-position: top;
 }
 .speak-turn-main { flex: 1; min-width: 0; }
 .speak-input-bar { display: flex; gap: 8px; align-items: center; }
@@ -1319,7 +1326,7 @@ body {
 .session-item-sprite {
   width: 40px; height: 40px; border-radius: 8px; flex-shrink: 0;
   background: #000; border: 1px solid var(--border);
-  image-rendering: pixelated; object-fit: contain; object-position: top;
+  object-fit: contain; object-position: top;
 }
 .session-item-text { flex: 1; min-width: 0; }
 .session-item-name {
@@ -1409,7 +1416,7 @@ button.supportline[hidden] { display: none; }
 }
 .support-mark {
   width: 60px; height: 60px; border-radius: 14px; object-fit: cover;
-  object-position: top; background: #000; image-rendering: pixelated;
+  object-position: top; background: #000;
   border: 1px solid rgba(212,175,55,0.45);
 }
 .support-hook {
@@ -1640,3 +1647,11 @@ button.supportline[hidden] { display: none; }
 .ci-icon { color: var(--gold); flex-shrink: 0; width: 18px; text-align: center; padding-top: 1px; }
 .ci-meta { font-size: 11px; color: var(--dim); margin-bottom: 2px; }
 .ci-text { font-size: 13.5px; line-height: 1.45; }
+
+/* Keep-a-post: the private bookmark next to the public vote. */
+.aph-keep {
+  font-family: var(--mono); font-size: 11px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--dim); border-radius: 999px; padding: 3px 10px; cursor: pointer;
+}
+.aph-keep.kept { color: var(--gold); border-color: rgba(212,175,55,0.45); cursor: default; }

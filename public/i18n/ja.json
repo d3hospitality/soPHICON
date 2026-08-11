@@ -158,5 +158,6 @@
   "g.favEmpty": "お気に入りはまだありません。引用を開いて長押しし、お気に入りに保存。",
   "g.menuPrevMonth": "先月",
   "g.menuNextMonth": "翌月",
-  "g.calQuietDay": "静かに"
+  "g.calQuietDay": "静かに",
+  "g.calKept": "@{name}を保持"
 }

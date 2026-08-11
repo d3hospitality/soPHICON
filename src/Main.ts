@@ -96,25 +96,31 @@ async function main(): Promise<void> {
   // bridge.localStorage. Best-effort; empty when nothing is synced.
   try { await loadGlanceLine(bridge); } catch { /* render without it */ }
 
+  // One webapp, two faces (the TEMPO contract): in the Even App this
+  // drives the glasses; in a plain browser the same bundle is just the
+  // dashboard. A failed glass boot must therefore DEGRADE, not abort —
+  // the early `return` here used to kill initDashboard in every plain
+  // browser once SDK 0.0.14 started validating create calls ("Startup
+  // failed: 1" and a dead page with tabs that never wire up).
+  const baseUrl = import.meta.env.BASE_URL;
+  let glassAlive = false;
   const homePage = buildHomePage();
   const result = await bridge.createStartUpPageContainer(homePage);
   if (result !== 0) {
-    log("Startup failed: " + result, "error");
-    return;
+    log("Glass startup failed (" + result + ") — phone dashboard only", "error");
+  } else {
+    glassAlive = true;
+    log("Home page created", "success");
+    try {
+      await new Promise(r => setTimeout(r, 500));
+      await pushLogoToGlasses(bridge, baseUrl);
+      log("Logo pushed", "success");
+    } catch (err) {
+      log("Logo not loaded: " + err, "error");
+    }
+    registerEventHandlers(bridge, baseUrl);
+    log("Events active", "success");
   }
-  log("Home page created", "success");
-
-  const baseUrl = import.meta.env.BASE_URL;
-  try {
-    await new Promise(r => setTimeout(r, 500));
-    await pushLogoToGlasses(bridge, baseUrl);
-    log("Logo pushed", "success");
-  } catch (err) {
-    log("Logo not loaded: " + err, "error");
-  }
-
-  registerEventHandlers(bridge, baseUrl);
-  log("Events active", "success");
 
   // QA deep-link: ?glass=favorites|calendar jumps straight to a page
   // whose only production entrance is the contextual menu — which the
@@ -159,7 +165,7 @@ async function main(): Promise<void> {
       await reFav(bridge); await reWl(bridge);
       log('[QA] seeded favorites + wisdom + journal');
     }
-    const jump = qa.get('glass');
+    const jump = glassAlive ? qa.get('glass') : null;
     if (jump === 'favorites') await openFavoritesPage(bridge, baseUrl);
     else if (jump === 'calendar') await openCalendarPage(bridge, true);
   } catch { /* QA hook only */ }
