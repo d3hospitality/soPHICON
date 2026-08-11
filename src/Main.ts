@@ -31,6 +31,26 @@ async function main(): Promise<void> {
   const bridge = await waitForEvenAppBridge();
   log("Bridge ready", "success");
 
+  // ── Validation tripwire (SDK 0.0.14) ─────────────────────────────
+  // The SDK now validates menus, brightness, and z-order BEFORE calling
+  // native: createStartUpPageContainer returns invalid (1) and
+  // rebuildPageContainer returns false, and the page silently never
+  // reaches the glasses — which looks exactly like a firmware fault.
+  // events.ts has ~30 rebuild call sites that historically ignore the
+  // return value; wrapping the bridge once here makes every silent
+  // failure loud without touching any of them.
+  {
+    const origRebuild = bridge.rebuildPageContainer.bind(bridge);
+    bridge.rebuildPageContainer = async (container) => {
+      const ok = await origRebuild(container);
+      if (!ok) {
+        log("rebuildPageContainer REJECTED — page never reached the glasses (check menu labels / textColor / zOrder)", "error");
+        console.error("[SDK] rejected payload:", container);
+      }
+      return ok;
+    };
+  }
+
   const user = await bridge.getUserInfo();
   log("User: " + user.name);
 

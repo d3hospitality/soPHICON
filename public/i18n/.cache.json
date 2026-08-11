@@ -124,7 +124,18 @@
     "g.story5": "527f8156d6e7",
     "g.story6": "5c5432a20925",
     "g.story7": "2d6170e24b35",
-    "g.story8": "c37bed3cf9fe"
+    "g.story8": "c37bed3cf9fe",
+    "g.shuffleAll": "8bbca83a6d71",
+    "g.menuHome": "a0aac9145249",
+    "g.menuSurprise": "fc704e0c035a",
+    "g.menuFavorite": "d99b44623137",
+    "g.menuSpeakThis": "0581d2296748",
+    "g.menuEndConvo": "6c34a53ff128",
+    "g.menuRefresh": "94c35652a713",
+    "g.menuDevStory": "00682a0a77bd",
+    "g.menuNewMindful": "cf91a8639fca",
+    "g.menuTipJar": "747af0b79996",
+    "g.menuRestartStory": "dcaca022e134"
   },
   "pt": {
     "app.tagline": "2b83e146d216",
@@ -251,7 +262,18 @@
     "g.story5": "527f8156d6e7",
     "g.story6": "5c5432a20925",
     "g.story7": "2d6170e24b35",
-    "g.story8": "c37bed3cf9fe"
+    "g.story8": "c37bed3cf9fe",
+    "g.shuffleAll": "8bbca83a6d71",
+    "g.menuHome": "a0aac9145249",
+    "g.menuSurprise": "fc704e0c035a",
+    "g.menuFavorite": "d99b44623137",
+    "g.menuSpeakThis": "0581d2296748",
+    "g.menuEndConvo": "6c34a53ff128",
+    "g.menuRefresh": "94c35652a713",
+    "g.menuDevStory": "00682a0a77bd",
+    "g.menuNewMindful": "cf91a8639fca",
+    "g.menuTipJar": "747af0b79996",
+    "g.menuRestartStory": "dcaca022e134"
   },
   "de": {
     "app.tagline": "2b83e146d216",
@@ -378,7 +400,18 @@
     "g.story5": "527f8156d6e7",
     "g.story6": "5c5432a20925",
     "g.story7": "2d6170e24b35",
-    "g.story8": "c37bed3cf9fe"
+    "g.story8": "c37bed3cf9fe",
+    "g.shuffleAll": "8bbca83a6d71",
+    "g.menuHome": "a0aac9145249",
+    "g.menuSurprise": "fc704e0c035a",
+    "g.menuFavorite": "d99b44623137",
+    "g.menuSpeakThis": "0581d2296748",
+    "g.menuEndConvo": "6c34a53ff128",
+    "g.menuRefresh": "94c35652a713",
+    "g.menuDevStory": "00682a0a77bd",
+    "g.menuNewMindful": "cf91a8639fca",
+    "g.menuTipJar": "747af0b79996",
+    "g.menuRestartStory": "dcaca022e134"
   },
   "ru": {
     "app.tagline": "2b83e146d216",
@@ -505,7 +538,18 @@
     "g.story5": "527f8156d6e7",
     "g.story6": "5c5432a20925",
     "g.story7": "2d6170e24b35",
-    "g.story8": "c37bed3cf9fe"
+    "g.story8": "c37bed3cf9fe",
+    "g.shuffleAll": "8bbca83a6d71",
+    "g.menuHome": "a0aac9145249",
+    "g.menuSurprise": "fc704e0c035a",
+    "g.menuFavorite": "d99b44623137",
+    "g.menuRefresh": "94c35652a713",
+    "g.menuNewMindful": "cf91a8639fca",
+    "g.menuSpeakThis": "0581d2296748",
+    "g.menuEndConvo": "6c34a53ff128",
+    "g.menuDevStory": "00682a0a77bd",
+    "g.menuRestartStory": "dcaca022e134",
+    "g.menuTipJar": "747af0b79996"
   },
   "zh": {
     "app.tagline": "2b83e146d216",
@@ -632,7 +676,18 @@
     "g.story5": "527f8156d6e7",
     "g.story6": "5c5432a20925",
     "g.story7": "2d6170e24b35",
-    "g.story8": "c37bed3cf9fe"
+    "g.story8": "c37bed3cf9fe",
+    "g.shuffleAll": "8bbca83a6d71",
+    "g.menuHome": "a0aac9145249",
+    "g.menuSurprise": "fc704e0c035a",
+    "g.menuFavorite": "d99b44623137",
+    "g.menuSpeakThis": "0581d2296748",
+    "g.menuEndConvo": "6c34a53ff128",
+    "g.menuRefresh": "94c35652a713",
+    "g.menuDevStory": "00682a0a77bd",
+    "g.menuNewMindful": "cf91a8639fca",
+    "g.menuTipJar": "747af0b79996",
+    "g.menuRestartStory": "dcaca022e134"
   },
   "ja": {
     "app.tagline": "2b83e146d216",
@@ -759,6 +814,17 @@
     "g.story5": "527f8156d6e7",
     "g.story6": "5c5432a20925",
     "g.story7": "2d6170e24b35",
-    "g.story8": "c37bed3cf9fe"
+    "g.story8": "c37bed3cf9fe",
+    "g.shuffleAll": "8bbca83a6d71",
+    "g.menuHome": "a0aac9145249",
+    "g.menuSurprise": "fc704e0c035a",
+    "g.menuFavorite": "d99b44623137",
+    "g.menuSpeakThis": "0581d2296748",
+    "g.menuEndConvo": "6c34a53ff128",
+    "g.menuRefresh": "94c35652a713",
+    "g.menuDevStory": "00682a0a77bd",
+    "g.menuNewMindful": "cf91a8639fca",
+    "g.menuTipJar": "747af0b79996",
+    "g.menuRestartStory": "dcaca022e134"
   }
 }

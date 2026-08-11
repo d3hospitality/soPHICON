@@ -123,5 +123,16 @@
   "g.story5": "La filosofía suele llegar después de la batalla, como una estantería de libros difíciles y una lista de nombres muertos. La quería a tu lado mientras el problema aún ocurre, antes de que el miedo, la ira o la duda decidieran por ti.",
   "g.story6": "Así que construí un sistema con 2,801 citas y creé 391 retratos de 17 filósofos en 23 estados emocionales, para que el rostro que te habla cambie cuando lo haga la conversación.",
   "g.story7": "Quería que la reflexión viviera en otro lugar, no en otro rectángulo brillante pidiendo más atención. No un feed. No una notificación. Solo un pensamiento que llega mientras aún puedes hacer algo con él.",
-  "g.story8": "Si una cita te alcanzó antes de rendirte, ya era suficiente. Sigo construyendo porque mi guerra no ha terminado. El resto de la historia y la propina están en tu teléfono."
+  "g.story8": "Si una cita te alcanzó antes de rendirte, ya era suficiente. Sigo construyendo porque mi guerra no ha terminado. El resto de la historia y la propina están en tu teléfono.",
+  "g.shuffleAll": "Mezclar todo",
+  "g.menuHome": "Ir a inicio",
+  "g.menuSurprise": "Sorpréndeme",
+  "g.menuFavorite": "Guardar en favoritos",
+  "g.menuSpeakThis": "Hablar con este filósofo",
+  "g.menuEndConvo": "Terminar charla",
+  "g.menuRefresh": "Actualizar feed",
+  "g.menuDevStory": "Leer historia del dev",
+  "g.menuNewMindful": "Nueva cita reflexiva",
+  "g.menuTipJar": "Abrir propinas en el móvil",
+  "g.menuRestartStory": "Reiniciar historia"
 }

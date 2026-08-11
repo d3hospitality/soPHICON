@@ -39,10 +39,13 @@ import {
   composeSpeakResponseContent,
   buildMindfulnessBlankPage,
   SUPPORT_INDEX, buildSupportPage,
+  MENU_HOME, MENU_SURPRISE, MENU_FAVORITE, MENU_SPEAK_THIS,
+  MENU_END_CONVO, MENU_REFRESH, MENU_DEV_STORY, MENU_NEW_MINDFUL,
+  MENU_TIP_JAR, MENU_RESTART_STORY, mindfulMenu,
 } from './pages';
 import { SUPPORT_LATCH_KEY } from './support';
 import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl, ghostPreset } from './image-utils';
-import { isFavorite } from './favorites';
+import { isFavorite, toggleFavorite } from './favorites';
 import { setAccountBridge } from './enkiAccount';
 import {
   loadPersonas, setSpeakBridge, startConversation,
@@ -297,7 +300,7 @@ async function showMindfulQuote(bridge: EvenAppBridge): Promise<void> {
   // mindfulness handler (reset → blank), not quote-page reshuffle.
   const fav = isFavorite(pick.quote);
   await bridge.rebuildPageContainer(
-    buildQuoteViewPage(pick.phil, pick.quote, mindfulShownCount - 1, mindfulShownCount, fav, /* shuffle */ true)
+    buildQuoteViewPage(pick.phil, pick.quote, mindfulShownCount - 1, mindfulShownCount, fav, /* shuffle */ true, mindfulMenu())
   );
   currentPage = "mindful-quote";
 
@@ -1295,7 +1298,168 @@ async function onAppExiting(bridge: EvenAppBridge): Promise<void> {
 //   • List containers with isEventCapture:1 receive:
 //       listEvent for clicks (swipes are handled by the firmware, no event).
 //   • Image containers cannot capture.
+// ═══ CONTEXTUAL MENU (SDK 0.0.14, firmware 2.2.9) ═══
+// One menuItemClickEvent per selection, carrying itemID and nothing
+// else. itemIDs are global (see pages.ts registry): one ID = one
+// command everywhere, so this is a single switch with page-state guards
+// rather than per-page tables. The glasses hold no state — anything a
+// command changes must be repainted by us afterwards.
+
+/** Leave any page for home, running that page's teardown first. Mirrors
+ *  the goBack home branches, but from ANY depth in one hop — the menu's
+ *  "Go home" is O(1) escape, which chained double-taps never were. */
+async function goHomeFromMenu(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  // Per-page teardown, same order the goBack branches do it.
+  if (currentPage === "quote") { stopAutoRotate(); shuffleMode = false; }
+  if (currentPage === "mindful-blank" || currentPage === "mindful-quote") cancelMindfulTimers();
+  if (currentPage === "speak-conversation") {
+    cancelPendingResponseSprite();
+    // Checkpoint BEFORE clearing history — same contract as double-tap:
+    // a conversation that reached the glasses must reach the journal.
+    if (speakPhilosopher && speakTradition) {
+      try { await checkpointSession(speakPhilosopher.name, speakTradition); }
+      catch (e) { console.error("[menu checkpoint]", e); }
+    }
+    endConversation();
+    speakIsInitialized = false;
+    lastPushedEmotion = "";
+    speakPageIndex = 0;
+  }
+  try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
+  await bridge.rebuildPageContainer(rebuildHomePage());
+  currentPage = "home"; currentTradition = null; lastHoveredPhilIndex = -1;
+  lastNavigationTime = Date.now();
+  await pushLogoToGlasses(bridge, baseUrl);
+  publishState();
+  log("[MENU] > Home", "success");
+}
+
+/** Random quote from the whole corpus → quote view, with browse state
+ *  set so scroll/reshuffle/back all behave as if the user had walked
+ *  there: tradition and philosopher come from the drawn quote. */
+async function surpriseMe(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  if (currentPage === "mindful-blank" || currentPage === "mindful-quote") cancelMindfulTimers();
+  // Weight by quote count: draw a (philosopher, index) pair uniformly
+  // over all 2,801 quotes rather than uniformly over philosophers.
+  const pool: { phil: Philosopher; idx: number }[] = [];
+  for (const phil of PHILOSOPHERS) {
+    for (let i = 0; i < phil.quotes.length; i++) pool.push({ phil, idx: i });
+  }
+  if (pool.length === 0) return;
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  currentTradition = pick.phil.tradition as Tradition;
+  currentPhilosopher = pick.phil;
+  currentQuotes = pick.phil.quotes;
+  currentQuoteIndex = pick.idx;
+  shuffleMode = false;
+  currentPage = "quote";
+  lastNavigationTime = Date.now();
+  startAutoRotate();
+  await showCurrentQuote(bridge, baseUrl);
+  log(`[MENU] Surprise: ${pick.phil.name}`, "success");
+}
+
+async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: string): Promise<void> {
+  if (navigating) return;
+  navigating = true;
+  try {
+    log(`[MENU] itemID=${itemID} page=${currentPage}`);
+    switch (itemID) {
+      case MENU_HOME:
+        await goHomeFromMenu(bridge, baseUrl);
+        return;
+
+      case MENU_SURPRISE:
+        await surpriseMe(bridge, baseUrl);
+        return;
+
+      case MENU_FAVORITE: {
+        // Quote page only (the mindful-quote state carries mindfulMenu,
+        // so this ID cannot arrive from there).
+        if (currentPage !== "quote" || currentQuotes.length === 0) return;
+        const q = currentQuotes[currentQuoteIndex];
+        const added = await toggleFavorite(q);
+        // The menu shows nothing — repaint the info strip so the ♥
+        // appears/disappears where the wearer is already looking.
+        await showCurrentQuote(bridge, baseUrl);
+        log(`[MENU] ${added ? "♥ saved" : "♥ removed"}`, "success");
+        return;
+      }
+
+      case MENU_SPEAK_THIS: {
+        // The cross-mode jump: reading a philosopher → talking to them.
+        if (currentPage !== "quote" || !currentPhilosopher) return;
+        stopAutoRotate(); shuffleMode = false;
+        const trad = currentPhilosopher.tradition as Tradition;
+        const phils = getPhilosophersByTradition(trad);
+        const idx = phils.findIndex(ph => ph.philId === currentPhilosopher!.philId);
+        if (idx < 0) return;   // quote-phil not speakable (should not happen)
+        speakTradition = trad;
+        speakSelectedIndex = idx;
+        await commitSpeakSelection(bridge, baseUrl);
+        return;
+      }
+
+      case MENU_END_CONVO:
+        // Same contract as double-tap on the conversation page: the
+        // existing goBack branch checkpoints, ends, and restores the
+        // philosopher select. Reuse it rather than fork it.
+        if (currentPage !== "speak-conversation") return;
+        navigating = false;   // goBack takes its own navigating guard
+        await goBack(bridge, baseUrl);
+        return;
+
+      case MENU_REFRESH:
+        if (currentPage !== "aphorica" && currentPage !== "aphorica-read") return;
+        // Re-fetch and land on the member list. From the read page this
+        // drops the author cursor — the feed may have reordered or the
+        // author may be gone, so the list is the only honest landing.
+        await openAphorica(bridge);
+        lastNavigationTime = Date.now();
+        log("[MENU] Aphorica refreshed", "success");
+        return;
+
+      case MENU_DEV_STORY:
+        if (currentPage !== "home") return;
+        await openSupport(bridge);
+        lastNavigationTime = Date.now();
+        return;
+
+      case MENU_NEW_MINDFUL:
+        if (currentPage !== "mindful-blank" && currentPage !== "mindful-quote") return;
+        await showMindfulQuote(bridge);
+        return;
+
+      case MENU_TIP_JAR:
+        // Re-arm the phone latch on demand. The glass never takes money;
+        // this just carries intent across the gap again if the phone
+        // consumed the entry-time latch while the wearer kept reading.
+        if (currentPage !== "support") return;
+        try { await bridge.setLocalStorage(SUPPORT_LATCH_KEY, String(Date.now())); }
+        catch (e) { console.warn("[MENU] latch failed:", e); }
+        log("[MENU] tip jar armed on phone", "success");
+        return;
+
+      case MENU_RESTART_STORY:
+        if (currentPage !== "support") return;
+        supportPageIndex = 0;
+        await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
+        return;
+    }
+  } finally {
+    navigating = false;
+    publishState();
+  }
+}
+
 async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: string): Promise<void> {
+
+  // ── CONTEXTUAL MENU (action item selected on the glasses) ──
+  if (event.menuItemClickEvent) {
+    const id = event.menuItemClickEvent.itemID ?? 0;
+    if (id > 0) await handleMenuClick(bridge, id, baseUrl);
+    return;
+  }
 
   // ── AUDIO (only during speak recording) ──
   if (event.audioEvent && currentPage === "speak-conversation") {

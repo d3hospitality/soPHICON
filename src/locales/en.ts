@@ -152,6 +152,7 @@ export const EN = {
   // ─── Glass (length-critical) ──────────────────────────────────────
   'g.speak': 'enkiSPEAKS',
   'g.aphorica': 'Public Aphorica',
+  'g.shuffleAll': 'Shuffle All',
   'g.philosophies': 'Philosophies',
   'g.support': 'Support the dev',
   'g.supportHeader': 'enkiRIDION · SUPPORT THE DEV',
@@ -184,6 +185,23 @@ export const EN = {
   'g.story6': "So I built a system around 2,801 quotes and created 391 portraits of 17 philosophers across 23 emotional states, so the face speaking to you changes when the conversation does.",
   'g.story7': "I wanted reflection to live somewhere other than another glowing rectangle asking for more of your attention. Not a feed. Not a notification. Just a thought arriving while you might still be able to do something with it.",
   'g.story8': "If one quote reached you before you gave up, that was already enough. I am still building because my war is not over. The rest of the story, and the tip jar, are on your phone.",
+
+  // ─── Contextual menu labels (SDK 0.0.14) ─────────────────────────
+  // VERBS ONLY — an action item gives no state feedback, so every label
+  // is a command. HARD LIMIT: 32 UTF-8 bytes (CJK ≈ 10 glyphs); an
+  // over-long label rejects the whole page and blanks the glasses, so
+  // translate_ui.mjs refuses to ship one and menu() in pages.ts
+  // byte-truncates as a last-resort runtime guard.
+  'g.menuHome': 'Go home',
+  'g.menuSurprise': 'Surprise me',
+  'g.menuFavorite': 'Save to favorites',
+  'g.menuSpeakThis': 'Speak with this philosopher',
+  'g.menuEndConvo': 'End conversation',
+  'g.menuRefresh': 'Refresh feed',
+  'g.menuDevStory': 'Read the dev story',
+  'g.menuNewMindful': 'New mindful quote',
+  'g.menuTipJar': 'Open tip jar on phone',
+  'g.menuRestartStory': 'Restart story',
 
   'g.pagePrev': 'swipe up',
   'g.pageNext': 'click for more',

@@ -123,5 +123,16 @@
   "g.story5": "A filosofia geralmente chega depois da batalha, como uma estante de livros difíceis e uma lista de nomes mortos. Eu queria ela ao seu lado enquanto o problema ainda acontecia, antes que medo, raiva ou dúvida decidissem por você.",
   "g.story6": "Então, construí um sistema com 2.801 citações e criei 391 retratos de 17 filósofos em 23 estados emocionais, para que o rosto que fala com você mude quando a conversa mudar.",
   "g.story7": "Queria que a reflexão vivesse em outro lugar, não em mais um retângulo brilhante pedindo sua atenção. Não um feed. Não uma notificação. Apenas um pensamento chegando enquanto você ainda pode fazer algo com ele.",
-  "g.story8": "Se uma citação te alcançou antes de desistir, já foi suficiente. Ainda estou construindo porque minha guerra não acabou. O resto da história e a gorjeta estão no seu celular."
+  "g.story8": "Se uma citação te alcançou antes de desistir, já foi suficiente. Ainda estou construindo porque minha guerra não acabou. O resto da história e a gorjeta estão no seu celular.",
+  "g.shuffleAll": "Embaralhar Tudo",
+  "g.menuHome": "Ir para início",
+  "g.menuSurprise": "Surpreenda-me",
+  "g.menuFavorite": "Salvar nos favoritos",
+  "g.menuSpeakThis": "Falar com este filósofo",
+  "g.menuEndConvo": "Encerrar conversa",
+  "g.menuRefresh": "Atualizar feed",
+  "g.menuDevStory": "Ler a história do dev",
+  "g.menuNewMindful": "Nova citação consciente",
+  "g.menuTipJar": "Abrir gorjeta no celular",
+  "g.menuRestartStory": "Reiniciar história"
 }

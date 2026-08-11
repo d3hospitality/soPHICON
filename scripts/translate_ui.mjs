@@ -159,6 +159,15 @@ function validate(key, src, out, code) {
   if (placeholdersOf(src) !== placeholdersOf(out)) return `placeholder drift (${placeholdersOf(src)} → ${placeholdersOf(out)})`;
   // The support body is PROSE in one wrapping container, so its budget
   // is wrapped LINE COUNT, not single-line width like every other g.* key.
+  // Contextual-menu labels: HARD 32-UTF-8-BYTE firmware cap. Not a
+  // style budget — one over-long label makes the SDK reject the whole
+  // page payload (INVALID_MENU_ITEM_NAME) and the glasses go blank.
+  // Reject → key falls back to English, which always fits.
+  if (/^g\.menu[A-Z]/.test(key)) {
+    const bytes = Buffer.byteLength(out, 'utf8');
+    if (bytes > 32) return `menu label ${bytes} bytes, firmware cap is 32`;
+    return null;
+  }
   // Glass story pages are one screen each: budget is wrapped LINE
   // COUNT against the 528px body, not single-line width.
   if (/^g\.story\d$/.test(key) && measureTextWrap) {

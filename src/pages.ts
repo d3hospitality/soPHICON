@@ -25,6 +25,7 @@ import {
   CreateStartUpPageContainer, RebuildPageContainer,
   ListContainerProperty, TextContainerProperty,
   ImageContainerProperty, ListItemContainerProperty,
+  MenuContainerProperty, MenuItemProperty,
 } from '@evenrealities/even_hub_sdk';
 import {
   buildHomePage as homeLayout,
@@ -45,6 +46,7 @@ import {
 import { ghostPreset } from './image-utils';
 import { supportEnabled, supportStoryPages } from './support';
 import { tGlass, tQuote, tMeta } from './i18n';
+import { hostSupports214 } from './host';
 
 // ═══ Constants consumed by events.ts ═══
 // Home page lists enkiRIDION first (the entry to voice conversations),
@@ -258,6 +260,67 @@ function geo(layout: AnyContainer[], containerName: string): Geo {
   };
 }
 
+// ═══ Contextual menu (SDK 0.0.14, firmware 2.2.9) ═══
+// Opens on TAP-AND-HOLD (one fast tap, then hold — not a plain long
+// press). Every entry is an action item: the user selects it, events.ts
+// receives one menuItemClickEvent carrying itemID, and the interaction
+// is over. Verbs only — an action item gives no state feedback.
+//
+// itemIDs are GLOBAL and stable: one ID means one command on every page
+// it appears, so the handler in events.ts is a single switch. Never
+// reuse an ID for a different meaning; new commands take new IDs.
+export const MENU_HOME = 1;
+export const MENU_SURPRISE = 2;
+export const MENU_FAVORITE = 3;
+export const MENU_SPEAK_THIS = 4;
+export const MENU_END_CONVO = 5;
+export const MENU_REFRESH = 6;
+export const MENU_DEV_STORY = 7;
+export const MENU_NEW_MINDFUL = 8;
+export const MENU_TIP_JAR = 9;
+export const MENU_RESTART_STORY = 10;
+
+/** Truncate a menu label to the firmware's 32-UTF-8-byte cap.
+ *
+ * translate_ui.mjs refuses to ship an over-long translation, so this
+ * should never fire — but the SDK rejects the ENTIRE page payload on
+ * one bad label (INVALID_MENU_ITEM_NAME), which blanks the glasses.
+ * A truncated label is a cosmetic bug; a blank display is an outage. */
+function menuLabel(s: string): string {
+  const enc = new TextEncoder();
+  if (enc.encode(s).length <= 32) return s;
+  let out = s;
+  while (out.length > 0 && enc.encode(out).length > 32) out = out.slice(0, -1);
+  return out;
+}
+
+type MenuSpec = ReadonlyArray<readonly [label: string, itemID: number]>;
+
+/** Build the page's menuObject. position 0 keeps payload order.
+ *  Returns undefined on pre-2.2.9 hosts (desktop simulator): an omitted
+ *  menuObject is valid on every protocol version, while an unknown
+ *  field rejects the whole page. */
+function menu(items: MenuSpec): MenuContainerProperty | undefined {
+  if (!hostSupports214) return undefined;
+  return new MenuContainerProperty({
+    menuItems: items.map(([label, itemID]) => new MenuItemProperty({
+      itemName: menuLabel(label), itemID, position: 0,
+    })),
+  });
+}
+
+/** Per-page menus. A FUNCTION per page (not consts) so labels re-read
+ *  the dictionary on every rebuild — same reason homeListItems() is a
+ *  function. Composition per docs/GLASS-PAGES.md. */
+function homeMenu()      { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuDevStory'), MENU_DEV_STORY]]); }
+function browseMenu()    { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
+function quoteMenu()     { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
+function transitMenu()   { return menu([[tGlass('g.menuHome'), MENU_HOME]]); }
+function convoMenu()     { return menu([[tGlass('g.menuEndConvo'), MENU_END_CONVO], [tGlass('g.menuHome'), MENU_HOME]]); }
+export function mindfulMenu()   { return menu([[tGlass('g.menuNewMindful'), MENU_NEW_MINDFUL], [tGlass('g.menuHome'), MENU_HOME]]); }
+function aphoricaMenu()  { return menu([[tGlass('g.menuRefresh'), MENU_REFRESH], [tGlass('g.menuHome'), MENU_HOME]]); }
+function supportMenu()   { return menu([[tGlass('g.menuTipJar'), MENU_TIP_JAR], [tGlass('g.menuRestartStory'), MENU_RESTART_STORY], [tGlass('g.menuHome'), MENU_HOME]]); }
+
 // ═══ Glass chrome ═══
 // NO BORDER BOXES. Earlier versions drew empty bordered text containers
 // behind the quote and the sprite (a "bright" frame on the text, a "dim"
@@ -364,6 +427,7 @@ function homeContainers() {
     ...geo(layout, "glance"),
     xPosition: 24, yPosition: 246, width: 310, height: 34,
     containerID: 14, containerName: "glance",
+    ...(hostSupports214 ? { textColor: 3 } : {}),
     content: glanceLine,
     isEventCapture: 0,
     zOrderIndex: 6,
@@ -397,6 +461,7 @@ function homeContainers() {
 export function buildHomePage(): CreateStartUpPageContainer {
   const c = homeContainers();
   return new CreateStartUpPageContainer({
+    menuObject: homeMenu(),
     containerTotalNum: 5,
     listObject: [c.traditions],
     textObject: [c.title, c.glance],
@@ -407,6 +472,7 @@ export function buildHomePage(): CreateStartUpPageContainer {
 export function rebuildHomePage(): RebuildPageContainer {
   const c = homeContainers();
   return new RebuildPageContainer({
+    menuObject: homeMenu(),
     containerTotalNum: 5,
     listObject: [c.traditions],
     textObject: [c.title, c.glance],
@@ -460,6 +526,7 @@ export function buildPhilosopherSelectPage(tradition: Tradition, index: number =
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
+    menuObject: browseMenu(),
     containerTotalNum: 4,
     listObject: [],
     textObject: [header, navpad],
@@ -483,7 +550,7 @@ export function buildAphoricaPage(items: string[], index: number = 0): RebuildPa
     ...geo(layout, "header"),
     xPosition: 40, yPosition: 6, width: 496, height: 24,
     containerID: 1, containerName: "header",
-    content: "Public Aphorica", isEventCapture: 0,
+    content: tGlass('g.aphorica'), isEventCapture: 0,
     zOrderIndex: 2,
   });
   const navpad = new TextContainerProperty({
@@ -494,6 +561,7 @@ export function buildAphoricaPage(items: string[], index: number = 0): RebuildPa
     zOrderIndex: 3,
   });
   return new RebuildPageContainer({
+    menuObject: aphoricaMenu(),
     containerTotalNum: 2,
     listObject: [],
     textObject: [header, navpad],
@@ -568,6 +636,7 @@ export function buildAphoricaReadPage(
     zOrderIndex: 3,
   });
   return new RebuildPageContainer({
+    menuObject: aphoricaMenu(),
     containerTotalNum: 3,
     listObject: [],
     textObject: [body, info],
@@ -602,7 +671,7 @@ export function buildMindstatePage(philosopher: Philosopher, index: number = 0):
   const header = new TextContainerProperty({
     ...geo(layout, "header"),
     containerID: 1, containerName: "header",
-    content: philosopher.name, isEventCapture: 0,
+    content: tMeta(philosopher.name, true), isEventCapture: 0,
     zOrderIndex: 5,
   });
   const navpad = new TextContainerProperty({
@@ -623,6 +692,7 @@ export function buildMindstatePage(philosopher: Philosopher, index: number = 0):
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
+    menuObject: browseMenu(),
     containerTotalNum: 4,
     listObject: [],
     textObject: [header, navpad],
@@ -636,11 +706,15 @@ export function buildMindstatePage(philosopher: Philosopher, index: number = 0):
  * getMindstateSelections below. */
 export function mindstateItemLabels(philosopher: Philosopher): string[] {
   const emotions = getEmotionsForPhilosopher(philosopher);
+  // Emotion names come from the metadata corpus (tMeta), the same source
+  // the quote page's info strip uses, so the picker and the quote agree.
+  // These were raw English literals until 1.5.4, which meant a Chinese
+  // reader got Chinese quotes and then an English emotion picker.
   return [
-    `Shuffle All (${philosopher.quotes.length})`,
+    `${tGlass('g.shuffleAll')} (${philosopher.quotes.length})`,
     ...emotions.map(e => {
       const count = philosopher.quotes.filter(q => q.emotion === e).length;
-      return `${capitalize(e)} (${count})`;
+      return `${tMeta(capitalize(e), true)} (${count})`;
     }),
   ];
 }
@@ -697,6 +771,10 @@ export function buildQuoteViewPage(
   totalQuotes: number,
   isFavorite: boolean = false,
   _isShuffleMode: boolean = false,
+  /** Menu override: the mindful-quote state reuses this layout but must
+   *  carry the mindful menu — its handler state (the pick) is not the
+   *  quote-browse state the quote menu's commands read. */
+  menuOverride?: MenuContainerProperty,
 ): RebuildPageContainer {
   const layout = quoteViewLayout();
   const rarity = quote.rarity || getRarity(quote.rating);
@@ -758,6 +836,7 @@ export function buildQuoteViewPage(
   // so long quotes never overflow into the firmware's internal scroll
   // (which would compete with swipe navigation).
   return new RebuildPageContainer({
+    menuObject: menuOverride ?? quoteMenu(),
     containerTotalNum: 3,
     listObject: [],
     textObject: [quoteText, infoText],
@@ -799,6 +878,7 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
+    menuObject: transitMenu(),
     containerTotalNum: 4,
     listObject: [tradList],
     textObject: [title],
@@ -868,6 +948,7 @@ export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 
     zOrderIndex: 5,
   });
   return new RebuildPageContainer({
+    menuObject: transitMenu(),
     containerTotalNum: 4,
     listObject: [],
     textObject: [header, navpad, branding],
@@ -998,6 +1079,7 @@ export function buildSpeakConversationPage(
   });
 
   return new RebuildPageContainer({
+    menuObject: convoMenu(),
     containerTotalNum: echo ? 7 : 6,
     listObject: [],
     textObject: [responseBox, philName, philSchool],
@@ -1038,6 +1120,7 @@ export function buildMindfulnessBlankPage(): RebuildPageContainer {
     zOrderIndex: 1,    // deliberately chrome-free — this page IS the dark
   } as any);           // screen; no frame, meditation stays blank
   return new RebuildPageContainer({
+    menuObject: mindfulMenu(),
     containerTotalNum: 1,
     listObject: [],
     textObject: [shell],
@@ -1094,6 +1177,7 @@ export function buildTraditionsPage(): RebuildPageContainer {
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
+    menuObject: browseMenu(),
     containerTotalNum: 4,
     listObject: [list],
     textObject: [title],
@@ -1148,9 +1232,14 @@ export function buildSupportPage(pageIndex: number = 0): RebuildPageContainer {
     isEventCapture: 1,   // the page's single capture container
     zOrderIndex: 3,
   });
+  // Brightness 2 (SDK 0.0.14 textColor): the pager is chrome, not
+  // content — dimming it is the monochrome equivalent of a caption.
+  // Dim rather than shrink: legibility on glass falls off much faster
+  // with size than with brightness (early-access doc).
   const pager = new TextContainerProperty({
     xPosition: 24, yPosition: 250, width: 528, height: 34,
     containerID: 3, containerName: "support-pager",
+    ...(hostSupports214 ? { textColor: 2 } : {}),
     content: idx === total - 1
       ? `◀ ${tGlass('g.pagePrev')}   ·   ${tGlass('g.pageEnd')}`
       : `◀ ${tGlass('g.pagePrev')}   ·   ${tGlass('g.pageNext')} ▶`,
@@ -1158,6 +1247,7 @@ export function buildSupportPage(pageIndex: number = 0): RebuildPageContainer {
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
+    menuObject: supportMenu(),
     containerTotalNum: 3,
     listObject: [],
     textObject: [header, body, pager],

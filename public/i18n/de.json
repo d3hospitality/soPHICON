@@ -123,5 +123,16 @@
   "g.story5": "Philosophie wird dir meist nach dem Kampf gereicht, als Regal voller schwieriger Bücher und Liste toter Namen. Ich wollte sie an deiner Seite, während das Problem noch besteht, bevor Angst, Wut oder Zweifel die Entscheidung für dich treffen.",
   "g.story6": "Also baute ich ein System um 2.801 Zitate und schuf 391 Porträts von 17 Philosophen in 23 emotionalen Zuständen, sodass das Gesicht, das zu dir spricht, sich ändert, wenn das Gespräch es tut.",
   "g.story7": "Ich wollte, dass Reflexion woanders lebt als in einem weiteren leuchtenden Rechteck, das mehr Aufmerksamkeit verlangt. Kein Feed. Keine Benachrichtigung. Nur ein Gedanke, der kommt, während du noch etwas damit anfangen kannst.",
-  "g.story8": "Wenn ein Zitat dich erreichte, bevor du aufgabst, war das schon genug. Ich baue weiter, weil mein Krieg nicht vorbei ist. Der Rest der Geschichte und das Trinkgeldglas sind auf deinem Handy."
+  "g.story8": "Wenn ein Zitat dich erreichte, bevor du aufgabst, war das schon genug. Ich baue weiter, weil mein Krieg nicht vorbei ist. Der Rest der Geschichte und das Trinkgeldglas sind auf deinem Handy.",
+  "g.shuffleAll": "Alle mischen",
+  "g.menuHome": "Nach Hause",
+  "g.menuSurprise": "Überrasche mich",
+  "g.menuFavorite": "Zu Favoriten",
+  "g.menuSpeakThis": "Mit diesem Philosophen sprechen",
+  "g.menuEndConvo": "Gespräch beenden",
+  "g.menuRefresh": "Feed aktualisieren",
+  "g.menuDevStory": "Entwicklergeschichte lesen",
+  "g.menuNewMindful": "Neues Zitat",
+  "g.menuTipJar": "Trinkgeld auf Handy",
+  "g.menuRestartStory": "Geschichte neu starten"
 }
