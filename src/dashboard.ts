@@ -48,6 +48,8 @@ import {
   isHabit, pendingCheckIns, recordCheckIn, streakHealth, habitSpritePath,
 } from './habits';
 import { authHeaders, linkedHandle, linkedTier, linkWithCode, unlink, setAccountBridge } from './enkiAccount';
+import { isFavoriteText, toggleFavoriteText, onFavoritesChange } from './favorites';
+import { getWisdomEntries, onWisdomLogChange, addWisdomEntry } from './wisdomlog';
 import {
   setSyncBridge, syncNow, schedulePush, markDirty, captureChecklistDelete,
   onSyncApplied, getSyncStatus, updateGlance,
@@ -319,28 +321,15 @@ function applyGlassState(s: GlassesState): void {
 // offline — every quote is baked into constants.ts. Favorites persist
 // via bridge.setLocalStorage under `enki_favorites` (quote-text keyed).
 
-const FAVORITES_KEY = 'enki_favorites';
-let favoriteQuotes: Set<string> = new Set();
+// Favorites now live in src/favorites.ts — ONE store for both surfaces
+// (key 'enki_favorites', timestamped entries). Before 1.7.0 this file
+// kept its own Set while the glass wrote a different key that was never
+// even loaded; a ♥ on the glass and a ★ here were strangers. The
+// delegation below is the whole fix: same module, same entries, and
+// onFavoritesChange repaints Picks when the glass toggles mid-session.
 // Which tradition / philosopher rows are currently expanded (session state)
 const expandedTraditions: Set<string> = new Set();
 let expandedPhil: string | null = null;   // only one philosopher open at a time
-
-async function loadFavorites(): Promise<void> {
-  if (!bridge) return;
-  try {
-    const raw = await bridge.getLocalStorage(FAVORITES_KEY);
-    if (raw) {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) favoriteQuotes = new Set(arr.map(String));
-    }
-  } catch { favoriteQuotes = new Set(); }
-}
-
-async function saveFavorites(): Promise<void> {
-  if (!bridge) return;
-  try { await bridge.setLocalStorage(FAVORITES_KEY, JSON.stringify([...favoriteQuotes])); }
-  catch (e) { console.error('[PICKS] saveFavorites failed', e); }
-}
 
 // Rarity → glyph + label + colour class (matches Android QuotesScreen).
 // ✦ legendary gold / ◆ epic violet / ◈ rare blue / ○ uncommon green / · common dim
@@ -353,13 +342,13 @@ function quoteRarity(q: Quote): Rarity {
 function renderQuoteCard(philId: string, philName: string, q: Quote): string {
   const rarity = quoteRarity(q);
   const glyph = getRaritySymbol(rarity);
-  const fav = favoriteQuotes.has(q.text);
+  const fav = isFavoriteText(q.text);
   const attribution = `— ${philName}${q.source ? ' · ' + q.source : ''}`;
   return `
     <div class="quote-card rarity-${rarity}">
       <div class="quote-card-top">
         <span class="quote-rarity" title="${escapeAttr(rarity)}">${glyph} ${rarity.toUpperCase()}</span>
-        <button class="quote-fav ${fav ? 'on' : ''}" data-fav="${escapeAttr(q.text)}"
+        <button class="quote-fav ${fav ? 'on' : ''}" data-fav="${escapeAttr(q.text)}" data-phil="${escapeAttr(philName)}"
           aria-label="${fav ? 'Remove favorite' : 'Save favorite'}" title="${fav ? 'Saved' : 'Save'}">${fav ? '★' : '☆'}</button>
       </div>
       <div class="quote-text">“${escapeHtml(q.text)}”</div>
@@ -435,16 +424,15 @@ function renderPhilosopherGrid(): void {
     btn.addEventListener('click', async (ev) => {
       ev.stopPropagation();
       const text = btn.dataset.fav || '';
-      if (favoriteQuotes.has(text)) {
-        favoriteQuotes.delete(text);
-        btn.classList.remove('on'); btn.textContent = '☆';
-        btn.setAttribute('aria-label', 'Save favorite');
-      } else {
-        favoriteQuotes.add(text);
+      const added = await toggleFavoriteText(text);
+      if (added) addWisdomEntry('fav', text, btn.dataset.phil || '').catch(() => {});
+      if (added) {
         btn.classList.add('on'); btn.textContent = '★';
         btn.setAttribute('aria-label', 'Remove favorite');
+      } else {
+        btn.classList.remove('on'); btn.textContent = '☆';
+        btn.setAttribute('aria-label', 'Save favorite');
       }
-      await saveFavorites();
     });
   });
 }
@@ -857,6 +845,47 @@ async function refreshJournal(): Promise<void> {
   if (count) count.textContent = `${journalCache.length} session${journalCache.length === 1 ? '' : 's'}`;
   renderCalendar();
   await renderSessionList();
+  renderCollected();
+}
+
+// ─── JOURNAL — COLLECTED (the wisdom log) ─────────────────────────
+// Everything the user explicitly kept, newest first: quotes saved (with
+// a real date), replies logged from the glasses mid-conversation, and
+// Aphorica posts liked. The glass writes these; this is where the phone
+// shows the trail. Distinct from Sessions above: sessions are what
+// HAPPENED, this is what was KEPT.
+function renderCollected(): void {
+  const host = $('journal-collected');
+  if (!host) return;
+  const items: { ts: number; icon: string; label: string; text: string }[] = [];
+  for (const w of getWisdomEntries()) {
+    items.push({
+      ts: w.ts,
+      icon: w.kind === 'reply' ? '●' : '♥',
+      label: w.kind === 'like' ? `Liked @${w.who}`
+           : w.kind === 'reply' ? `Reply from ${w.who}`
+           : `Saved · ${w.who}`,
+      text: w.text,
+    });
+  }
+  const badge = $('journal-collected-count');
+  if (badge) badge.textContent = String(items.length);
+  if (items.length === 0) {
+    host.innerHTML = `<p class="muted">Nothing collected yet. On the glasses: tap-and-hold any quote → Save to favorites, or any reply → Log this reply.</p>`;
+    return;
+  }
+  items.sort((a, b) => b.ts - a.ts);
+  host.innerHTML = `<ul class="collected-list">${items.slice(0, 60).map(i => {
+    const d = new Date(i.ts);
+    const when = `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+    return `<li class="collected-item">
+      <span class="ci-icon">${i.icon}</span>
+      <div class="ci-body">
+        <div class="ci-meta">${escapeHtml(i.label)} · ${when}</div>
+        <div class="ci-text">${escapeHtml(i.text)}</div>
+      </div>
+    </li>`;
+  }).join('')}</ul>`;
 }
 
 // ─── JOURNAL — SESSION LIST (Android ui/journal parity) ───────────
@@ -976,6 +1005,16 @@ function renderCalendar(): void {
     if (!byDate.has(s.date)) byDate.set(s.date, []);
     byDate.get(s.date)!.push(s);
   }
+  // Captures (wisdom log + dated favorites) count as activity too — a
+  // day where the wearer only SAVED things is not an empty day. Same
+  // union the glass calendar uses (glassCalendar.buildActivityMap).
+  const capturesByDate = new Map<string, number>();
+  for (const w of getWisdomEntries()) {
+    // All kinds count — 'fav' entries ARE the save history now (the
+    // live favorites store can shrink on un-favorite; the log cannot).
+    const k = dateKey(new Date(w.ts));
+    capturesByDate.set(k, (capturesByDate.get(k) || 0) + 1);
+  }
 
   let html = `
     <div class="cal-nav">
@@ -992,10 +1031,15 @@ function renderCalendar(): void {
   for (let d = 1; d <= daysInMonth; d++) {
     const key = dateKey(new Date(year, month, d));
     const sessions = byDate.get(key) || [];
+    const captures = capturesByDate.get(key) || 0;
+    // Only SESSION days are clickable (the day click filters the
+    // session list); capture-only days get the ♥ badge but must not
+    // look interactive — a clickable-looking no-op reads as broken
+    // (review finding). Captures live in the Collected card below.
     const has = sessions.length > 0 ? ' has-sessions' : '';
     const active = key === selectedDate ? ' active' : '';
     const today = key === todayKey ? ' today' : '';
-    const countText = sessions.length > 0 ? `${sessions.length}×` : '';
+    const countText = sessions.length > 0 ? `${sessions.length}×` : (captures > 0 ? '♥' : '');
     html += `<div class="cal-cell${has}${active}${today}" data-date="${key}" ${!sessions.length ? 'style="cursor:default"' : ''}>
       <span class="day">${d}</span>
       <span class="count">${countText}</span>
@@ -2488,8 +2532,11 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
 
   initTabs();
   initHomeStats();
-  await loadFavorites();
   renderPhilosopherGrid();
+  // Glass ♥ and phone ★ are the same store now — repaint Picks when
+  // the other surface toggles (cheap: grid rerender only if mounted).
+  onFavoritesChange(() => { try { renderPhilosopherGrid(); renderCollected(); renderCalendar(); } catch { /* not mounted */ } });
+  onWisdomLogChange(() => { try { renderCollected(); renderCalendar(); } catch { /* not mounted */ } });
   initDebugPanel();
   initJournalPanel();
   initAphoricaPanel();

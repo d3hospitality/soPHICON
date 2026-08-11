@@ -1633,3 +1633,10 @@ button.supportline[hidden] { display: none; }
   margin-top: 26px; padding-top: 22px;
   border-top: 1px solid var(--border);
 }
+
+/* ─── Journal: Collected (wisdom log) ─────────────────────────────── */
+.collected-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.collected-item { display: flex; gap: 10px; align-items: flex-start; }
+.ci-icon { color: var(--gold); flex-shrink: 0; width: 18px; text-align: center; padding-top: 1px; }
+.ci-meta { font-size: 11px; color: var(--dim); margin-bottom: 2px; }
+.ci-text { font-size: 13.5px; line-height: 1.45; }

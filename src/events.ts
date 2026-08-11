@@ -42,10 +42,22 @@ import {
   MENU_HOME, MENU_SURPRISE, MENU_FAVORITE, MENU_SPEAK_THIS,
   MENU_END_CONVO, MENU_REFRESH, MENU_DEV_STORY, MENU_NEW_MINDFUL,
   MENU_TIP_JAR, MENU_RESTART_STORY, mindfulMenu,
+  MENU_SHOW_FAVORITES, MENU_SHOW_CALENDAR, MENU_LIKE_POST,
+  MENU_LOG_REPLY, MENU_UNFAVORITE, MENU_CAL_TODAY,
+  favMenu, buildFavoritesEmptyPage, buildCalendarPage,
+  buildCalendarDaysPage, buildCalendarDayPage,
 } from './pages';
 import { SUPPORT_LATCH_KEY } from './support';
 import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl, ghostPreset } from './image-utils';
-import { isFavorite, toggleFavorite } from './favorites';
+import { isFavorite, toggleFavorite, isFavoriteText, getFavoriteEntries, onFavoritesChange } from './favorites';
+import { onWisdomLogChange } from './wisdomlog';
+import { addWisdomEntry } from './wisdomlog';
+import {
+  buildActivityMap, ActivityMap, renderMonthGrid, monthHeaderLine,
+  monthTitle, activeDaysOfMonth, CalDayRow, dayPages, dayTitle, dateKey,
+} from './glassCalendar';
+import { authHeaders, linkedHandle } from './enkiAccount';
+import { tGlass } from './i18n';
 import { setAccountBridge } from './enkiAccount';
 import {
   loadPersonas, setSpeakBridge, startConversation,
@@ -58,6 +70,7 @@ import { log } from './ui';
 
 // ═══ STATE ═══
 type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
+  | "favorites" | "calendar" | "calendar-days" | "calendar-day"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
   | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read"
   | "support";
@@ -65,13 +78,38 @@ type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
 let currentPage: Page = "home";
 /** Cursor into supportStoryPages() while reading the Support story. */
 let supportPageIndex = 0;
+
+// ── Favorites page state ──
+// Resolved once on open: favorites store texts → (philosopher, quote)
+// pairs via corpus lookup. Unresolvable texts (corpus regenerated since
+// the save) are kept OUT of the pager rather than shown attribution-less.
+let favView: { phil: Philosopher; quote: Quote }[] = [];
+let favIndex = 0;
+
+// ── Calendar state ──
+let calYear = 0;
+let calMonth0 = 0;                      // 0-based month being viewed
+let calActivity: ActivityMap = new Map();
+let calDayRows: CalDayRow[] = [];       // day-list rows for the viewed month
+let calDaysIdx = 0;                     // navpad cursor in the day list
+let calDayKey = "";                     // the opened day (YYYY-MM-DD)
+let calDayPageList: string[] = [];
+let calDayPageIdx = 0;
+
+// ── Mindful pick, kept for the menu ──
+// showMindfulQuote's pick used to be a local; the mindful menu's "Save
+// to favorites" needs it after the function returns.
+let lastMindfulPick: { phil: Philosopher; quote: Quote } | null = null;
 let currentTradition: Tradition | null = null;
 
 // Public Aphorica (on-glass community) state. Two levels: an author list
 // (community members, tagged by status like Seeker/Sage — browsed like
 // philosophers) → one member's thoughts, shuffled, with peer reactions.
 const APH_FEED_URL = 'https://sophicon-api.vercel.app/api/aphorica/supafeed';
-type AphPost = { text: string; up: number; down: number };
+// Same endpoint the phone dashboard uses (dashboard.ts APH_VOTE_URL):
+// POST { aphorismId, vote: 1 } with the pairing-token auth header.
+const APH_VOTE_URL = 'https://sophicon-api.vercel.app/api/aphorica/vote';
+type AphPost = { id: string; text: string; up: number; down: number };
 // Profile insight fields mirror enkiridion.com/profile (served by the
 // backend via public_profiles → supafeed author object).
 type AphAuthor = {
@@ -142,7 +180,7 @@ async function openAphorica(bridge: EvenAppBridge): Promise<void> {
         };
         byHandle.set(handle, a);
       }
-      a.posts.push({ text, up: Number(p.upvotes) || 0, down: Number(p.downvotes) || 0 });
+      a.posts.push({ id: String(p.id || ''), text, up: Number(p.upvotes) || 0, down: Number(p.downvotes) || 0 });
     }
     // Shuffle each member's posts so re-entry reshuffles like a philosopher.
     aphAuthors = [...byHandle.values()].map(a => ({ ...a, posts: aphShuffle(a.posts) }));
@@ -293,6 +331,7 @@ async function showMindfulQuote(bridge: EvenAppBridge): Promise<void> {
   if (!pick) { log("[MINDFUL] no quotes in pool", "error"); return; }
 
   mindfulShownCount += 1;
+  lastMindfulPick = { phil: pick.phil, quote: pick.quote };
 
   // Reuse the main QuoteView page layout — same sprite + quote + rich
   // meta (emotion / rarity stars / source / tags). Sets currentPage to
@@ -629,7 +668,41 @@ function shuffleArray<T>(arr: T[]): T[] {
 }
 
 // ═══ REGISTER ═══
+/** Cross-surface freshness: the phone and the glass share one store in
+ *  one webview. When the phone stars/un-stars or captures while a glass
+ *  page is SHOWING, re-resolve and repaint it — without this, favView
+ *  cycles ghosts and the calendar grid shows a stale month (review
+ *  finding). The navigating guard skips repaints the glass's own
+ *  handlers are already doing. */
+function wireStoreListeners(bridge: EvenAppBridge, baseUrl: string): void {
+  onFavoritesChange(() => {
+    if (navigating) return;
+    if (currentPage === "favorites") {
+      const keep = favView[favIndex]?.quote.text;
+      favView = resolveFavorites();
+      const idx = keep ? favView.findIndex(f => f.quote.text === keep) : -1;
+      favIndex = idx >= 0 ? idx : 0;
+      showFavorite(bridge, baseUrl).catch(() => {});
+    }
+  });
+  onWisdomLogChange(() => {
+    if (navigating) return;
+    if (currentPage === "calendar" || currentPage === "calendar-days") {
+      buildActivityMap().then(async (map) => {
+        calActivity = map;
+        if (currentPage === "calendar") await renderCalendar(bridge);
+        else if (currentPage === "calendar-days") {
+          calDayRows = activeDaysOfMonth(calYear, calMonth0, calActivity);
+          if (calDaysIdx >= calDayRows.length) calDaysIdx = 0;
+          if (calDayRows.length > 0) await renderCalendarDays(bridge);
+        }
+      }).catch(() => {});
+    }
+  });
+}
+
 export function registerEventHandlers(bridge: EvenAppBridge, baseUrl: string): () => void {
+  wireStoreListeners(bridge, baseUrl);
   bridgeRef = bridge;
   baseUrlRef = baseUrl;
   setSpeakBridge(bridge);
@@ -834,6 +907,34 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       lastNavigationTime = Date.now();
       await pushLogoToGlasses(bridge, baseUrl);
       log("< Back to Home", "success");
+    }
+    else if (currentPage === "favorites") {
+      try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
+      await bridge.rebuildPageContainer(rebuildHomePage());
+      currentPage = "home"; lastHoveredPhilIndex = -1;
+      lastNavigationTime = Date.now();
+      await pushLogoToGlasses(bridge, baseUrl);
+      log("< Back to Home", "success");
+    }
+    else if (currentPage === "calendar") {
+      try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
+      await bridge.rebuildPageContainer(rebuildHomePage());
+      currentPage = "home"; lastHoveredPhilIndex = -1;
+      lastNavigationTime = Date.now();
+      await pushLogoToGlasses(bridge, baseUrl);
+      log("< Back to Home", "success");
+    }
+    else if (currentPage === "calendar-days") {
+      await renderCalendar(bridge);
+      currentPage = "calendar";
+      lastNavigationTime = Date.now();
+      log("< Back to calendar", "success");
+    }
+    else if (currentPage === "calendar-day") {
+      await renderCalendarDays(bridge);
+      currentPage = "calendar-days";
+      lastNavigationTime = Date.now();
+      log("< Back to day list", "success");
     }
     else if (currentPage === "aphorica-read") {
       // Reading a member's thoughts → back to the member list.
@@ -1298,6 +1399,119 @@ async function onAppExiting(bridge: EvenAppBridge): Promise<void> {
 //   • List containers with isEventCapture:1 receive:
 //       listEvent for clicks (swipes are handled by the firmware, no event).
 //   • Image containers cannot capture.
+// ═══ FAVORITES PAGE ═══
+// The populated state reuses the quote-view layout (same reasoning as
+// mindful-quote): the wearer is looking at a quote, so it should look
+// like a quote. favMenu replaces quoteMenu because the handler state is
+// favView/favIndex, not the browse state.
+
+function resolveFavorites(): { phil: Philosopher; quote: Quote }[] {
+  const out: { phil: Philosopher; quote: Quote }[] = [];
+  for (const entry of getFavoriteEntries()) {
+    for (const phil of PHILOSOPHERS) {
+      const q = phil.quotes.find(qq => qq.text === entry.t);
+      if (q) { out.push({ phil, quote: q }); break; }
+    }
+  }
+  return out;
+}
+
+export async function openFavoritesPage(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  favView = resolveFavorites();
+  favIndex = 0;
+  if (favView.length === 0) {
+    await bridge.rebuildPageContainer(buildFavoritesEmptyPage());
+    currentPage = "favorites";
+    lastNavigationTime = Date.now();
+    log("> Favorites (empty)");
+    return;
+  }
+  currentPage = "favorites";
+  lastNavigationTime = Date.now();
+  await showFavorite(bridge, baseUrl);
+  log(`> Favorites (${favView.length})`, "success");
+}
+
+async function showFavorite(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  if (favView.length === 0) {
+    await bridge.rebuildPageContainer(buildFavoritesEmptyPage());
+    return;
+  }
+  const n = favView.length;
+  favIndex = ((favIndex % n) + n) % n;
+  const { phil, quote } = favView[favIndex];
+  await bridge.rebuildPageContainer(
+    buildQuoteViewPage(phil, quote, favIndex, n, true, false, favMenu())
+  );
+  if (quote.sprite) {
+    try { await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 100, 100); }
+    catch (e) { console.warn("[FAV] sprite push failed", e); }
+  }
+  publishState({ spritePath: quote.sprite });
+}
+
+// ═══ CALENDAR PAGES ═══
+
+export async function openCalendarPage(bridge: EvenAppBridge, toToday: boolean = true): Promise<void> {
+  calActivity = await buildActivityMap();
+  if (toToday || calYear === 0) {
+    const now = new Date();
+    calYear = now.getFullYear();
+    calMonth0 = now.getMonth();
+  }
+  await renderCalendar(bridge);
+  currentPage = "calendar";
+  lastNavigationTime = Date.now();
+  log("> Calendar", "success");
+}
+
+async function renderCalendar(bridge: EvenAppBridge): Promise<void> {
+  const header = monthHeaderLine(calYear, calMonth0, calActivity);
+  const grid = renderMonthGrid(calYear, calMonth0, calActivity);
+  const prefix = `${calYear}-${String(calMonth0 + 1).padStart(2, "0")}-`;
+  let hasActivity = false;
+  for (const key of calActivity.keys()) if (key.startsWith(prefix)) { hasActivity = true; break; }
+  await bridge.rebuildPageContainer(buildCalendarPage(calYear, calMonth0, header, grid, hasActivity));
+}
+
+function stepCalendarMonth(delta: number): void {
+  const d = new Date(calYear, calMonth0 + delta, 1);
+  const now = new Date();
+  // Clamp the future: next month past the current one is always empty.
+  if (d.getFullYear() > now.getFullYear() ||
+      (d.getFullYear() === now.getFullYear() && d.getMonth() > now.getMonth())) return;
+  calYear = d.getFullYear();
+  calMonth0 = d.getMonth();
+}
+
+async function openCalendarDays(bridge: EvenAppBridge): Promise<void> {
+  calDayRows = activeDaysOfMonth(calYear, calMonth0, calActivity);
+  if (calDayRows.length === 0) return;   // nothing to open; stay on the grid
+  calDaysIdx = 0;
+  await renderCalendarDays(bridge);
+  currentPage = "calendar-days";
+  lastNavigationTime = Date.now();
+}
+
+async function renderCalendarDays(bridge: EvenAppBridge): Promise<void> {
+  await bridge.rebuildPageContainer(
+    buildCalendarDaysPage(monthTitle(calYear, calMonth0), calDayRows.map(r => r.label), calDaysIdx)
+  );
+}
+
+async function openCalendarDay(bridge: EvenAppBridge): Promise<void> {
+  const row = calDayRows[calDaysIdx];
+  if (!row) return;
+  calDayKey = row.key;
+  calDayPageList = dayPages(calDayKey, calActivity);
+  calDayPageIdx = 0;
+  await bridge.rebuildPageContainer(
+    buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx)
+  );
+  currentPage = "calendar-day";
+  lastNavigationTime = Date.now();
+}
+
 // ═══ CONTEXTUAL MENU (SDK 0.0.14, firmware 2.2.9) ═══
 // One menuItemClickEvent per selection, carrying itemID and nothing
 // else. itemIDs are global (see pages.ts registry): one ID = one
@@ -1374,11 +1588,29 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
         return;
 
       case MENU_FAVORITE: {
-        // Quote page only (the mindful-quote state carries mindfulMenu,
-        // so this ID cannot arrive from there).
+        // Quote page uses browse state; mindful-quote uses the stored
+        // pick (its builder passes mindfulMenu precisely so this case
+        // can tell them apart by currentPage).
+        if (currentPage === "mindful-quote" && lastMindfulPick) {
+          const pick = lastMindfulPick;
+          const added = await toggleFavorite(pick.quote);
+          if (added) await addWisdomEntry("fav", pick.quote.text, pick.phil.name, pick.phil.tradition);
+          // Repaint so the ♥ actually changes where the wearer is
+          // looking (the mark is baked into the page text), then
+          // restore the sprite the rebuild blanked.
+          await bridge.rebuildPageContainer(
+            buildQuoteViewPage(pick.phil, pick.quote, mindfulShownCount - 1, mindfulShownCount, isFavorite(pick.quote), true, mindfulMenu())
+          );
+          if (pick.quote.sprite) {
+            try { await pushSpriteSingle(bridge, baseUrl, pick.quote.sprite, 3, "sprite", 100, 100); } catch { /* sprite is decoration */ }
+          }
+          log(`[MENU] mindful ${added ? "♥ saved" : "♥ removed"}`, "success");
+          return;
+        }
         if (currentPage !== "quote" || currentQuotes.length === 0) return;
         const q = currentQuotes[currentQuoteIndex];
         const added = await toggleFavorite(q);
+        if (added && currentPhilosopher) await addWisdomEntry("fav", q.text, currentPhilosopher.name, currentTradition || undefined);
         // The menu shows nothing — repaint the info strip so the ♥
         // appears/disappears where the wearer is already looking.
         await showCurrentQuote(bridge, baseUrl);
@@ -1388,12 +1620,21 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
 
       case MENU_SPEAK_THIS: {
         // The cross-mode jump: reading a philosopher → talking to them.
-        if (currentPage !== "quote" || !currentPhilosopher) return;
-        stopAutoRotate(); shuffleMode = false;
-        const trad = currentPhilosopher.tradition as Tradition;
+        // Works from the quote page (browse state) AND the favorites
+        // page (favView state) — same command, same meaning.
+        let jumpPhil: Philosopher | null = null;
+        if (currentPage === "quote" && currentPhilosopher) {
+          stopAutoRotate(); shuffleMode = false;
+          jumpPhil = currentPhilosopher;
+        } else if (currentPage === "favorites" && favView.length > 0) {
+          jumpPhil = favView[favIndex]?.phil ?? null;
+        }
+        if (!jumpPhil) return;
+        const trad = jumpPhil.tradition as Tradition;
         const phils = getPhilosophersByTradition(trad);
-        const idx = phils.findIndex(ph => ph.philId === currentPhilosopher!.philId);
-        if (idx < 0) return;   // quote-phil not speakable (should not happen)
+        const jumpId = jumpPhil.philId;
+        const idx = phils.findIndex(ph => ph.philId === jumpId);
+        if (idx < 0) return;   // not speakable (should not happen)
         speakTradition = trad;
         speakSelectedIndex = idx;
         await commitSpeakSelection(bridge, baseUrl);
@@ -1445,6 +1686,135 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
         supportPageIndex = 0;
         await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
         return;
+
+      case MENU_SHOW_FAVORITES:
+        if (currentPage !== "home") return;
+        await openFavoritesPage(bridge, baseUrl);
+        return;
+
+      case MENU_SHOW_CALENDAR:
+        if (currentPage !== "home") return;
+        await openCalendarPage(bridge, true);
+        return;
+
+      case MENU_UNFAVORITE: {
+        if (currentPage !== "favorites" || favView.length === 0) return;
+        const removed = favView[favIndex];
+        // REMOVE, never toggle: if the phone un-starred this quote while
+        // the pager was open, a toggle would silently RE-ADD it with a
+        // fresh timestamp. Only touch the store when it still has it.
+        if (isFavoriteText(removed.quote.text)) {
+          await toggleFavorite(removed.quote);
+          log("[MENU] ♥ removed", "success");
+        } else {
+          log("[MENU] already removed on the phone");
+        }
+        favView.splice(favIndex, 1);                  // view
+        if (favIndex >= favView.length) favIndex = 0;
+        await showFavorite(bridge, baseUrl);          // next entry or empty state
+        return;
+      }
+
+      case MENU_LOG_REPLY: {
+        // Capture the philosopher's latest reply into the wisdom log.
+        if (currentPage !== "speak-conversation" || !speakPhilosopher) return;
+        const reply = lastResponseText.trim();
+        if (!reply) return;
+        const philName = speakPhilosopher.name;
+        await addWisdomEntry("reply", reply, philName, speakTradition || undefined);
+        // Feedback on the page itself (the menu shows nothing): flash
+        // the phil-name line — container 4 IS "phil-name" on this page
+        // (a first draft aimed at a "status" container that exists
+        // nowhere; the flash silently missed) — then restore the name.
+        try {
+          await bridge.textContainerUpgrade({
+            containerID: 4, containerName: "phil-name",
+            content: tGlass("g.replyLogged"),
+          } as any);
+          setTimeout(async () => {
+            if (currentPage !== "speak-conversation") return;
+            try {
+              await bridge.textContainerUpgrade({
+                containerID: 4, containerName: "phil-name",
+                content: philName,
+              } as any);
+            } catch { /* cosmetic */ }
+          }, 2200);
+        } catch { /* cosmetic */ }
+        log("[MENU] reply logged", "success");
+        return;
+      }
+
+      case MENU_LIKE_POST: {
+        if (currentPage !== "aphorica-read") return;
+        const author = aphAuthors[aphAuthorIdx];
+        const post = author?.posts[aphReadIdx];
+        if (!author || !post || !post.id) return;
+        const handle = await linkedHandle();
+        if (!handle) {
+          // Unlinked: the server would 401 — say so where the wearer is
+          // looking instead of failing silently. Container 13 is the
+          // read page's info strip.
+          try {
+            await bridge.textContainerUpgrade({
+              containerID: 13, containerName: "text-3",
+              content: tGlass("g.likeLinkFirst"),
+            } as any);
+          } catch { /* cosmetic */ }
+          return;
+        }
+        // The vote request gets its own try: once the server has
+        // recorded the vote, a failure in the REPAINT must not tell the
+        // wearer the like failed (the review caught exactly that).
+        let liked = false;
+        try {
+          const resp = await fetch(APH_VOTE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+            body: JSON.stringify({ aphorismId: post.id, vote: 1 }),
+          });
+          if (resp.status === 401) {
+            // Token present but dead (revoked/expired) — "try again"
+            // would be a lie; re-linking is the actual fix.
+            try {
+              await bridge.textContainerUpgrade({
+                containerID: 13, containerName: "text-3",
+                content: tGlass("g.likeLinkFirst"),
+              } as any);
+            } catch { /* cosmetic */ }
+            return;
+          }
+          if (!resp.ok) throw new Error(`${resp.status}`);
+          // Number() never returns null, so `?? fallback` after it is
+          // dead code (review finding): validate with isFinite instead.
+          try {
+            const counts = await resp.json();
+            const up = Number(counts?.upvotes);
+            post.up = Number.isFinite(up) ? up : post.up + 1;
+          } catch { post.up += 1; }
+          liked = true;
+        } catch (e) {
+          console.warn("[MENU] like failed:", e);
+          try {
+            await bridge.textContainerUpgrade({
+              containerID: 13, containerName: "text-3",
+              content: tGlass("g.likeFailed"),
+            } as any);
+          } catch { /* cosmetic */ }
+          return;
+        }
+        if (liked) {
+          try { await renderAphoricaRead(bridge); } catch { /* count shows on next repaint */ }
+          try { await addWisdomEntry("like", post.text, author.handle); } catch { /* log is best-effort */ }
+          log(`[MENU] ♥ liked @${author.handle}`, "success");
+        }
+        return;
+      }
+
+      case MENU_CAL_TODAY:
+        if (currentPage !== "calendar" && currentPage !== "calendar-days" && currentPage !== "calendar-day") return;
+        await openCalendarPage(bridge, true);
+        return;
     }
   } finally {
     navigating = false;
@@ -1473,6 +1843,32 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
     const type = event.textEvent.eventType ?? 0;
     const up = type === OsEventTypeList.SCROLL_TOP_EVENT;     // 1
     const down = type === OsEventTypeList.SCROLL_BOTTOM_EVENT; // 2
+
+    // Favorites: swipe = previous/next saved quote, same wrap grammar
+    // as the quote page it visually is.
+    if (currentPage === "favorites" && favView.length > 0) {
+      if (up)   { favIndex -= 1; await showFavorite(bridge, baseUrl); return; }
+      if (down) { favIndex += 1; await showFavorite(bridge, baseUrl); return; }
+    }
+
+    // Calendar month view: swipe pages months (future months clamp).
+    if (currentPage === "calendar") {
+      if (up)   { stepCalendarMonth(-1); await renderCalendar(bridge); return; }
+      if (down) { stepCalendarMonth(+1); await renderCalendar(bridge); return; }
+    }
+
+    // Calendar day list: navpad cursor, same wrap as philosopher select.
+    if (currentPage === "calendar-days" && calDayRows.length > 0) {
+      const n = calDayRows.length;
+      if (up)   { calDaysIdx = (calDaysIdx - 1 + n) % n; await renderCalendarDays(bridge); return; }
+      if (down) { calDaysIdx = (calDaysIdx + 1) % n; await renderCalendarDays(bridge); return; }
+    }
+
+    // Calendar day detail: swipe pages entries, same grammar as support.
+    if (currentPage === "calendar-day" && calDayPageList.length > 0) {
+      if (up)   { calDayPageIdx -= 1; await bridge.rebuildPageContainer(buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx)); return; }
+      if (down) { calDayPageIdx += 1; await bridge.rebuildPageContainer(buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx)); return; }
+    }
 
     // Support story: swipe pages the letter both ways. Same grammar as
     // the quote page, so nothing new to learn.
@@ -1589,6 +1985,22 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
         await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
         return;
       }
+      // handleEvent is fire-and-forget (the subscription does not await
+      // it), so fast double-inputs interleave — the navigating flag is
+      // the same re-entrancy guard handleClick and handleMenuClick use.
+      if (currentPage === "favorites") {
+        if (navigating) return;
+        if (favView.length > 0) { favIndex += 1; await showFavorite(bridge, baseUrl); }
+        return;
+      }
+      if (currentPage === "calendar")      { if (navigating) return; await openCalendarDays(bridge); return; }
+      if (currentPage === "calendar-days") { if (navigating) return; await openCalendarDay(bridge); return; }
+      if (currentPage === "calendar-day") {
+        if (navigating) return;
+        calDayPageIdx += 1;                          // builder wraps
+        await bridge.rebuildPageContainer(buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx));
+        return;
+      }
       if (currentPage === "quote")              { await handleClick(bridge, 0, baseUrl); return; }
       if (currentPage === "speak-conversation") { await toggleMic(bridge, baseUrl); return; }
       // Public Aphorica member list: click opens that member's thoughts.
@@ -1665,6 +2077,12 @@ export async function repaintGlassForLanguage(bridge: EvenAppBridge, baseUrl: st
       await bridge.rebuildPageContainer(buildTraditionsPage());
       await pushLogoToGlasses(bridge, baseUrl);
       log("[LANG] philosophies repainted", "success");
+    } else if (currentPage === "favorites") {
+      await showFavorite(bridge, baseUrlRef);
+      log("[LANG] favorites repainted", "success");
+    } else if (currentPage === "calendar") {
+      await renderCalendar(bridge);
+      log("[LANG] calendar repainted", "success");
     } else if (currentPage === "support") {
       // Page boundaries differ per language, so an index from the old
       // language points nowhere sensible in the new one.

@@ -203,6 +203,31 @@ export const EN = {
   'g.menuTipJar': 'Open tip jar on phone',
   'g.menuRestartStory': 'Restart story',
 
+  // ─── 1.7.0: favorites page · calendar · captures ──────────────────
+  'g.favTitle': 'Favorites',
+  'g.favEmpty': 'No favorites yet. Open any quote, tap and hold, then Save to favorites.',
+  'g.favPos': '{i} of {n}',
+  'g.calActive': '{n} active',
+  'g.calStreak': '{n}-day streak',
+  'g.calLegend': '○ quiet · ● activity · ◆ today',
+  'g.calNoActivity': 'Nothing this month yet.',
+  'g.calEmptyDay': 'Nothing kept this day.',
+  'g.calSpoke': 'Spoke with {name}, {n} turns',
+  'g.calLogged': 'Reply from {name}',
+  'g.calLiked': 'Liked @{name}',
+  'g.likeDone': '♥ Liked',
+  'g.likeLinkFirst': 'Link your glasses on the phone to like',
+  'g.likeFailed': 'Like failed, try again',
+  'g.replyLogged': '● Logged to your journal',
+
+  // 1.7.0 menu verbs (32-byte cap enforced like the rest)
+  'g.menuShowFavorites': 'Show favorites',
+  'g.menuShowCalendar': 'Show calendar',
+  'g.menuLikePost': 'Like this post',
+  'g.menuLogReply': 'Log this reply',
+  'g.menuUnfavorite': 'Remove from favorites',
+  'g.menuCalToday': 'Go to today',
+
   'g.pagePrev': 'swipe up',
   'g.pageNext': 'click for more',
   'g.pageEnd': 'end. Full story + tip jar on your phone.',

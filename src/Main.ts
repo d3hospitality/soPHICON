@@ -18,10 +18,12 @@
 import { waitForEvenAppBridge, DeviceConnectType } from '@evenrealities/even_hub_sdk';
 import { buildHomePage, loadGlanceLine } from './pages';
 import { pushLogoToGlasses } from './image-utils';
-import { registerEventHandlers, repaintGlassForLanguage } from './events';
+import { registerEventHandlers, repaintGlassForLanguage, openFavoritesPage, openCalendarPage } from './events';
 import { setStatus, setBattery, log } from './ui';
 import { TOTAL_QUOTES, TOTAL_PHILOSOPHERS, TOTAL_TRADITIONS } from './constants';
 import { initDashboard } from './dashboard';
+import { initFavorites } from './favorites';
+import { initWisdomLog } from './wisdomlog';
 import { initLang, glassLang, onLangChange } from './i18n';
 
 async function main(): Promise<void> {
@@ -84,6 +86,12 @@ async function main(): Promise<void> {
   const picked = await initLang(bridge);
   log(`Language: ${picked}${glassLang() !== picked ? ` (glasses: ${glassLang()})` : ''}`);
 
+  // Favorites + wisdom log BEFORE the first page: the quote page's ♥
+  // mark and the calendar read these, and the 1.6.0 bug was exactly
+  // this call being missing — toggles wrote to an unloaded store.
+  await initFavorites(bridge);
+  await initWisdomLog(bridge);
+
   // Glance line for the Home page — cached by the companion sync into
   // bridge.localStorage. Best-effort; empty when nothing is synced.
   try { await loadGlanceLine(bridge); } catch { /* render without it */ }
@@ -107,6 +115,54 @@ async function main(): Promise<void> {
 
   registerEventHandlers(bridge, baseUrl);
   log("Events active", "success");
+
+  // QA deep-link: ?glass=favorites|calendar jumps straight to a page
+  // whose only production entrance is the contextual menu — which the
+  // desktop simulator cannot open (no tap-and-hold in its automation
+  // API, pre-2.2.9 protocol). Not persisted, harmless in production.
+  try {
+    const qa = new URLSearchParams(location.search);
+    // &seed=1 (DEV BUILDS ONLY — import.meta.env.DEV is false in the
+    // packed .ehpk, so this is unreachable in production) writes a few
+    // favorites / wisdom entries / one journal session so the populated
+    // states can be exercised in the simulator, where the contextual
+    // menu that normally creates them cannot be opened.
+    if (import.meta.env.DEV && qa.get('seed') === '1') {
+      const day = 86400000, now = Date.now();
+      const seedQuotes = [
+        'I cannot teach anybody anything, I can only make them think.',
+        'You have power over your mind - not outside events. Realize this, and you will find strength.',
+        'The impediment to action advances action. What stands in the way becomes the way.',
+      ];
+      await bridge.setLocalStorage('enki_favorites', JSON.stringify([
+        { t: seedQuotes[0], ts: now - 2 * day },
+        { t: seedQuotes[1], ts: now - day },
+        { t: seedQuotes[2], ts: now },
+      ]));
+      await bridge.setLocalStorage('wisdom_log', JSON.stringify([
+        { ts: now - 2 * day, kind: 'fav', text: seedQuotes[0], who: 'Socrates', trad: 'Greek' },
+        { ts: now - day, kind: 'reply', text: 'Lower the bucket slowly. The well is deep.', who: 'Enki', trad: 'Primordial' },
+        { ts: now, kind: 'fav', text: seedQuotes[2], who: 'Marcus Aurelius', trad: 'Stoicism' },
+        { ts: now, kind: 'like', text: 'The obstacle is the tuition.', who: 'romario' },
+      ]));
+      await bridge.setLocalStorage('speak_journal', JSON.stringify([{
+        date: new Date(now - day).toISOString().slice(0, 10),
+        philId: 'marcus_aurelius', philName: 'Marcus Aurelius', tradition: 'Stoicism',
+        startTs: now - day, endTs: now - day + 600000,
+        exchanges: [
+          { role: 'user', content: 'How do I stop postponing?' },
+          { role: 'assistant', content: 'Stop arguing about what a good man is. Be one.' },
+        ],
+      }]));
+      const { initFavorites: reFav } = await import('./favorites');
+      const { initWisdomLog: reWl } = await import('./wisdomlog');
+      await reFav(bridge); await reWl(bridge);
+      log('[QA] seeded favorites + wisdom + journal');
+    }
+    const jump = qa.get('glass');
+    if (jump === 'favorites') await openFavoritesPage(bridge, baseUrl);
+    else if (jump === 'calendar') await openCalendarPage(bridge, true);
+  } catch { /* QA hook only */ }
 
   // Phone-side dashboard (tabs, live glass-state mirror, sprite debug)
   await initDashboard(bridge, baseUrl);

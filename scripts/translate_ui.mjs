@@ -93,6 +93,7 @@ function systemPrompt(langName, kind) {
       '',
       'THESE ARE SMART-GLASSES STRINGS. They render on a 576x288 monochrome HUD about ten words wide.',
       'Be RUTHLESSLY short — shorter than the English if you can. Abbreviate rather than wrap. Never exceed the source length by more than 15%.',
+      'Strings whose key was announced as a MENU LABEL must fit 32 UTF-8 BYTES (Cyrillic letters cost 2 bytes each, CJK 3). Prefer a shorter verb over a faithful phrase: for "Remove from favorites", Russian \u0423\u0431\u0440\u0430\u0442\u044c beats any full rendering that busts the cap.',
     );
   }
   if (kind === 'letter') {
@@ -159,6 +160,22 @@ function validate(key, src, out, code) {
   if (placeholdersOf(src) !== placeholdersOf(out)) return `placeholder drift (${placeholdersOf(src)} → ${placeholdersOf(out)})`;
   // The support body is PROSE in one wrapping container, so its budget
   // is wrapped LINE COUNT, not single-line width like every other g.* key.
+  // Glass BODY strings render in wide wrapping containers, not 380px
+  // rows — validate by wrapped line count against their real budget.
+  // (g.favEmpty: 528px x 4 lines; g.calNoActivity: 2 lines appended
+  // under the grid; g.calEmptyDay + g.likeLinkFirst: single body lines
+  // with room to wrap.) The 380px single-row check rejected perfectly
+  // good Russian here.
+  const GLASS_BODY_KEYS = {
+    'g.favEmpty': 4, 'g.calNoActivity': 1, 'g.calEmptyDay': 2,
+    'g.likeLinkFirst': 2, 'g.likeFailed': 1, 'g.replyLogged': 1,
+  };
+  if (key in GLASS_BODY_KEYS && measureTextWrap) {
+    const m = measureTextWrap(out, GLASS_BODY_W);
+    if (m.lineCount > GLASS_BODY_KEYS[key]) return `wraps to ${m.lineCount} lines, budget is ${GLASS_BODY_KEYS[key]}`;
+    return null;
+  }
+
   // Contextual-menu labels: HARD 32-UTF-8-BYTE firmware cap. Not a
   // style budget — one over-long label makes the SDK reject the whole
   // page payload (INVALID_MENU_ITEM_NAME) and the glasses go blank.

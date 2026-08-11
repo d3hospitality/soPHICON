@@ -279,6 +279,12 @@ export const MENU_DEV_STORY = 7;
 export const MENU_NEW_MINDFUL = 8;
 export const MENU_TIP_JAR = 9;
 export const MENU_RESTART_STORY = 10;
+export const MENU_SHOW_FAVORITES = 11;
+export const MENU_SHOW_CALENDAR = 12;
+export const MENU_LIKE_POST = 13;
+export const MENU_LOG_REPLY = 14;
+export const MENU_UNFAVORITE = 15;
+export const MENU_CAL_TODAY = 16;
 
 /** Truncate a menu label to the firmware's 32-UTF-8-byte cap.
  *
@@ -312,13 +318,16 @@ function menu(items: MenuSpec): MenuContainerProperty | undefined {
 /** Per-page menus. A FUNCTION per page (not consts) so labels re-read
  *  the dictionary on every rebuild — same reason homeListItems() is a
  *  function. Composition per docs/GLASS-PAGES.md. */
-function homeMenu()      { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuDevStory'), MENU_DEV_STORY]]); }
+function homeMenu()      { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuShowFavorites'), MENU_SHOW_FAVORITES], [tGlass('g.menuShowCalendar'), MENU_SHOW_CALENDAR], [tGlass('g.menuDevStory'), MENU_DEV_STORY]]); }
 function browseMenu()    { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
 function quoteMenu()     { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
 function transitMenu()   { return menu([[tGlass('g.menuHome'), MENU_HOME]]); }
-function convoMenu()     { return menu([[tGlass('g.menuEndConvo'), MENU_END_CONVO], [tGlass('g.menuHome'), MENU_HOME]]); }
-export function mindfulMenu()   { return menu([[tGlass('g.menuNewMindful'), MENU_NEW_MINDFUL], [tGlass('g.menuHome'), MENU_HOME]]); }
+function convoMenu()     { return menu([[tGlass('g.menuLogReply'), MENU_LOG_REPLY], [tGlass('g.menuEndConvo'), MENU_END_CONVO], [tGlass('g.menuHome'), MENU_HOME]]); }
+export function mindfulMenu()   { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuNewMindful'), MENU_NEW_MINDFUL], [tGlass('g.menuHome'), MENU_HOME]]); }
 function aphoricaMenu()  { return menu([[tGlass('g.menuRefresh'), MENU_REFRESH], [tGlass('g.menuHome'), MENU_HOME]]); }
+function aphoricaReadMenu() { return menu([[tGlass('g.menuLikePost'), MENU_LIKE_POST], [tGlass('g.menuRefresh'), MENU_REFRESH], [tGlass('g.menuHome'), MENU_HOME]]); }
+export function favMenu()   { return menu([[tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuUnfavorite'), MENU_UNFAVORITE], [tGlass('g.menuHome'), MENU_HOME]]); }
+function calMenu()          { return menu([[tGlass('g.menuCalToday'), MENU_CAL_TODAY], [tGlass('g.menuHome'), MENU_HOME]]); }
 function supportMenu()   { return menu([[tGlass('g.menuTipJar'), MENU_TIP_JAR], [tGlass('g.menuRestartStory'), MENU_RESTART_STORY], [tGlass('g.menuHome'), MENU_HOME]]); }
 
 // ═══ Glass chrome ═══
@@ -636,7 +645,7 @@ export function buildAphoricaReadPage(
     zOrderIndex: 3,
   });
   return new RebuildPageContainer({
-    menuObject: aphoricaMenu(),
+    menuObject: aphoricaReadMenu(),
     containerTotalNum: 3,
     listObject: [],
     textObject: [body, info],
@@ -1294,4 +1303,156 @@ export function composeSpeakResponseContent(
     ? `  [${clampedIdx + 1}/${pages.length}] ${progressBar(clampedIdx + 1, pages.length, 4)}`
     : "";
   return capForGlass(`${status}${marker}\n${shown}`);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FAVORITES — empty state (the populated state reuses buildQuoteViewPage
+// with favMenu + a position line; see showFavorite in events.ts)
+// ══════════════════════════════════════════════════════════════════
+
+/** Shown when the wearer opens Favorites with nothing saved. Hand-coded
+ *  geometry (system utility, same rationale as support/mindful pages —
+ *  pages.layout.ts is editor-owned and rewritten wholesale on Save). */
+export function buildFavoritesEmptyPage(): RebuildPageContainer {
+  const header = new TextContainerProperty({
+    xPosition: 24, yPosition: 2, width: 528, height: 34,
+    containerID: 1, containerName: "fav-header",
+    content: `enkiRIDION · ${tGlass('g.favTitle')}`,
+    isEventCapture: 0,
+    zOrderIndex: 2,
+  });
+  const body = new TextContainerProperty({
+    xPosition: 24, yPosition: 96, width: 528, height: 108,
+    containerID: 2, containerName: "fav-empty",
+    content: capForGlass(tGlass('g.favEmpty')),
+    isEventCapture: 1,   // the page's single capture container
+    zOrderIndex: 3,
+  });
+  return new RebuildPageContainer({
+    menuObject: menu([[tGlass('g.menuHome'), MENU_HOME]]),
+    containerTotalNum: 2,
+    listObject: [],
+    textObject: [header, body],
+    imageObject: [],
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CALENDAR — month overview · day list · day detail
+// All firmware text, zero image cost: the grid is one glyph per day
+// (7 lines for a 6-week month), which no drawn canvas could beat for
+// BLE economy. Hand-coded geometry, same as the other system pages.
+// ══════════════════════════════════════════════════════════════════
+
+/** Month overview. The GRID is the capture container: swipes page
+ *  months (up = previous, down = next), click opens the day list,
+ *  double-tap goes home. Header carries month + active days + streak;
+ *  legend is dimmed chrome (brightness 2 on 2.2.9 hosts). */
+export function buildCalendarPage(
+  year: number, month0: number,
+  headerLine: string, gridText: string, hasActivity: boolean,
+): RebuildPageContainer {
+  const header = new TextContainerProperty({
+    xPosition: 24, yPosition: 2, width: 528, height: 34,
+    containerID: 1, containerName: "cal-header",
+    content: capForGlass(headerLine),
+    isEventCapture: 0,
+    zOrderIndex: 2,
+  });
+  // 8 lines max (weekday header + 6 weeks) at 27px = 216px.
+  const grid = new TextContainerProperty({
+    xPosition: 168, yPosition: 38, width: 384, height: 216,
+    containerID: 2, containerName: "cal-grid",
+    content: capForGlass(gridText),
+    isEventCapture: 1,
+    zOrderIndex: 3,
+  });
+  const legend = new TextContainerProperty({
+    xPosition: 24, yPosition: 250, width: 528, height: 34,
+    containerID: 3, containerName: "cal-legend",
+    // Empty month: the no-activity line takes the legend slot (1 line)
+    // rather than being appended under the grid, which overflowed the
+    // 216px container in every language and silently ate the message.
+    content: hasActivity ? tGlass('g.calLegend') : tGlass('g.calNoActivity'),
+    isEventCapture: 0,
+    zOrderIndex: 4,
+    ...(hostSupports214 ? { textColor: 2 } : {}),
+  });
+  return new RebuildPageContainer({
+    menuObject: calMenu(),
+    containerTotalNum: 3,
+    listObject: [],
+    textObject: [header, grid, legend],
+    imageObject: [],
+  });
+}
+
+/** Day list for one month — the firmware-native selection surface.
+ *  Rows come from activeDaysOfMonth ("11 · 2▶ 1♥"); navpad pattern with
+ *  events.ts owning the cursor, exactly like philosopher select. */
+export function buildCalendarDaysPage(
+  monthName: string, rows: string[], index: number,
+): RebuildPageContainer {
+  const total = rows.length;
+  const idx = Math.max(0, Math.min(index, Math.max(0, total - 1)));
+  const navText = total === 0 ? tGlass('g.calNoActivity') : renderNavpad(rows, idx, 7);
+  const header = new TextContainerProperty({
+    xPosition: 40, yPosition: 6, width: 496, height: 34,
+    containerID: 1, containerName: "cal-days-header",
+    content: capForGlass(monthName),
+    isEventCapture: 0,
+    zOrderIndex: 2,
+  });
+  const navpad = new TextContainerProperty({
+    xPosition: 24, yPosition: 40, width: 528, height: 240,
+    containerID: 2, containerName: "cal-days",
+    content: navText, isEventCapture: 1,
+    zOrderIndex: 3,
+  });
+  return new RebuildPageContainer({
+    menuObject: calMenu(),
+    containerTotalNum: 2,
+    listObject: [],
+    textObject: [header, navpad],
+    imageObject: [],
+  });
+}
+
+/** One day's captures, paged like the support story (same budget math
+ *  in glassCalendar.dayPages). Click = next page, swipe = both ways,
+ *  double-tap = back to the day list. */
+export function buildCalendarDayPage(
+  title: string, pages: string[], pageIndex: number,
+): RebuildPageContainer {
+  const total = Math.max(1, pages.length);
+  const idx = ((pageIndex % total) + total) % total;
+  const header = new TextContainerProperty({
+    xPosition: 24, yPosition: 2, width: 528, height: 34,
+    containerID: 1, containerName: "cal-day-header",
+    content: capForGlass(`${title}    ${idx + 1}/${total}`),
+    isEventCapture: 0,
+    zOrderIndex: 2,
+  });
+  const body = new TextContainerProperty({
+    xPosition: 24, yPosition: 38, width: 528, height: 210,
+    containerID: 2, containerName: "cal-day-body",
+    content: capForGlass(pages[idx] ?? ''),
+    isEventCapture: 1,
+    zOrderIndex: 3,
+  });
+  const pager = new TextContainerProperty({
+    xPosition: 24, yPosition: 250, width: 528, height: 34,
+    containerID: 3, containerName: "cal-day-pager",
+    content: total > 1 ? `◀ ${tGlass('g.pagePrev')}   ·   ${tGlass('g.pageNext')} ▶` : '',
+    isEventCapture: 0,
+    zOrderIndex: 4,
+    ...(hostSupports214 ? { textColor: 2 } : {}),
+  });
+  return new RebuildPageContainer({
+    menuObject: calMenu(),
+    containerTotalNum: 3,
+    listObject: [],
+    textObject: [header, body, pager],
+    imageObject: [],
+  });
 }

@@ -12,6 +12,8 @@ import {
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
   buildSpeakConversationPage, buildMindfulnessBlankPage,
   buildAphoricaPage, buildAphoricaReadPage, buildSupportPage,
+  buildFavoritesEmptyPage, buildCalendarPage, buildCalendarDaysPage,
+  buildCalendarDayPage, favMenu,
   BROWSABLE_TRADITIONS,
 } from '../src/pages';
 import { PHILOSOPHERS, getQuotePhilosophersByTradition } from '../src/constants';
@@ -34,6 +36,11 @@ const pages: [string, any][] = [
   ['aphorica',             buildAphoricaPage(['@a · SAGE (3)'], 0)],
   ['aphorica-read',        buildAphoricaReadPage('@a · SAGE', 'text', 1, 0, 0, 1, null, null, null, [], null)],
   ['support',              buildSupportPage(0)],
+  ['favorites (empty)',    buildFavoritesEmptyPage()],
+  ['favorites (viewer)',   buildQuoteViewPage(phil, quote, 0, 3, true, false, favMenu())],
+  ['calendar',             buildCalendarPage(2026, 7, 'August 2026 · 3 active', 'M T W T F S S\n· ● ● ◆ · · ·', true)],
+  ['calendar-days',        buildCalendarDaysPage('August 2026', ['11 · 2▶ 1♥', '10 · 1●'], 0)],
+  ['calendar-day',         buildCalendarDayPage('11 August', ['14:32 ▶ Spoke with Socrates, 3 turns'], 0)],
 ];
 
 let bad = 0;

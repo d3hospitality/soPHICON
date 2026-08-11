@@ -250,6 +250,41 @@ across the gap on demand.
 
 ---
 
+## FAVORITES (1.7.0)
+
+**Shows** each saved quote through the quote-view layout (portrait, info
+strip with ♥, position `i/n`), newest save first. Empty state: a single
+explanatory line. Texts that no longer match the corpus (regenerated
+quotes) are held out of the pager but stay in the store, the phone
+Picks tab, and the calendar history.
+
+**Menu** `Speak with this philosopher · Remove from favorites · Go home`
+
+**Review notes** Favorites are ONE store for both surfaces since 1.7.0
+(`enki_favorites_v2`, timestamped; the v2 suffix protects users running
+a cached 1.5.x phone view, whose reader would destroy the new format).
+Remove is remove, never toggle — a phone-side un-star while the pager
+is open must not silently re-save. Cross-surface changes repaint the
+open pager live.
+
+## CALENDAR · DAYS · DAY (1.7.0)
+
+**Shows** month overview as an equal-advance glyph grid (○ quiet ·
+● activity · ◆ today — all measured 20px; a proportional '·' made
+columns wander, and Latin weekday initials can never align, so there is
+no weekday header), with active-day count and streak in the header. →
+day list navpad (`11 · 1▶ 2♥`) → day detail, paged like the support
+story. Swipe pages months / cycles days / pages entries; click drills
+in; double-tap walks back up.
+
+**Menu** `Go to today · Go home` on all three levels.
+
+**Data** talks from `speak_journal`; saves and logs from the
+`wisdom_log` — an APPEND-ONLY capture history (saves, logged replies,
+likes), so un-favoriting later never rewrites the day you saved it.
+Free-tier talks still leave no trace (checkpointing is entitlement-
+gated) — captures are the free tier's visible history.
+
 ## Cross-cutting notes from this review
 
 1. **Every create/rebuild return value is now checked** (wrapper in
