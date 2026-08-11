@@ -158,5 +158,6 @@
   "g.calNoActivity": "Noch nichts diesen Monat.",
   "g.menuPrevMonth": "Voriger Monat",
   "g.menuNextMonth": "Nächster Monat",
-  "g.calQuietDay": "ruhig"
+  "g.calQuietDay": "ruhig",
+  "g.calKept": "Behalten @{name}"
 }

@@ -158,5 +158,6 @@
   "g.menuCalToday": "前往今天",
   "g.menuPrevMonth": "上月",
   "g.menuNextMonth": "下月",
-  "g.calQuietDay": "安静"
+  "g.calQuietDay": "安静",
+  "g.calKept": "已保存@{name}"
 }

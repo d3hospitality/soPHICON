@@ -158,5 +158,6 @@
   "g.favEmpty": "Aún no hay favoritos. Abre una cita, mantén presionado y guarda en favoritos.",
   "g.menuPrevMonth": "Mes anterior",
   "g.menuNextMonth": "Mes siguiente",
-  "g.calQuietDay": "silencio"
+  "g.calQuietDay": "silencio",
+  "g.calKept": "Guardado @{name}"
 }

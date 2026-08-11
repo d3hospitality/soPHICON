@@ -158,5 +158,6 @@
   "g.menuUnfavorite": "Убрать из избр.",
   "g.menuPrevMonth": "Прошлый месяц",
   "g.menuNextMonth": "Следующий месяц",
-  "g.calQuietDay": "тихо"
+  "g.calQuietDay": "тихо",
+  "g.calKept": "Сохранено @{name}"
 }
