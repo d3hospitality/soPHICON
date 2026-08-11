@@ -267,17 +267,25 @@ Remove is remove, never toggle — a phone-side un-star while the pager
 is open must not silently re-save. Cross-surface changes repaint the
 open pager live.
 
-## CALENDAR · DAYS · DAY (1.7.0)
+## CALENDAR · DAY (1.7.1 — TEMPO's grammar)
 
 **Shows** month overview as an equal-advance glyph grid (○ quiet ·
-● activity · ◆ today — all measured 20px; a proportional '·' made
-columns wander, and Latin weekday initials can never align, so there is
-no weekday header), with active-day count and streak in the header. →
-day list navpad (`11 · 1▶ 2♥`) → day detail, paged like the support
-story. Swipe pages months / cycles days / pages entries; click drills
-in; double-tap walks back up.
+● activity · ◆ today · ■ the cursor — all measured 20px; a
+proportional '·' made columns wander, and Latin weekday initials can
+never align, so there is no weekday header), active-day count and
+streak in the header, and a live footer previewing the day under the
+cursor: `◀ Tue 11 ◆ · 1♥ 1● ▶`.
 
-**Menu** `Go to today · Go home` on all three levels.
+**Grammar — lifted from TEMPO's shipped calendar** (d3hospitality/tempo
+v2.16, `renderCalendar`/`calFooterLine`): swipes move a DAY CURSOR one
+day at a time, crossing a month edge flips the month implicitly, the
+future is clamped at today, and click opens the day under the cursor
+directly — no intermediate day list. The footer tells you what a click
+opens before you commit. Month jumps are menu verbs. TEMPO draws its
+calendar as canvas tiles; this one is pure firmware text, so a day move
+costs nothing over BLE.
+
+**Menu** `Previous month · Next month · Go to today · Go home`.
 
 **Data** talks from `speak_journal`; saves and logs from the
 `wisdom_log` — an APPEND-ONLY capture history (saves, logged replies,

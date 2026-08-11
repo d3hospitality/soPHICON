@@ -155,5 +155,8 @@
   "g.menuUnfavorite": "Remover dos favoritos",
   "g.menuCalToday": "Ir para hoje",
   "g.favEmpty": "Ainda sem favoritos. Abra uma citação, toque e segure, depois Salvar nos favoritos.",
-  "g.calNoActivity": "Nada este mês ainda."
+  "g.calNoActivity": "Nada este mês ainda.",
+  "g.menuPrevMonth": "Mês anterior",
+  "g.menuNextMonth": "Próximo mês",
+  "g.calQuietDay": "silêncio"
 }

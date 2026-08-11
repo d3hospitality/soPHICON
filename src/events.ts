@@ -45,7 +45,7 @@ import {
   MENU_SHOW_FAVORITES, MENU_SHOW_CALENDAR, MENU_LIKE_POST,
   MENU_LOG_REPLY, MENU_UNFAVORITE, MENU_CAL_TODAY,
   favMenu, buildFavoritesEmptyPage, buildCalendarPage,
-  buildCalendarDaysPage, buildCalendarDayPage,
+  buildCalendarDayPage, MENU_CAL_PREV, MENU_CAL_NEXT,
 } from './pages';
 import { SUPPORT_LATCH_KEY } from './support';
 import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl, ghostPreset } from './image-utils';
@@ -54,7 +54,7 @@ import { onWisdomLogChange } from './wisdomlog';
 import { addWisdomEntry } from './wisdomlog';
 import {
   buildActivityMap, ActivityMap, renderMonthGrid, monthHeaderLine,
-  monthTitle, activeDaysOfMonth, CalDayRow, dayPages, dayTitle, dateKey,
+  cursorPreviewLine, shiftDayKey, dayPages, dayTitle, dateKey,
 } from './glassCalendar';
 import { authHeaders, linkedHandle } from './enkiAccount';
 import { tGlass } from './i18n';
@@ -70,7 +70,7 @@ import { log } from './ui';
 
 // ═══ STATE ═══
 type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
-  | "favorites" | "calendar" | "calendar-days" | "calendar-day"
+  | "favorites" | "calendar" | "calendar-day"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
   | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read"
   | "support";
@@ -87,11 +87,8 @@ let favView: { phil: Philosopher; quote: Quote }[] = [];
 let favIndex = 0;
 
 // ── Calendar state ──
-let calYear = 0;
-let calMonth0 = 0;                      // 0-based month being viewed
+let calCursorKey = "";                  // the day under the ■ cursor
 let calActivity: ActivityMap = new Map();
-let calDayRows: CalDayRow[] = [];       // day-list rows for the viewed month
-let calDaysIdx = 0;                     // navpad cursor in the day list
 let calDayKey = "";                     // the opened day (YYYY-MM-DD)
 let calDayPageList: string[] = [];
 let calDayPageIdx = 0;
@@ -687,15 +684,10 @@ function wireStoreListeners(bridge: EvenAppBridge, baseUrl: string): void {
   });
   onWisdomLogChange(() => {
     if (navigating) return;
-    if (currentPage === "calendar" || currentPage === "calendar-days") {
+    if (currentPage === "calendar") {
       buildActivityMap().then(async (map) => {
         calActivity = map;
         if (currentPage === "calendar") await renderCalendar(bridge);
-        else if (currentPage === "calendar-days") {
-          calDayRows = activeDaysOfMonth(calYear, calMonth0, calActivity);
-          if (calDaysIdx >= calDayRows.length) calDaysIdx = 0;
-          if (calDayRows.length > 0) await renderCalendarDays(bridge);
-        }
       }).catch(() => {});
     }
   });
@@ -924,17 +916,11 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       await pushLogoToGlasses(bridge, baseUrl);
       log("< Back to Home", "success");
     }
-    else if (currentPage === "calendar-days") {
+    else if (currentPage === "calendar-day") {
       await renderCalendar(bridge);
       currentPage = "calendar";
       lastNavigationTime = Date.now();
       log("< Back to calendar", "success");
-    }
-    else if (currentPage === "calendar-day") {
-      await renderCalendarDays(bridge);
-      currentPage = "calendar-days";
-      lastNavigationTime = Date.now();
-      log("< Back to day list", "success");
     }
     else if (currentPage === "aphorica-read") {
       // Reading a member's thoughts → back to the member list.
@@ -1454,11 +1440,7 @@ async function showFavorite(bridge: EvenAppBridge, baseUrl: string): Promise<voi
 
 export async function openCalendarPage(bridge: EvenAppBridge, toToday: boolean = true): Promise<void> {
   calActivity = await buildActivityMap();
-  if (toToday || calYear === 0) {
-    const now = new Date();
-    calYear = now.getFullYear();
-    calMonth0 = now.getMonth();
-  }
+  if (toToday || !calCursorKey) calCursorKey = dateKey(new Date());
   await renderCalendar(bridge);
   currentPage = "calendar";
   lastNavigationTime = Date.now();
@@ -1466,43 +1448,33 @@ export async function openCalendarPage(bridge: EvenAppBridge, toToday: boolean =
 }
 
 async function renderCalendar(bridge: EvenAppBridge): Promise<void> {
-  const header = monthHeaderLine(calYear, calMonth0, calActivity);
-  const grid = renderMonthGrid(calYear, calMonth0, calActivity);
-  const prefix = `${calYear}-${String(calMonth0 + 1).padStart(2, "0")}-`;
-  let hasActivity = false;
-  for (const key of calActivity.keys()) if (key.startsWith(prefix)) { hasActivity = true; break; }
-  await bridge.rebuildPageContainer(buildCalendarPage(calYear, calMonth0, header, grid, hasActivity));
+  const [y, m] = calCursorKey.split("-").map(Number);
+  const header = monthHeaderLine(y, m - 1, calActivity);
+  const grid = renderMonthGrid(y, m - 1, calActivity, calCursorKey);
+  const footer = cursorPreviewLine(calCursorKey, calActivity);
+  await bridge.rebuildPageContainer(buildCalendarPage(y, m - 1, header, grid, footer));
 }
 
-function stepCalendarMonth(delta: number): void {
-  const d = new Date(calYear, calMonth0 + delta, 1);
-  const now = new Date();
-  // Clamp the future: next month past the current one is always empty.
-  if (d.getFullYear() > now.getFullYear() ||
-      (d.getFullYear() === now.getFullYear() && d.getMonth() > now.getMonth())) return;
-  calYear = d.getFullYear();
-  calMonth0 = d.getMonth();
+/** Move the day cursor ±n days. Crossing a month edge flips the month
+ *  implicitly (TEMPO's grammar: "a day move and a month flip cost the
+ *  same thing"). The future is clamped at today — there is nothing to
+ *  review there. */
+function stepCalendarCursor(delta: number): void {
+  const next = shiftDayKey(calCursorKey, delta);
+  if (next > dateKey(new Date())) return;
+  calCursorKey = next;
 }
 
-async function openCalendarDays(bridge: EvenAppBridge): Promise<void> {
-  calDayRows = activeDaysOfMonth(calYear, calMonth0, calActivity);
-  if (calDayRows.length === 0) return;   // nothing to open; stay on the grid
-  calDaysIdx = 0;
-  await renderCalendarDays(bridge);
-  currentPage = "calendar-days";
-  lastNavigationTime = Date.now();
-}
-
-async function renderCalendarDays(bridge: EvenAppBridge): Promise<void> {
-  await bridge.rebuildPageContainer(
-    buildCalendarDaysPage(monthTitle(calYear, calMonth0), calDayRows.map(r => r.label), calDaysIdx)
-  );
+/** Month jump for the menu verbs: land on day 1, clamped to today. */
+function jumpCalendarMonth(delta: number): void {
+  const [y, m] = calCursorKey.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  const key = dateKey(d);
+  calCursorKey = key > dateKey(new Date()) ? dateKey(new Date()) : key;
 }
 
 async function openCalendarDay(bridge: EvenAppBridge): Promise<void> {
-  const row = calDayRows[calDaysIdx];
-  if (!row) return;
-  calDayKey = row.key;
+  calDayKey = calCursorKey;
   calDayPageList = dayPages(calDayKey, calActivity);
   calDayPageIdx = 0;
   await bridge.rebuildPageContainer(
@@ -1812,8 +1784,15 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
       }
 
       case MENU_CAL_TODAY:
-        if (currentPage !== "calendar" && currentPage !== "calendar-days" && currentPage !== "calendar-day") return;
+        if (currentPage !== "calendar" && currentPage !== "calendar-day") return;
         await openCalendarPage(bridge, true);
+        return;
+
+      case MENU_CAL_PREV:
+      case MENU_CAL_NEXT:
+        if (currentPage !== "calendar") return;
+        jumpCalendarMonth(itemID === MENU_CAL_PREV ? -1 : +1);
+        await renderCalendar(bridge);
         return;
     }
   } finally {
@@ -1851,17 +1830,11 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       if (down) { favIndex += 1; await showFavorite(bridge, baseUrl); return; }
     }
 
-    // Calendar month view: swipe pages months (future months clamp).
+    // Calendar: swipes move the DAY CURSOR (TEMPO grammar) — one day at
+    // a time, month flips implicit at the edges, future clamped.
     if (currentPage === "calendar") {
-      if (up)   { stepCalendarMonth(-1); await renderCalendar(bridge); return; }
-      if (down) { stepCalendarMonth(+1); await renderCalendar(bridge); return; }
-    }
-
-    // Calendar day list: navpad cursor, same wrap as philosopher select.
-    if (currentPage === "calendar-days" && calDayRows.length > 0) {
-      const n = calDayRows.length;
-      if (up)   { calDaysIdx = (calDaysIdx - 1 + n) % n; await renderCalendarDays(bridge); return; }
-      if (down) { calDaysIdx = (calDaysIdx + 1) % n; await renderCalendarDays(bridge); return; }
+      if (up)   { stepCalendarCursor(-1); await renderCalendar(bridge); return; }
+      if (down) { stepCalendarCursor(+1); await renderCalendar(bridge); return; }
     }
 
     // Calendar day detail: swipe pages entries, same grammar as support.
@@ -1993,8 +1966,7 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
         if (favView.length > 0) { favIndex += 1; await showFavorite(bridge, baseUrl); }
         return;
       }
-      if (currentPage === "calendar")      { if (navigating) return; await openCalendarDays(bridge); return; }
-      if (currentPage === "calendar-days") { if (navigating) return; await openCalendarDay(bridge); return; }
+      if (currentPage === "calendar")      { if (navigating) return; await openCalendarDay(bridge); return; }
       if (currentPage === "calendar-day") {
         if (navigating) return;
         calDayPageIdx += 1;                          // builder wraps

@@ -99,11 +99,13 @@ export function monthTitle(year: number, month0: number): string {
  *  MEASURED EQUAL at 20px advance in the LVGL font — the whole grid
  *  depends on that, because firmware text is proportional and a 5px '·'
  *  against a 20px '●' makes columns wander by half a cell per week):
- *    ○  quiet day    ●  day with activity    ◆  today
- *  There is deliberately NO weekday header row: Latin narrow initials
- *  measure 11-16px and cannot sit over 20px columns. Monday-first,
- *  6 week rows max = 6 lines, zero image cost. */
-export function renderMonthGrid(year: number, month0: number, map: ActivityMap): string {
+ *    ○  quiet day    ●  day with activity    ◆  today    ■  the cursor
+ *  The cursor glyph REPLACES the day's own glyph (TEMPO's calendar
+ *  idiom: the selection carries position, the footer line carries what
+ *  is under it). There is deliberately NO weekday header row: Latin
+ *  narrow initials measure 11-16px and cannot sit over 20px columns.
+ *  Monday-first, 6 week rows max = 6 lines, zero image cost. */
+export function renderMonthGrid(year: number, month0: number, map: ActivityMap, cursorKey?: string): string {
   const first = new Date(year, month0, 1);
   const daysInMonth = new Date(year, month0 + 1, 0).getDate();
   const todayKey = dateKey(new Date());
@@ -117,12 +119,41 @@ export function renderMonthGrid(year: number, month0: number, map: ActivityMap):
   let row: string[] = new Array(lead).fill('    ');
   for (let d = 1; d <= daysInMonth; d++) {
     const key = dateKey(new Date(year, month0, d));
-    const glyph = key === todayKey ? '◆' : map.has(key) ? '●' : '○';
+    const glyph = key === cursorKey ? '■'
+      : key === todayKey ? '◆'
+      : map.has(key) ? '●' : '○';
     row.push(glyph);
     if (row.length === 7) { lines.push(row.join(' ')); row = []; }
   }
   if (row.length > 0) lines.push(row.join(' '));
   return lines.join('\n');
+}
+
+/** Footer preview of the day under the cursor — the TEMPO pattern: the
+ *  wearer sees what a day holds BEFORE clicking into it. Localized
+ *  weekday via Intl (the firmware face covers Latin/CJK/Cyrillic).
+ *  "Mon 11 · 1▶ 2♥" · today gets ◆ · empty days read "quiet". */
+export function cursorPreviewLine(key: string, map: ActivityMap): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const wd = new Intl.DateTimeFormat(intlLocale(), { weekday: 'short' }).format(date);
+  const today = key === dateKey(new Date()) ? ' ◆' : '';
+  const act = map.get(key);
+  const parts: string[] = [];
+  if (act) {
+    if (act.talks.length) parts.push(`${act.talks.length}▶`);
+    if (act.saves.length) parts.push(`${act.saves.length}♥`);
+    if (act.logs.length) parts.push(`${act.logs.length}●`);
+  }
+  const what = parts.length ? parts.join(' ') : tGlass('g.calQuietDay');
+  return `◀ ${wd} ${d}${today} · ${what} ▶`;
+}
+
+/** Step a day key ±n days, in local time. */
+export function shiftDayKey(key: string, delta: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const date = new Date(y, m - 1, d + delta);
+  return dateKey(date);
 }
 
 /** Header line: "August 2026 · 12 active · 4-day streak" (parts drop

@@ -155,5 +155,8 @@
   "g.menuLogReply": "记录此回复",
   "g.menuUnfavorite": "从收藏中移除",
   "g.favEmpty": "暂无收藏。打开任意语录，长按后保存到收藏。",
-  "g.menuCalToday": "前往今天"
+  "g.menuCalToday": "前往今天",
+  "g.menuPrevMonth": "上月",
+  "g.menuNextMonth": "下月",
+  "g.calQuietDay": "安静"
 }

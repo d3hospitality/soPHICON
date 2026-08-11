@@ -156,7 +156,10 @@
     "g.menuCalToday": "75d83f7682f5",
     "g.favEmpty": "bd9f48ddab10",
     "g.calLegend": "68d970155ac2",
-    "g.calNoActivity": "b0c42d1a9756"
+    "g.calNoActivity": "b0c42d1a9756",
+    "g.menuPrevMonth": "6a2769502a5d",
+    "g.menuNextMonth": "74e53211fef4",
+    "g.calQuietDay": "008f0747f4e2"
   },
   "pt": {
     "app.tagline": "2b83e146d216",
@@ -315,7 +318,10 @@
     "g.menuCalToday": "75d83f7682f5",
     "g.favEmpty": "bd9f48ddab10",
     "g.calLegend": "68d970155ac2",
-    "g.calNoActivity": "b0c42d1a9756"
+    "g.calNoActivity": "b0c42d1a9756",
+    "g.menuPrevMonth": "6a2769502a5d",
+    "g.menuNextMonth": "74e53211fef4",
+    "g.calQuietDay": "008f0747f4e2"
   },
   "de": {
     "app.tagline": "2b83e146d216",
@@ -474,7 +480,10 @@
     "g.menuCalToday": "75d83f7682f5",
     "g.favEmpty": "bd9f48ddab10",
     "g.calLegend": "68d970155ac2",
-    "g.calNoActivity": "b0c42d1a9756"
+    "g.calNoActivity": "b0c42d1a9756",
+    "g.menuPrevMonth": "6a2769502a5d",
+    "g.menuNextMonth": "74e53211fef4",
+    "g.calQuietDay": "008f0747f4e2"
   },
   "ru": {
     "app.tagline": "2b83e146d216",
@@ -633,7 +642,10 @@
     "g.menuUnfavorite": "18720329ca30",
     "g.favEmpty": "bd9f48ddab10",
     "g.calLegend": "68d970155ac2",
-    "g.calNoActivity": "b0c42d1a9756"
+    "g.calNoActivity": "b0c42d1a9756",
+    "g.menuPrevMonth": "6a2769502a5d",
+    "g.menuNextMonth": "74e53211fef4",
+    "g.calQuietDay": "008f0747f4e2"
   },
   "zh": {
     "app.tagline": "2b83e146d216",
@@ -792,7 +804,10 @@
     "g.menuCalToday": "75d83f7682f5",
     "g.favEmpty": "bd9f48ddab10",
     "g.calLegend": "68d970155ac2",
-    "g.calNoActivity": "b0c42d1a9756"
+    "g.calNoActivity": "b0c42d1a9756",
+    "g.menuPrevMonth": "6a2769502a5d",
+    "g.menuNextMonth": "74e53211fef4",
+    "g.calQuietDay": "008f0747f4e2"
   },
   "ja": {
     "app.tagline": "2b83e146d216",
@@ -951,6 +966,9 @@
     "g.menuUnfavorite": "18720329ca30",
     "g.favEmpty": "bd9f48ddab10",
     "g.calLegend": "68d970155ac2",
-    "g.calNoActivity": "b0c42d1a9756"
+    "g.calNoActivity": "b0c42d1a9756",
+    "g.menuPrevMonth": "6a2769502a5d",
+    "g.menuNextMonth": "74e53211fef4",
+    "g.calQuietDay": "008f0747f4e2"
   }
 }

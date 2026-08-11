@@ -12,7 +12,7 @@ import {
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
   buildSpeakConversationPage, buildMindfulnessBlankPage,
   buildAphoricaPage, buildAphoricaReadPage, buildSupportPage,
-  buildFavoritesEmptyPage, buildCalendarPage, buildCalendarDaysPage,
+  buildFavoritesEmptyPage, buildCalendarPage,
   buildCalendarDayPage, favMenu,
   BROWSABLE_TRADITIONS,
 } from '../src/pages';
@@ -38,8 +38,7 @@ const pages: [string, any][] = [
   ['support',              buildSupportPage(0)],
   ['favorites (empty)',    buildFavoritesEmptyPage()],
   ['favorites (viewer)',   buildQuoteViewPage(phil, quote, 0, 3, true, false, favMenu())],
-  ['calendar',             buildCalendarPage(2026, 7, 'August 2026 · 3 active', 'M T W T F S S\n· ● ● ◆ · · ·', true)],
-  ['calendar-days',        buildCalendarDaysPage('August 2026', ['11 · 2▶ 1♥', '10 · 1●'], 0)],
+  ['calendar',             buildCalendarPage(2026, 7, 'August 2026 · 3 active', '○ ● ● ■ ○ ○ ○', '◀ Tue 11 ◆ · 2♥ ▶')],
   ['calendar-day',         buildCalendarDayPage('11 August', ['14:32 ▶ Spoke with Socrates, 3 turns'], 0)],
 ];
 

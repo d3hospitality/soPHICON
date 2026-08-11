@@ -227,6 +227,9 @@ export const EN = {
   'g.menuLogReply': 'Log this reply',
   'g.menuUnfavorite': 'Remove from favorites',
   'g.menuCalToday': 'Go to today',
+  'g.menuPrevMonth': 'Previous month',
+  'g.menuNextMonth': 'Next month',
+  'g.calQuietDay': 'quiet',
 
   'g.pagePrev': 'swipe up',
   'g.pageNext': 'click for more',

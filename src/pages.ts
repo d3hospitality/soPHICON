@@ -285,6 +285,8 @@ export const MENU_LIKE_POST = 13;
 export const MENU_LOG_REPLY = 14;
 export const MENU_UNFAVORITE = 15;
 export const MENU_CAL_TODAY = 16;
+export const MENU_CAL_PREV = 17;
+export const MENU_CAL_NEXT = 18;
 
 /** Truncate a menu label to the firmware's 32-UTF-8-byte cap.
  *
@@ -327,7 +329,7 @@ export function mindfulMenu()   { return menu([[tGlass('g.menuFavorite'), MENU_F
 function aphoricaMenu()  { return menu([[tGlass('g.menuRefresh'), MENU_REFRESH], [tGlass('g.menuHome'), MENU_HOME]]); }
 function aphoricaReadMenu() { return menu([[tGlass('g.menuLikePost'), MENU_LIKE_POST], [tGlass('g.menuRefresh'), MENU_REFRESH], [tGlass('g.menuHome'), MENU_HOME]]); }
 export function favMenu()   { return menu([[tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuUnfavorite'), MENU_UNFAVORITE], [tGlass('g.menuHome'), MENU_HOME]]); }
-function calMenu()          { return menu([[tGlass('g.menuCalToday'), MENU_CAL_TODAY], [tGlass('g.menuHome'), MENU_HOME]]); }
+function calMenu()          { return menu([[tGlass('g.menuPrevMonth'), MENU_CAL_PREV], [tGlass('g.menuNextMonth'), MENU_CAL_NEXT], [tGlass('g.menuCalToday'), MENU_CAL_TODAY], [tGlass('g.menuHome'), MENU_HOME]]); }
 function supportMenu()   { return menu([[tGlass('g.menuTipJar'), MENU_TIP_JAR], [tGlass('g.menuRestartStory'), MENU_RESTART_STORY], [tGlass('g.menuHome'), MENU_HOME]]); }
 
 // ═══ Glass chrome ═══
@@ -1344,13 +1346,15 @@ export function buildFavoritesEmptyPage(): RebuildPageContainer {
 // BLE economy. Hand-coded geometry, same as the other system pages.
 // ══════════════════════════════════════════════════════════════════
 
-/** Month overview. The GRID is the capture container: swipes page
- *  months (up = previous, down = next), click opens the day list,
- *  double-tap goes home. Header carries month + active days + streak;
- *  legend is dimmed chrome (brightness 2 on 2.2.9 hosts). */
+/** Month overview, TEMPO's calendar grammar in firmware text: the GRID
+ *  is the capture container, swipes move a DAY CURSOR (■) one day at a
+ *  time — crossing a month edge flips the month implicitly — and click
+ *  opens the day under the cursor directly. The footer live-previews
+ *  that day ("◀ Mon 11 · 1▶ 2♥ ▶"), so the wearer knows what a click
+ *  opens before committing. Month jumps live in the menu. */
 export function buildCalendarPage(
   year: number, month0: number,
-  headerLine: string, gridText: string, hasActivity: boolean,
+  headerLine: string, gridText: string, footerLine: string,
 ): RebuildPageContainer {
   const header = new TextContainerProperty({
     xPosition: 24, yPosition: 2, width: 528, height: 34,
@@ -1359,61 +1363,26 @@ export function buildCalendarPage(
     isEventCapture: 0,
     zOrderIndex: 2,
   });
-  // 8 lines max (weekday header + 6 weeks) at 27px = 216px.
+  // 6 week rows max at 27px = 162px inside a 200px box.
   const grid = new TextContainerProperty({
-    xPosition: 168, yPosition: 38, width: 384, height: 216,
+    xPosition: 168, yPosition: 44, width: 384, height: 200,
     containerID: 2, containerName: "cal-grid",
     content: capForGlass(gridText),
     isEventCapture: 1,
     zOrderIndex: 3,
   });
-  const legend = new TextContainerProperty({
+  const footer = new TextContainerProperty({
     xPosition: 24, yPosition: 250, width: 528, height: 34,
-    containerID: 3, containerName: "cal-legend",
-    // Empty month: the no-activity line takes the legend slot (1 line)
-    // rather than being appended under the grid, which overflowed the
-    // 216px container in every language and silently ate the message.
-    content: hasActivity ? tGlass('g.calLegend') : tGlass('g.calNoActivity'),
+    containerID: 3, containerName: "cal-footer",
+    content: capForGlass(footerLine),
     isEventCapture: 0,
     zOrderIndex: 4,
-    ...(hostSupports214 ? { textColor: 2 } : {}),
   });
   return new RebuildPageContainer({
     menuObject: calMenu(),
     containerTotalNum: 3,
     listObject: [],
-    textObject: [header, grid, legend],
-    imageObject: [],
-  });
-}
-
-/** Day list for one month — the firmware-native selection surface.
- *  Rows come from activeDaysOfMonth ("11 · 2▶ 1♥"); navpad pattern with
- *  events.ts owning the cursor, exactly like philosopher select. */
-export function buildCalendarDaysPage(
-  monthName: string, rows: string[], index: number,
-): RebuildPageContainer {
-  const total = rows.length;
-  const idx = Math.max(0, Math.min(index, Math.max(0, total - 1)));
-  const navText = total === 0 ? tGlass('g.calNoActivity') : renderNavpad(rows, idx, 7);
-  const header = new TextContainerProperty({
-    xPosition: 40, yPosition: 6, width: 496, height: 34,
-    containerID: 1, containerName: "cal-days-header",
-    content: capForGlass(monthName),
-    isEventCapture: 0,
-    zOrderIndex: 2,
-  });
-  const navpad = new TextContainerProperty({
-    xPosition: 24, yPosition: 40, width: 528, height: 240,
-    containerID: 2, containerName: "cal-days",
-    content: navText, isEventCapture: 1,
-    zOrderIndex: 3,
-  });
-  return new RebuildPageContainer({
-    menuObject: calMenu(),
-    containerTotalNum: 2,
-    listObject: [],
-    textObject: [header, navpad],
+    textObject: [header, grid, footer],
     imageObject: [],
   });
 }
