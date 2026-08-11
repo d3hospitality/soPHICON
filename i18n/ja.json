@@ -155,5 +155,8 @@
   "g.menuUnfavorite": "お気に入りから削除",
   "g.calNoActivity": "今月はまだありません。",
   "g.menuCalToday": "今日に移動",
-  "g.favEmpty": "お気に入りはまだありません。引用を開いて長押しし、お気に入りに保存。"
+  "g.favEmpty": "お気に入りはまだありません。引用を開いて長押しし、お気に入りに保存。",
+  "g.menuPrevMonth": "先月",
+  "g.menuNextMonth": "翌月",
+  "g.calQuietDay": "静かに"
 }

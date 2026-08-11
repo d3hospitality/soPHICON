@@ -155,5 +155,8 @@
   "g.menuCalToday": "Перейти к сегодня",
   "g.favEmpty": "Пока нет избранного. Откройте цитату, удерживайте и сохраните в избранное.",
   "g.calNoActivity": "В этом месяце пока ничего.",
-  "g.menuUnfavorite": "Убрать из избр."
+  "g.menuUnfavorite": "Убрать из избр.",
+  "g.menuPrevMonth": "Прошлый месяц",
+  "g.menuNextMonth": "Следующий месяц",
+  "g.calQuietDay": "тихо"
 }

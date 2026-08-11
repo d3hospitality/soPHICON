@@ -155,5 +155,8 @@
   "g.calNoActivity": "Nada este mes aún.",
   "g.likeLinkFirst": "Vincula gafas en móvil para dar me gusta.",
   "g.menuCalToday": "Ir a hoy",
-  "g.favEmpty": "Aún no hay favoritos. Abre una cita, mantén presionado y guarda en favoritos."
+  "g.favEmpty": "Aún no hay favoritos. Abre una cita, mantén presionado y guarda en favoritos.",
+  "g.menuPrevMonth": "Mes anterior",
+  "g.menuNextMonth": "Mes siguiente",
+  "g.calQuietDay": "silencio"
 }
