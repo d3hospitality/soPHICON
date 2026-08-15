@@ -161,5 +161,7 @@
   "g.calQuietDay": "silencio",
   "g.calKept": "Guardado @{name}",
   "g.menuLanguage": "Cambiar idioma",
-  "g.langHeader": "Idioma"
+  "g.langHeader": "Idioma",
+  "g.menuMindful": "Configurar atención plena",
+  "g.mindfulOnPhone": "Configura en tu teléfono"
 }

@@ -161,5 +161,7 @@
   "g.calQuietDay": "静かに",
   "g.calKept": "@{name}を保持",
   "g.menuLanguage": "言語を変更",
-  "g.langHeader": "言語"
+  "g.langHeader": "言語",
+  "g.menuMindful": "マインドフルネス設定",
+  "g.mindfulOnPhone": "マインドフルネス設定はスマホで"
 }
