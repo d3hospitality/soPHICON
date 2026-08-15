@@ -1583,6 +1583,13 @@ async function goHomeFromMenu(bridge: EvenAppBridge, baseUrl: string): Promise<v
 /** Random quote from the whole corpus → quote view, with browse state
  *  set so scroll/reshuffle/back all behave as if the user had walked
  *  there: tradition and philosopher come from the drawn quote. */
+/** QA-only entry to the Surprise path. The contextual menu is stripped
+ *  on desktop hosts, so ?glass=surprise is the only way to exercise this
+ *  code without real glasses. */
+export async function surpriseFromQA(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  await surpriseMe(bridge, baseUrl);
+}
+
 async function surpriseMe(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   if (currentPage === "mindful-blank" || currentPage === "mindful-quote") cancelMindfulTimers();
   // Weight by quote count: draw a (philosopher, index) pair uniformly

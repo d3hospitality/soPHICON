@@ -97,21 +97,149 @@ function ditherGray(lum: number, x: number, y: number, coverage: number, dot: nu
   return (lum / 255) * coverage > threshold ? dot : 0;
 }
 
-// ═══ Highlight tone curve (hardware bloom fix, 2026-07-14) ═══
-// The G2 is an emissive green display: near-full-luminance pixels bloom
-// on-lens and swallow neighbouring detail. A flat gain (×0.62) fixed the
-// bloom but crushed the whole ramp into ~9 of the 16 gray4 levels —
-// sprites went flat/undetailed. This soft-knee curve instead keeps
-// shadows + midtones at FULL resolution (identity below the knee, where
-// sprite detail lives) and only compresses the highlights into a
-// non-blooming ceiling. Applies to NORMAL sprites only — ghost dots carry
-// their own explicit value. Tune: knee 150–190, ceiling 200–230.
-const TONE_KNEE = 170; // identity below this
-const TONE_MAX = 216;  // highlight ceiling (≈ gray4 level 13/15)
-function toneMap(lum: number): number {
-  return lum <= TONE_KNEE
-    ? lum
-    : TONE_KNEE + (lum - TONE_KNEE) * (TONE_MAX - TONE_KNEE) / (255 - TONE_KNEE);
+// ═══ Portrait halftone (blowout fix + bloom fix, 2026-08-15) ═══
+//
+// TWO hardware facts drive this, and they pull in opposite directions.
+//
+// 1. The panel DISCARDS requested grey. A solid mid-grey fill thresholds
+//    to full brightness (measured: rgb(120,120,120) came back 255 on
+//    every pixel). Sending continuous luminance — which the old soft-knee
+//    tone curve did — collapses every midtone in a painted portrait to
+//    maximum. Socrates rendered 47% lit with his robe one featureless
+//    slab. So tone MUST be carried by dot density, not by grey value.
+//
+// 2. The display is EMISSIVE AND BLOOMS: bright pixels spread on-lens and
+//    swallow their neighbours. So a DISPERSED screen (plain Bayer, single
+//    pixels one apart, all at 255) is the worst possible choice — every
+//    dot blooms into the gap beside it and the portrait turns to haze.
+//    This is why the first halftone read fine in the simulator, which has
+//    no bloom, and poorly on real glasses.
+//
+// The answer to both is a CLUSTERED-DOT screen at a capped brightness:
+// lit pixels are grouped into blobs separated by genuine dark gaps, so
+// bloom fills the gaps INSIDE a cluster (making it read as a solid dot)
+// instead of merging separate clusters. DOT_VALUE stays under 255 for the
+// same reason the old curve capped highlights at 216.
+//
+// Runtime A/B on real hardware — the only place this can be judged:
+//   ?sprite=fine     dispersed Bayer 8x8            (default)
+//   ?sprite=cluster  1x1 clustered dots
+//   ?sprite=coarse   2x2 clustered dots, most bloom-resistant
+//   ?sprite=tone     the old continuous-grey curve  (pre-1.8.1)
+
+/** Clustered-dot 4x4: thresholds grow outward from a centre, so lit
+ *  pixels form blobs rather than scattering. */
+const CLUSTER4: number[] = [
+  12,  5,  6, 13,
+   4,  0,  1,  7,
+  11,  3,  2,  8,
+  15, 10,  9, 14,
+];
+/** Dispersed Bayer 8x8 — finer gradation, but only safe without bloom. */
+const BAYER8: number[] = [
+   0, 32,  8, 40,  2, 34, 10, 42,  48, 16, 56, 24, 50, 18, 58, 26,
+  12, 44,  4, 36, 14, 46,  6, 38,  60, 28, 52, 20, 62, 30, 54, 22,
+   3, 35, 11, 43,  1, 33,  9, 41,  51, 19, 59, 27, 49, 17, 57, 25,
+  15, 47,  7, 39, 13, 45,  5, 37,  63, 31, 55, 23, 61, 29, 53, 21,
+];
+
+type SpriteMode = 'cluster' | 'coarse' | 'fine' | 'tone';
+function spriteMode(): SpriteMode {
+  try {
+    const q = new URLSearchParams(location.search).get('sprite') || '';
+    if (q === 'cluster' || q === 'coarse' || q === 'tone') return q;
+  } catch { /* no location */ }
+  return 'fine';
+}
+const SPRITE_MODE: SpriteMode = spriteMode();
+
+// The background floor. Anything at or under this is treated as canvas
+// and stays OFF, so auto-levels never stretches the black surround up
+// into visible noise.
+const BLACK_POINT = 24;
+const GAMMA = 0.85;        // slight midtone lift; the source art is dark
+// Under 255 on purpose: a dot at maximum blooms hardest, and bloom is
+// what destroys a halftone on this emissive panel.
+const DOT_VALUE = 216;
+
+/** Per-sprite exposure normalisation, by TARGET COVERAGE.
+ *
+ * The source art is inconsistently exposed. Measured across the set, the
+ * subject occupies 15%-55% of the frame above the black floor and p98
+ * luminance ranges 86..161. With one fixed white point the bright
+ * sprites blew out into a slab and the dark ones (Nagarjuna, Marcus/
+ * defiance, Aristotle) rendered at 3-6% lit — a ghost that reads as "no
+ * sprite attached", which is exactly how it was reported.
+ *
+ * Stretching each sprite to its own p98 was not enough: it lifts
+ * proportionally, so a genuinely dim subject stays dim (it actually
+ * WIDENED the spread, 22 -> 27 points). Instead, solve for the white
+ * point that makes each sprite render at the same DOT COVERAGE. That is
+ * the quantity the eye reads as "weight" on this display, and it brings
+ * the set to 11%-21% (spread 10 points) — every portrait arriving with
+ * comparable presence regardless of how it was painted.
+ *
+ * Bisection over a 256-bin histogram: ~24 iterations of a 232-bin sum,
+ * once per sprite per size, and the result is cached with the encoded
+ * bytes. */
+const TARGET_COVERAGE = 0.20;
+
+function solveWhitePoint(lum: Float32Array): number {
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < lum.length; i++) hist[Math.max(0, Math.min(255, lum[i] | 0))]++;
+  const n = lum.length;
+
+  // Mean dot density if `white` were the top of the range. Monotonically
+  // DECREASING in white, so plain bisection converges.
+  const coverageAt = (white: number): number => {
+    if (white <= BLACK_POINT) return 1;
+    const span = white - BLACK_POINT;
+    let sum = 0;
+    for (let v = BLACK_POINT + 1; v < 256; v++) {
+      const c = hist[v];
+      if (c) sum += c * Math.pow(Math.min(1, (v - BLACK_POINT) / span), GAMMA);
+    }
+    return sum / n;
+  };
+
+  let lo = BLACK_POINT + 8, hi = 255;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (coverageAt(mid) > TARGET_COVERAGE) lo = mid; else hi = mid;
+  }
+  return Math.max(BLACK_POINT + 20, Math.min(255, (lo + hi) / 2));
+}
+
+/** Luminance → lit / unlit, by dot density rather than grey value.
+ *  `white` comes from autoWhitePoint for this specific sprite. */
+function halftone(lum: number, x: number, y: number, white: number): number {
+  if (SPRITE_MODE === 'tone') {
+    // Legacy continuous-grey curve, kept for A/B only.
+    return lum <= 170 ? lum : 170 + (lum - 170) * (216 - 170) / (255 - 170);
+  }
+  if (lum <= BLACK_POINT) return 0;
+  const norm = Math.min(1, (lum - BLACK_POINT) / (white - BLACK_POINT));
+  let density = Math.pow(norm, GAMMA);
+
+  if (SPRITE_MODE === 'fine') {
+    // Highlights go SOLID rather than staying screened. With auto-levels
+    // the top of the range is real subject, and leaving it dotted made
+    // the whole portrait read as texture instead of a face.
+    if (density >= 0.88) return DOT_VALUE;
+    const t = (BAYER8[(y & 7) * 8 + (x & 7)] + 0.5) / 64;
+    return density > t ? DOT_VALUE : 0;
+  }
+  // Clustered screens. 'coarse' doubles the cell (each threshold covers a
+  // 2x2 block), which survives heavier bloom at the cost of resolution.
+  const cell = SPRITE_MODE === 'coarse' ? 2 : 1;
+  const cx = ((x / cell) | 0) & 3;
+  const cy = ((y / cell) | 0) & 3;
+  const t = (CLUSTER4[cy * 4 + cx] + 0.5) / 16;
+  // Hold the extremes fully off / fully on so highlights stay solid and
+  // shadow stays clean; the screen only modulates the middle.
+  if (density >= 0.94) return DOT_VALUE;
+  density *= 0.92;
+  return density > t ? DOT_VALUE : 0;
 }
 
 // ═══ Ghost depth presets (perceived-z tuning) ═══
@@ -185,13 +313,19 @@ async function fetchAsGrayscalePng(source: string, w: number, h: number, ghost?:
   ctx.drawImage(src, offX, offY, fitW, fitH);
 
   const px = ctx.getImageData(0, 0, w, h).data;
+  // Two passes: luminance first, so auto-levels can see the whole
+  // sprite's histogram before any pixel is thresholded.
+  const lum = new Float32Array(w * h);
+  for (let i = 0; i < lum.length; i++) {
+    const o = i * 4;
+    lum[i] = 0.299 * px[o] + 0.587 * px[o+1] + 0.114 * px[o+2];
+  }
+  const white = solveWhitePoint(lum);
   const gray = new Uint8Array(w * h);
   for (let i = 0; i < gray.length; i++) {
-    const o = i * 4;
-    const lum = 0.299 * px[o] + 0.587 * px[o+1] + 0.114 * px[o+2];
     gray[i] = ghost
-      ? ditherGray(lum, i % w, (i / w) | 0, ghost.coverage, ghost.dot)
-      : toneMap(lum);
+      ? ditherGray(lum[i], i % w, (i / w) | 0, ghost.coverage, ghost.dot)
+      : halftone(lum[i], i % w, (i / w) | 0, white);
   }
   const bytes = encodeWire(gray, w, h);
   cacheSet(key, bytes);
@@ -306,10 +440,18 @@ export async function pushSpritesSplit(
     ctx.drawImage(src, Math.round((200-fw)/2), Math.round((200-fh)/2), fw, fh);
     const full = ctx.getImageData(0, 0, 200, 200).data;
 
-    const gray = (i: number, x: number, y: number): number => {
+    // Auto-level across the WHOLE 200x200 figure before splitting: level
+    // each half independently and the two halves land on different
+    // exposures, which shows as a hard seam across the portrait's middle.
+    const fullLum = new Float32Array(200 * 200);
+    for (let i = 0; i < fullLum.length; i++) {
       const o = i * 4;
-      const lum = 0.299*full[o] + 0.587*full[o+1] + 0.114*full[o+2];
-      return ghost ? ditherGray(lum, x, y, ghost.coverage, ghost.dot) : toneMap(lum);
+      fullLum[i] = 0.299*full[o] + 0.587*full[o+1] + 0.114*full[o+2];
+    }
+    const whiteFull = solveWhitePoint(fullLum);
+    const gray = (i: number, x: number, y: number): number => {
+      const l = fullLum[i];
+      return ghost ? ditherGray(l, x, y, ghost.coverage, ghost.dot) : halftone(l, x, y, whiteFull);
     };
 
     // Top half

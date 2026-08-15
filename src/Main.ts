@@ -18,7 +18,7 @@
 import { waitForEvenAppBridge, DeviceConnectType } from '@evenrealities/even_hub_sdk';
 import { buildHomePage, loadGlanceLine } from './pages';
 import { pushLogoToGlasses } from './image-utils';
-import { registerEventHandlers, repaintGlassForLanguage, openFavoritesPage, openCalendarPage, openLanguagePage } from './events';
+import { registerEventHandlers, repaintGlassForLanguage, openFavoritesPage, openCalendarPage, openLanguagePage, surpriseFromQA } from './events';
 import { setStatus, setBattery, log } from './ui';
 import { TOTAL_QUOTES, TOTAL_PHILOSOPHERS, TOTAL_TRADITIONS } from './constants';
 import { initDashboard } from './dashboard';
@@ -169,6 +169,7 @@ async function main(): Promise<void> {
     if (jump === 'favorites') await openFavoritesPage(bridge, baseUrl);
     else if (jump === 'calendar') await openCalendarPage(bridge, true);
     else if (jump === 'language') await openLanguagePage(bridge);
+    else if (jump === 'surprise') await surpriseFromQA(bridge, baseUrl);
   } catch { /* QA hook only */ }
 
   // Phone-side dashboard (tabs, live glass-state mirror, sprite debug)
