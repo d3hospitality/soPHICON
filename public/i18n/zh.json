@@ -161,5 +161,7 @@
   "g.calQuietDay": "安静",
   "g.calKept": "已保存@{name}",
   "g.menuLanguage": "更改语言",
-  "g.langHeader": "语言"
+  "g.langHeader": "语言",
+  "g.menuMindful": "设置正念",
+  "g.mindfulOnPhone": "正念设置在手机上"
 }

@@ -308,6 +308,7 @@ export const MENU_CAL_TODAY = 16;
 export const MENU_CAL_PREV = 17;
 export const MENU_CAL_NEXT = 18;
 export const MENU_LANGUAGE = 19;
+export const MENU_MINDFUL_SETUP = 20;
 
 /** Truncate a menu label to the firmware's 32-UTF-8-byte cap.
  *
@@ -353,7 +354,7 @@ function menu(items: MenuSpec): MenuContainerProperty | undefined {
 /** Per-page menus. A FUNCTION per page (not consts) so labels re-read
  *  the dictionary on every rebuild — same reason homeListItems() is a
  *  function. Composition per docs/GLASS-PAGES.md. */
-function homeMenu()      { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuShowFavorites'), MENU_SHOW_FAVORITES], [tGlass('g.menuShowCalendar'), MENU_SHOW_CALENDAR], [tGlass('g.menuLanguage'), MENU_LANGUAGE], [tGlass('g.menuDevStory'), MENU_DEV_STORY]]); }
+function homeMenu()      { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuShowFavorites'), MENU_SHOW_FAVORITES], [tGlass('g.menuShowCalendar'), MENU_SHOW_CALENDAR], [tGlass('g.menuLanguage'), MENU_LANGUAGE], [tGlass('g.menuMindful'), MENU_MINDFUL_SETUP], [tGlass('g.menuDevStory'), MENU_DEV_STORY]]); }
 function browseMenu()    { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
 function quoteMenu()     { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
 function transitMenu()   { return menu([[tGlass('g.menuHome'), MENU_HOME]]); }

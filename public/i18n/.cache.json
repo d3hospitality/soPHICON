@@ -162,7 +162,9 @@
     "g.calQuietDay": "008f0747f4e2",
     "g.calKept": "7f1c6083286a",
     "g.menuLanguage": "009ed110badf",
-    "g.langHeader": "a4fe65264ef7"
+    "g.langHeader": "a4fe65264ef7",
+    "g.menuMindful": "9d209a02aa9d",
+    "g.mindfulOnPhone": "81ac73316148"
   },
   "pt": {
     "app.tagline": "2b83e146d216",
@@ -327,7 +329,9 @@
     "g.calQuietDay": "008f0747f4e2",
     "g.calKept": "7f1c6083286a",
     "g.menuLanguage": "009ed110badf",
-    "g.langHeader": "a4fe65264ef7"
+    "g.langHeader": "a4fe65264ef7",
+    "g.menuMindful": "9d209a02aa9d",
+    "g.mindfulOnPhone": "81ac73316148"
   },
   "de": {
     "app.tagline": "2b83e146d216",
@@ -492,7 +496,9 @@
     "g.calQuietDay": "008f0747f4e2",
     "g.calKept": "7f1c6083286a",
     "g.menuLanguage": "009ed110badf",
-    "g.langHeader": "a4fe65264ef7"
+    "g.langHeader": "a4fe65264ef7",
+    "g.menuMindful": "9d209a02aa9d",
+    "g.mindfulOnPhone": "81ac73316148"
   },
   "ru": {
     "app.tagline": "2b83e146d216",
@@ -657,7 +663,9 @@
     "g.calQuietDay": "008f0747f4e2",
     "g.calKept": "7f1c6083286a",
     "g.menuLanguage": "009ed110badf",
-    "g.langHeader": "a4fe65264ef7"
+    "g.langHeader": "a4fe65264ef7",
+    "g.mindfulOnPhone": "81ac73316148",
+    "g.menuMindful": "9d209a02aa9d"
   },
   "zh": {
     "app.tagline": "2b83e146d216",
@@ -822,7 +830,9 @@
     "g.calQuietDay": "008f0747f4e2",
     "g.calKept": "7f1c6083286a",
     "g.menuLanguage": "009ed110badf",
-    "g.langHeader": "a4fe65264ef7"
+    "g.langHeader": "a4fe65264ef7",
+    "g.menuMindful": "9d209a02aa9d",
+    "g.mindfulOnPhone": "81ac73316148"
   },
   "ja": {
     "app.tagline": "2b83e146d216",
@@ -987,6 +997,8 @@
     "g.calQuietDay": "008f0747f4e2",
     "g.calKept": "7f1c6083286a",
     "g.menuLanguage": "009ed110badf",
-    "g.langHeader": "a4fe65264ef7"
+    "g.langHeader": "a4fe65264ef7",
+    "g.menuMindful": "9d209a02aa9d",
+    "g.mindfulOnPhone": "81ac73316148"
   }
 }

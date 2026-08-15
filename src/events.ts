@@ -39,7 +39,7 @@ import {
   composeSpeakResponseContent,
   buildMindfulnessBlankPage,
   SUPPORT_INDEX, buildSupportPage,
-  MENU_LANGUAGE, buildLanguagePage,
+  MENU_LANGUAGE, buildLanguagePage, MENU_MINDFUL_SETUP,
   MENU_HOME, MENU_SURPRISE, MENU_FAVORITE, MENU_SPEAK_THIS,
   MENU_END_CONVO, MENU_REFRESH, MENU_DEV_STORY, MENU_NEW_MINDFUL,
   MENU_TIP_JAR, MENU_RESTART_STORY, mindfulMenu,
@@ -47,8 +47,9 @@ import {
   MENU_LOG_REPLY, MENU_UNFAVORITE, MENU_CAL_TODAY,
   favMenu, buildFavoritesEmptyPage, buildCalendarPage,
   buildCalendarDayPage, MENU_CAL_PREV, MENU_CAL_NEXT,
+  setGlanceLine,
 } from './pages';
-import { SUPPORT_LATCH_KEY } from './support';
+import { MINDFUL_LATCH_KEY, SUPPORT_LATCH_KEY } from './support';
 import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl, ghostPreset } from './image-utils';
 import { isFavorite, toggleFavorite, isFavoriteText, getFavoriteEntries, onFavoritesChange } from './favorites';
 import { onWisdomLogChange } from './wisdomlog';
@@ -240,6 +241,23 @@ let currentQuotes: Quote[] = [];
 let currentQuoteIndex: number = 0;
 let currentFilter: string = "all";
 let shuffleMode: boolean = false;
+/** Surprise mode: the auto-rotate tick redraws from the WHOLE corpus
+ *  rather than from one philosopher's quotes. Without this, "Surprise
+ *  me" picked a random philosopher once and then rotated inside that
+ *  philosopher forever — the 33s tick never left them. */
+let surpriseMode: boolean = false;
+
+/** One uniformly-random (philosopher, quote index) pair over all 2,801
+ *  quotes. Weighted by quote count on purpose: drawing a philosopher
+ *  first and then a quote would over-represent the thin ones. */
+function drawFromWholeCorpus(): { phil: Philosopher; idx: number } | null {
+  const pool: { phil: Philosopher; idx: number }[] = [];
+  for (const phil of PHILOSOPHERS) {
+    for (let i = 0; i < phil.quotes.length; i++) pool.push({ phil, idx: i });
+  }
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 let speakTradition: Tradition | null = null;
 let speakPhilosopher: Philosopher | null = null;
@@ -733,7 +751,20 @@ export function registerEventHandlers(bridge: EvenAppBridge, baseUrl: string): (
 function startAutoRotate() {
   stopAutoRotate();
   autoRotateTimer = setInterval(() => {
-    if (currentPage === "quote" && bridgeRef && currentQuotes.length > 1) {
+    if (currentPage !== "quote" || !bridgeRef) return;
+    if (surpriseMode) {
+      // Redraw philosopher AND quote, so a surprise session wanders the
+      // whole corpus instead of settling on whoever came up first.
+      const pick = drawFromWholeCorpus();
+      if (!pick) return;
+      currentTradition = pick.phil.tradition as Tradition;
+      currentPhilosopher = pick.phil;
+      currentQuotes = pick.phil.quotes;
+      currentQuoteIndex = pick.idx;
+      showCurrentQuote(bridgeRef, baseUrlRef);
+      return;
+    }
+    if (currentQuotes.length > 1) {
       currentQuoteIndex = Math.floor(Math.random() * currentQuotes.length);
       showCurrentQuote(bridgeRef, baseUrlRef);
     }
@@ -835,7 +866,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   navigating = true;
   try {
     if (currentPage === "quote") {
-      stopAutoRotate(); shuffleMode = false;
+      stopAutoRotate(); shuffleMode = false; surpriseMode = false;
       if (currentPhilosopher) {
         await safeRebuild(bridge, buildMindstatePage(currentPhilosopher), "buildMindstatePage");
         currentPage = "mindstate";
@@ -1556,7 +1587,7 @@ async function openCalendarDay(bridge: EvenAppBridge): Promise<void> {
  *  "Go home" is O(1) escape, which chained double-taps never were. */
 async function goHomeFromMenu(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   // Per-page teardown, same order the goBack branches do it.
-  if (currentPage === "quote") { stopAutoRotate(); shuffleMode = false; }
+  if (currentPage === "quote") { stopAutoRotate(); shuffleMode = false; surpriseMode = false; }
   if (currentPage === "mindful-blank" || currentPage === "mindful-quote") cancelMindfulTimers();
   if (currentPage === "speak-conversation") {
     cancelPendingResponseSprite();
@@ -1592,19 +1623,14 @@ export async function surpriseFromQA(bridge: EvenAppBridge, baseUrl: string): Pr
 
 async function surpriseMe(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   if (currentPage === "mindful-blank" || currentPage === "mindful-quote") cancelMindfulTimers();
-  // Weight by quote count: draw a (philosopher, index) pair uniformly
-  // over all 2,801 quotes rather than uniformly over philosophers.
-  const pool: { phil: Philosopher; idx: number }[] = [];
-  for (const phil of PHILOSOPHERS) {
-    for (let i = 0; i < phil.quotes.length; i++) pool.push({ phil, idx: i });
-  }
-  if (pool.length === 0) return;
-  const pick = pool[Math.floor(Math.random() * pool.length)];
+  const pick = drawFromWholeCorpus();
+  if (!pick) return;
   currentTradition = pick.phil.tradition as Tradition;
   currentPhilosopher = pick.phil;
   currentQuotes = pick.phil.quotes;
   currentQuoteIndex = pick.idx;
   shuffleMode = false;
+  surpriseMode = true;          // keep wandering on every tick
   currentPage = "quote";
   lastNavigationTime = Date.now();
   startAutoRotate();
@@ -1663,7 +1689,7 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
         // page (favView state) — same command, same meaning.
         let jumpPhil: Philosopher | null = null;
         if (currentPage === "quote" && currentPhilosopher) {
-          stopAutoRotate(); shuffleMode = false;
+          stopAutoRotate(); shuffleMode = false; surpriseMode = false;
           jumpPhil = currentPhilosopher;
         } else if (currentPage === "favorites" && favView.length > 0) {
           jumpPhil = favView[favIndex]?.phil ?? null;
@@ -1733,6 +1759,18 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
 
       case MENU_LANGUAGE:
         if (currentPage === "home") await openLanguagePage(bridge);
+        return;
+
+      case MENU_MINDFUL_SETUP:
+        // Configuration lives on the phone: picking philosophers and
+        // dialling intervals is list-and-slider work the glasses have no
+        // input grammar for. Set the latch and tell the wearer where it
+        // went, so nothing looks like it silently failed.
+        try { await bridge.setLocalStorage(MINDFUL_LATCH_KEY, String(Date.now())); } catch { /* best effort */ }
+        setGlanceLine(tGlass('g.mindfulOnPhone'));
+        await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
+        await pushLogoToGlasses(bridge, baseUrl);
+        log("[MENU] mindfulness setup → phone latch", "success");
         return;
       case MENU_SHOW_CALENDAR:
         if (currentPage !== "home") return;

@@ -161,5 +161,7 @@
   "g.calQuietDay": "тихо",
   "g.calKept": "Сохранено @{name}",
   "g.menuLanguage": "Изменить язык",
-  "g.langHeader": "Язык"
+  "g.langHeader": "Язык",
+  "g.mindfulOnPhone": "Настройка осознанности на телефоне",
+  "g.menuMindful": "Настроить ум"
 }

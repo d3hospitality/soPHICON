@@ -199,6 +199,8 @@ export const EN = {
   'g.menuEndConvo': 'End conversation',
   'g.menuRefresh': 'Refresh feed',
   'g.menuLanguage': 'Change language',
+  'g.menuMindful': 'Set up mindfulness',
+  'g.mindfulOnPhone': 'Mindfulness setup is on your phone',
   'g.langHeader': 'Language',
   'g.menuDevStory': 'Read the dev story',
   'g.menuNewMindful': 'New mindful quote',

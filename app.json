@@ -2,7 +2,7 @@
   "package_id": "com.d3hospitality.sophicon",
   "edition": "202601",
   "name": "enkiRIDION",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "description": "Philosophy on Glass — speak with 17 philosophers, collect wisdom, and think deeper.",
   "author": "D3 Hospitality",
   "entrypoint": "index.html",

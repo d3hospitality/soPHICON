@@ -68,7 +68,7 @@ import { INTRO_COUNT, STORY_SECTIONS } from './story';
 import { log } from './ui';
 import {
   SUPPORT_URL, SUPPORT_LATCH_KEY, PILL_LINE_1, PILL_LINE_2,
-  supportEnabled, activeCrypto,
+  supportEnabled, activeCrypto, MINDFUL_LATCH_KEY,
 } from './support';
 import {
   t, tQuote, lang, setLang, initLang, onLangChange, applyBidiHints, LANGS, isPhoneOnly, type LangCode,
@@ -2593,6 +2593,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   // happened on the glasses while this webview was backgrounded.
   initSupport();
   consumeSupportLatch().catch(() => {});
+  consumeMindfulLatch().catch(() => {});
 
   // Device-sync spine: pull the account's checklist/habits/weekly rows
   // on dashboard open, then re-render whatever a merge touched. Pure
@@ -2639,6 +2640,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
     // The wearer may have tapped Support on-glass while this webview was
     // asleep; every state tick is a chance to notice the latch they left.
     consumeSupportLatch().catch(() => {});
+    consumeMindfulLatch().catch(() => {});
     lastGlassPage = s.page || '';
   });
   // Deep-link: a #<tab> hash activates that tab on load (e.g. #speak, #philosophers).
@@ -2684,6 +2686,25 @@ async function consumeSupportLatch(): Promise<void> {
   if (!Number.isFinite(at) || Date.now() - at > SUPPORT_LATCH_TTL_MS) return;
   openSupportPanel();
   log('[SUPPORT] opened from glasses', 'success');
+}
+
+/** The mindfulness twin of consumeSupportLatch.
+ *
+ * The wearer chose "Set up mindfulness" from the glasses menu, which is
+ * a settings surface the glasses have no input grammar for. Same TTL
+ * logic and same clear-first ordering: a latch that fails to open must
+ * still never re-fire, and one set on Tuesday must not ambush the user
+ * on Thursday. */
+async function consumeMindfulLatch(): Promise<void> {
+  if (!bridge) return;
+  let raw = '';
+  try { raw = (await bridge.getLocalStorage(MINDFUL_LATCH_KEY)) || ''; } catch { return; }
+  if (!raw) return;
+  try { await bridge.setLocalStorage(MINDFUL_LATCH_KEY, ''); } catch { /* best effort */ }
+  const at = Number(raw);
+  if (!Number.isFinite(at) || Date.now() - at > SUPPORT_LATCH_TTL_MS) return;
+  document.querySelector<HTMLElement>('.tab-btn[data-tab="mindful"]')?.click();
+  log('[MINDFUL] setup opened from glasses', 'success');
 }
 
 /** Display form: 8 characters from each end — enough to eyeball against

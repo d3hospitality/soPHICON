@@ -138,3 +138,9 @@ export function supportPageCount(): number { return supportStoryPages().length; 
 // refresh — opening the Support page immediately if the phone is in
 // hand, waiting quietly if it's in a pocket.
 export const SUPPORT_LATCH_KEY = 'app.showSupport';
+
+/** Same handoff, different destination: the wearer asked to CONFIGURE
+ *  mindfulness, which is a settings surface and therefore phone work.
+ *  The glasses cannot foreground the phone, so this latch waits for the
+ *  dashboard's next refresh exactly as the support one does. */
+export const MINDFUL_LATCH_KEY = 'app.showMindful';

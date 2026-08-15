@@ -161,5 +161,7 @@
   "g.calQuietDay": "ruhig",
   "g.calKept": "Behalten @{name}",
   "g.menuLanguage": "Sprache ändern",
-  "g.langHeader": "Sprache"
+  "g.langHeader": "Sprache",
+  "g.menuMindful": "Achtsamkeit einrichten",
+  "g.mindfulOnPhone": "Achtsamkeitseinrichtung auf Ihrem Handy"
 }

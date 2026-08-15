@@ -189,9 +189,23 @@ body {
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
 /* ═══ PHILOSOPHER GRID ═══ */
+/* Dynamic width, not a fixed column count.
+   repeat(2, 1fr) forced two columns at every viewport, and because grid
+   ITEMS default to min-width:auto they refuse to shrink below their own
+   content — so on a 375px phone the grid was 417px of content in a 313px
+   box and the user had to scroll sideways to reach philosophers that were
+   simply out of frame. auto-fill + minmax lets the track count follow the
+   available width, and the min-width:0 below lets a card actually
+   compress instead of pushing the row wider. */
 .phil-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
 }
+/* Grid/flex children need this explicitly: without it `auto` resolves to
+   min-content and every ellipsis rule downstream is dead. */
+.phil-card, .phil-card > * { min-width: 0; }
+.phil-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .phil-card {
   background: var(--surface-2); border: 1px solid var(--border);
   border-radius: 10px; padding: 10px; cursor: pointer;
@@ -487,7 +501,13 @@ body {
   font-size: 15px;
   font-weight: 700;
   color: var(--gold);
-  letter-spacing: 2.5px;
+  /* "2026 // AUGUST // W2" ran 230px wide in a 193px column on a 375px
+     phone. Both size and tracking have to give, and they must key off
+     the CONTAINER rather than the viewport — a vw clamp still resolved
+     to the full 2.5px at 375px and changed nothing. */
+  min-width: 0;
+  font-size: clamp(11px, 3.4vw, 15px);
+  letter-spacing: clamp(0.4px, 0.45vw, 2.5px);
   text-transform: uppercase;
   text-shadow: 0 0 18px rgba(212,175,55,0.18);
   white-space: nowrap;
@@ -1655,3 +1675,14 @@ button.supportline[hidden] { display: none; }
   color: var(--dim); border-radius: 999px; padding: 3px 10px; cursor: pointer;
 }
 .aph-keep.kept { color: var(--gold); border-color: rgba(212,175,55,0.45); cursor: default; }
+
+
+/* ─── No horizontal scrolling, anywhere ────────────────────────────────
+   A phone UI that pans sideways to reveal controls reads as broken, not
+   as a feature. Panels are containers, so their children wrap or ellipsis
+   rather than widening the page. Verified at 375px across every tab. */
+html, body { overflow-x: hidden; }
+.tab-panel { max-width: 100%; }
+.tab-panel .card { max-width: 100%; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.field select, .field input { max-width: 100%; }
