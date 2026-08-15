@@ -45,7 +45,7 @@ import {
 } from './constants';
 import { ghostPreset } from './image-utils';
 import { supportEnabled, supportStoryPages } from './support';
-import { tGlass, tQuote, tMeta } from './i18n';
+import { tGlass, tQuote, tMeta, LANGS, lang } from './i18n';
 import { hostSupports214 } from './host';
 
 // ═══ Constants consumed by events.ts ═══
@@ -87,6 +87,26 @@ export const PHILOSOPHIES_INDEX = 2;
 /** Home index of the Support row, or -1 when the surface is gated off —
  *  -1 never matches a real click index, so callers need no extra guard. */
 export const SUPPORT_INDEX = supportEnabled() ? 3 : -1;
+
+/** Language rows: native names, current marked.
+ *
+ *  ● / ○ and NOT ✓: U+2713 measures ZERO ADVANCE in the firmware font
+ *  (verified with @evenrealities/pretext), so a checkmark renders as
+ *  nothing at all — the marked row silently loses its marker. ✔ and ✗
+ *  are missing too, despite what the safe-glyph list in the Support PRD
+ *  used to claim.
+ *
+ *  Both markers must also be the SAME WIDTH, because firmware list rows
+ *  are centred: ● and ○ are both 20px, while the '·' first used here is
+ *  5px and shunted the marked row 15px out of line with its neighbours.
+ *
+ *  Indexed from 0 with a trailing Back row, same as the traditions list. */
+export function languageListItems(): string[] {
+  return [
+    ...LANGS.map(l => `${l.code === lang() ? '●' : '○'} ${l.native}`),
+    tGlass('g.back'),
+  ];
+}
 
 /** Traditions live on their own page now, indexed from 0 with a trailing
  *  Back row — so no offset math anywhere. */
@@ -287,6 +307,7 @@ export const MENU_UNFAVORITE = 15;
 export const MENU_CAL_TODAY = 16;
 export const MENU_CAL_PREV = 17;
 export const MENU_CAL_NEXT = 18;
+export const MENU_LANGUAGE = 19;
 
 /** Truncate a menu label to the firmware's 32-UTF-8-byte cap.
  *
@@ -304,10 +325,22 @@ function menuLabel(s: string): string {
 
 type MenuSpec = ReadonlyArray<readonly [label: string, itemID: number]>;
 
+/** Spreadable menu fragment: `{ menuObject }` or `{}`. */
+function menuOf(m: MenuContainerProperty | undefined): { menuObject?: MenuContainerProperty } {
+  return m ? { menuObject: m } : {};
+}
+
 /** Build the page's menuObject. position 0 keeps payload order.
  *  Returns undefined on pre-2.2.9 hosts (desktop simulator): an omitted
  *  menuObject is valid on every protocol version, while an unknown
  *  field rejects the whole page. */
+/** Build a menuObject, or nothing at all.
+ *
+ *  Callers spread the result with `...menuOf(x)` rather than assigning
+ *  `menuObject: menu(x)`. That distinction is load-bearing: the early-
+ *  access doc says omission is significant on rebuild, and
+ *  `{ menuObject: undefined }` still HAS the key (verified) — only a
+ *  spread of `{}` genuinely omits it. */
 function menu(items: MenuSpec): MenuContainerProperty | undefined {
   if (!hostSupports214) return undefined;
   return new MenuContainerProperty({
@@ -320,10 +353,11 @@ function menu(items: MenuSpec): MenuContainerProperty | undefined {
 /** Per-page menus. A FUNCTION per page (not consts) so labels re-read
  *  the dictionary on every rebuild — same reason homeListItems() is a
  *  function. Composition per docs/GLASS-PAGES.md. */
-function homeMenu()      { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuShowFavorites'), MENU_SHOW_FAVORITES], [tGlass('g.menuShowCalendar'), MENU_SHOW_CALENDAR], [tGlass('g.menuDevStory'), MENU_DEV_STORY]]); }
+function homeMenu()      { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuShowFavorites'), MENU_SHOW_FAVORITES], [tGlass('g.menuShowCalendar'), MENU_SHOW_CALENDAR], [tGlass('g.menuLanguage'), MENU_LANGUAGE], [tGlass('g.menuDevStory'), MENU_DEV_STORY]]); }
 function browseMenu()    { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
 function quoteMenu()     { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
 function transitMenu()   { return menu([[tGlass('g.menuHome'), MENU_HOME]]); }
+function langMenu()      { return menu([[tGlass('g.menuHome'), MENU_HOME]]); }
 function convoMenu()     { return menu([[tGlass('g.menuLogReply'), MENU_LOG_REPLY], [tGlass('g.menuEndConvo'), MENU_END_CONVO], [tGlass('g.menuHome'), MENU_HOME]]); }
 export function mindfulMenu()   { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuNewMindful'), MENU_NEW_MINDFUL], [tGlass('g.menuHome'), MENU_HOME]]); }
 function aphoricaMenu()  { return menu([[tGlass('g.menuRefresh'), MENU_REFRESH], [tGlass('g.menuHome'), MENU_HOME]]); }
@@ -472,7 +506,7 @@ function homeContainers() {
 export function buildHomePage(): CreateStartUpPageContainer {
   const c = homeContainers();
   return new CreateStartUpPageContainer({
-    menuObject: homeMenu(),
+    ...menuOf(homeMenu()),
     containerTotalNum: 5,
     listObject: [c.traditions],
     textObject: [c.title, c.glance],
@@ -483,7 +517,7 @@ export function buildHomePage(): CreateStartUpPageContainer {
 export function rebuildHomePage(): RebuildPageContainer {
   const c = homeContainers();
   return new RebuildPageContainer({
-    menuObject: homeMenu(),
+    ...menuOf(homeMenu()),
     containerTotalNum: 5,
     listObject: [c.traditions],
     textObject: [c.title, c.glance],
@@ -537,7 +571,7 @@ export function buildPhilosopherSelectPage(tradition: Tradition, index: number =
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
-    menuObject: browseMenu(),
+    ...menuOf(browseMenu()),
     containerTotalNum: 4,
     listObject: [],
     textObject: [header, navpad],
@@ -572,7 +606,7 @@ export function buildAphoricaPage(items: string[], index: number = 0): RebuildPa
     zOrderIndex: 3,
   });
   return new RebuildPageContainer({
-    menuObject: aphoricaMenu(),
+    ...menuOf(aphoricaMenu()),
     containerTotalNum: 2,
     listObject: [],
     textObject: [header, navpad],
@@ -647,7 +681,7 @@ export function buildAphoricaReadPage(
     zOrderIndex: 3,
   });
   return new RebuildPageContainer({
-    menuObject: aphoricaReadMenu(),
+    ...menuOf(aphoricaReadMenu()),
     containerTotalNum: 3,
     listObject: [],
     textObject: [body, info],
@@ -703,7 +737,7 @@ export function buildMindstatePage(philosopher: Philosopher, index: number = 0):
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
-    menuObject: browseMenu(),
+    ...menuOf(browseMenu()),
     containerTotalNum: 4,
     listObject: [],
     textObject: [header, navpad],
@@ -847,7 +881,7 @@ export function buildQuoteViewPage(
   // so long quotes never overflow into the firmware's internal scroll
   // (which would compete with swipe navigation).
   return new RebuildPageContainer({
-    menuObject: menuOverride ?? quoteMenu(),
+    ...menuOf(menuOverride ?? quoteMenu()),
     containerTotalNum: 3,
     listObject: [],
     textObject: [quoteText, infoText],
@@ -889,7 +923,7 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
-    menuObject: transitMenu(),
+    ...menuOf(transitMenu()),
     containerTotalNum: 4,
     listObject: [tradList],
     textObject: [title],
@@ -959,7 +993,7 @@ export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 
     zOrderIndex: 5,
   });
   return new RebuildPageContainer({
-    menuObject: transitMenu(),
+    ...menuOf(transitMenu()),
     containerTotalNum: 4,
     listObject: [],
     textObject: [header, navpad, branding],
@@ -1090,7 +1124,7 @@ export function buildSpeakConversationPage(
   });
 
   return new RebuildPageContainer({
-    menuObject: convoMenu(),
+    ...menuOf(convoMenu()),
     containerTotalNum: echo ? 7 : 6,
     listObject: [],
     textObject: [responseBox, philName, philSchool],
@@ -1131,7 +1165,7 @@ export function buildMindfulnessBlankPage(): RebuildPageContainer {
     zOrderIndex: 1,    // deliberately chrome-free — this page IS the dark
   } as any);           // screen; no frame, meditation stays blank
   return new RebuildPageContainer({
-    menuObject: mindfulMenu(),
+    ...menuOf(mindfulMenu()),
     containerTotalNum: 1,
     listObject: [],
     textObject: [shell],
@@ -1188,11 +1222,57 @@ export function buildTraditionsPage(): RebuildPageContainer {
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
-    menuObject: browseMenu(),
+    ...menuOf(browseMenu()),
     containerTotalNum: 4,
     listObject: [list],
     textObject: [title],
     imageObject: [logoTop, logoBottom],
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LANGUAGE — pick the glasses language without touching the phone
+// ══════════════════════════════════════════════════════════════════
+
+/** Language picker. Rows are the NATIVE names, which is the one list in
+ *  the app that must NOT be translated: a Japanese speaker looks for
+ *  「日本語」, not "Japanese" rendered in whatever language the UI happens
+ *  to be in right now. That also makes this page useful when you are
+ *  stranded in a language you cannot read — the way out is legible.
+ *
+ *  The current choice carries '✓' and the rest carry '·' so every row
+ *  has a leading glyph: firmware list rows are CENTRED, so marking only
+ *  one row would visibly shift it against the others.
+ *
+ *  Trailing Back row, same as the traditions list. */
+export function buildLanguagePage(): RebuildPageContainer {
+  const items = languageListItems();
+  const header = new TextContainerProperty({
+    xPosition: 24, yPosition: 2, width: 528, height: 34,
+    containerID: 1, containerName: "lang-header",
+    content: tGlass('g.langHeader'),
+    isEventCapture: 0,
+    zOrderIndex: 2,
+    ...(hostSupports214 ? { textColor: 3 } : {}),
+  });
+  // 8 rows (7 languages + Back) exceed the 288px panel, so the box is
+  // quantised to 6 whole 40px rows and the firmware scrolls the rest.
+  const list = new ListContainerProperty({
+    xPosition: 108, yPosition: 44, width: 360, height: 6 * 40,
+    containerID: 2, containerName: "languages",
+    itemContainer: new ListItemContainerProperty({
+      itemCount: items.length, itemWidth: 0, isItemSelectBorderEn: 1,
+      itemName: items,
+    }),
+    isEventCapture: 1,
+    zOrderIndex: 3,
+  });
+  return new RebuildPageContainer({
+    ...menuOf(langMenu()),
+    containerTotalNum: 2,
+    listObject: [list],
+    textObject: [header],
+    imageObject: [],
   });
 }
 
@@ -1258,7 +1338,7 @@ export function buildSupportPage(pageIndex: number = 0): RebuildPageContainer {
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
-    menuObject: supportMenu(),
+    ...menuOf(supportMenu()),
     containerTotalNum: 3,
     listObject: [],
     textObject: [header, body, pager],
@@ -1379,7 +1459,7 @@ export function buildCalendarPage(
     zOrderIndex: 4,
   });
   return new RebuildPageContainer({
-    menuObject: calMenu(),
+    ...menuOf(calMenu()),
     containerTotalNum: 3,
     listObject: [],
     textObject: [header, grid, footer],
@@ -1418,7 +1498,7 @@ export function buildCalendarDayPage(
     ...(hostSupports214 ? { textColor: 2 } : {}),
   });
   return new RebuildPageContainer({
-    menuObject: calMenu(),
+    ...menuOf(calMenu()),
     containerTotalNum: 3,
     listObject: [],
     textObject: [header, body, pager],

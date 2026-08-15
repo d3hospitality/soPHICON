@@ -159,5 +159,7 @@
   "g.menuPrevMonth": "Mes anterior",
   "g.menuNextMonth": "Mes siguiente",
   "g.calQuietDay": "silencio",
-  "g.calKept": "Guardado @{name}"
+  "g.calKept": "Guardado @{name}",
+  "g.menuLanguage": "Cambiar idioma",
+  "g.langHeader": "Idioma"
 }

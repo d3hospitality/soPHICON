@@ -156,8 +156,10 @@
   "g.menuCalToday": "Zu heute",
   "g.favEmpty": "Noch keine Favoriten. Zitat öffnen, halten, dann zu Favoriten speichern.",
   "g.calNoActivity": "Noch nichts diesen Monat.",
-  "g.menuPrevMonth": "Voriger Monat",
+  "g.menuPrevMonth": "Vorheriger Monat",
   "g.menuNextMonth": "Nächster Monat",
   "g.calQuietDay": "ruhig",
-  "g.calKept": "Behalten @{name}"
+  "g.calKept": "Behalten @{name}",
+  "g.menuLanguage": "Sprache ändern",
+  "g.langHeader": "Sprache"
 }

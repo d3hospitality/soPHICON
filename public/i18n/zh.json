@@ -156,8 +156,10 @@
   "g.menuUnfavorite": "从收藏中移除",
   "g.favEmpty": "暂无收藏。打开任意语录，长按后保存到收藏。",
   "g.menuCalToday": "前往今天",
-  "g.menuPrevMonth": "上月",
-  "g.menuNextMonth": "下月",
+  "g.menuPrevMonth": "显示上月",
+  "g.menuNextMonth": "显示下月",
   "g.calQuietDay": "安静",
-  "g.calKept": "已保存@{name}"
+  "g.calKept": "已保存@{name}",
+  "g.menuLanguage": "更改语言",
+  "g.langHeader": "语言"
 }

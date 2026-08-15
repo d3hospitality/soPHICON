@@ -324,8 +324,15 @@ a sharp source.
 **A box that letterboxes will letterbox.** A 200×44 container holding a
 200×200 source shrinks it to a sliver with dead padding either side.
 
-**Firmware-safe glyphs only** (`●○■□★☆▲▶◆✓✗·×—…` and friends). Anything
-else is silently dropped. Curly apostrophe (U+2019, advance 80), curly
+**Firmware-safe glyphs only** — and the set is narrower than it looks.
+MEASURED with `@evenrealities/pretext` (advance 0 = renders as nothing):
+`●○■★☆◆▲▶` are present at 20px, `·` at 5px, `—…×` present. **`✓` and
+`✗` are ABSENT** despite being widely assumed safe; a checkmark marker
+silently disappears. Anything unmeasured is silently dropped.
+
+**Markers on list rows must be EQUAL WIDTH.** Firmware list rows are
+centred, so pairing a 20px `●` with a 5px `·` shunts the marked row out
+of line with its neighbours. Use `●`/`○`. Curly apostrophe (U+2019, advance 80), curly
 quotes and ellipsis are all present — but measure before using one, with
 `@evenrealities/pretext`.
 

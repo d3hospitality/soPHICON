@@ -20,7 +20,7 @@
 //     release the mic so we don't leak state between app sessions.
 // ═══════════════════════════════════════════════════════════════════
 
-import { EvenAppBridge, EvenHubEvent, OsEventTypeList } from '@evenrealities/even_hub_sdk';
+import { EvenAppBridge, EvenHubEvent, OsEventTypeList, RebuildPageContainer } from '@evenrealities/even_hub_sdk';
 import {
   TRADITIONS, Tradition, Philosopher, Quote, PHILOSOPHERS,
   getPhilosophersByTradition, getQuotePhilosophersByTradition, getAllQuotes,
@@ -39,6 +39,7 @@ import {
   composeSpeakResponseContent,
   buildMindfulnessBlankPage,
   SUPPORT_INDEX, buildSupportPage,
+  MENU_LANGUAGE, buildLanguagePage,
   MENU_HOME, MENU_SURPRISE, MENU_FAVORITE, MENU_SPEAK_THIS,
   MENU_END_CONVO, MENU_REFRESH, MENU_DEV_STORY, MENU_NEW_MINDFUL,
   MENU_TIP_JAR, MENU_RESTART_STORY, mindfulMenu,
@@ -57,7 +58,7 @@ import {
   cursorPreviewLine, shiftDayKey, dayPages, dayTitle, dateKey,
 } from './glassCalendar';
 import { authHeaders, linkedHandle } from './enkiAccount';
-import { tGlass } from './i18n';
+import { tGlass, LANGS, setLang } from './i18n';
 import { setAccountBridge } from './enkiAccount';
 import {
   loadPersonas, setSpeakBridge, startConversation,
@@ -68,12 +69,35 @@ import {
 } from './speak';
 import { log } from './ui';
 
+// ═══ REBUILD GUARD ═══════════════════════════════════════════════════
+/**
+ * rebuildPageContainer with its return value actually checked.
+ *
+ * The SDK validates the whole payload BEFORE the native bridge and
+ * returns false on failure (TOO_MANY_MENU_ITEMS, INVALID_MENU_ITEM_NAME,
+ * DUPLICATE_MENU_ITEM_ID, INVALID_MENU_POSITION, INVALID_TEXT_BRIGHTNESS,
+ * and the zOrderIndex rules). Per the Contextual Menu early-access doc:
+ * "Check the return value of every create and rebuild call. A silently
+ * ignored invalid looks identical to a firmware problem."
+ *
+ * Before this, every call site threw the boolean away. A rejected page
+ * leaves the PREVIOUS screen on the glasses while app state advances to
+ * the new one, so the wearer's next click is routed against a page they
+ * cannot see — indistinguishable from a firmware fault. This makes it
+ * loud in the log instead.
+ */
+async function safeRebuild(bridge: EvenAppBridge, page: RebuildPageContainer, what: string): Promise<boolean> {
+  const ok = await bridge.rebuildPageContainer(page);
+  if (!ok) log(`[PAGE] rebuild REJECTED by SDK validation: ${what}`, "error");
+  return ok;
+}
+
 // ═══ STATE ═══
 type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
   | "favorites" | "calendar" | "calendar-day"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
   | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read"
-  | "support";
+  | "support" | "language";
 
 let currentPage: Page = "home";
 /** Cursor into supportStoryPages() while reading the Support story. */
@@ -182,7 +206,7 @@ async function openAphorica(bridge: EvenAppBridge): Promise<void> {
     // Shuffle each member's posts so re-entry reshuffles like a philosopher.
     aphAuthors = [...byHandle.values()].map(a => ({ ...a, posts: aphShuffle(a.posts) }));
   } catch { aphAuthors = []; }
-  await bridge.rebuildPageContainer(buildAphoricaPage(aphAuthorItems(), 0));
+  await safeRebuild(bridge, buildAphoricaPage(aphAuthorItems(), 0), "buildAphoricaPage");
   currentPage = 'aphorica';
 }
 
@@ -203,12 +227,11 @@ async function renderAphoricaRead(bridge: EvenAppBridge): Promise<void> {
   const n = a.posts.length;
   const idx = ((aphReadIdx % n) + n) % n;
   const post = a.posts[idx];
-  await bridge.rebuildPageContainer(
+  await safeRebuild(bridge, 
     buildAphoricaReadPage(`@${a.handle} · ${a.badge}`, post.text, post.up, post.down, idx, n, {
       tradition: a.tradition, role: a.role, about: a.about,
       values: a.values, currentFocus: a.currentFocus,
-    }),
-  );
+    }), "buildAphoricaReadPage");
   // Push the member's avatar into the portrait slot (falls back to ENKI).
   await pushSpriteFromUrl(bridge, aphSpriteSource(a.sprite), 3, "sprite", 100, 100);
 }
@@ -304,7 +327,7 @@ function pickMindfulQuote(): { quote: Quote; phil: Philosopher } | null {
 
 async function showMindfulBlank(bridge: EvenAppBridge): Promise<void> {
   cancelMindfulTimers();
-  await bridge.rebuildPageContainer(buildMindfulnessBlankPage());
+  await safeRebuild(bridge, buildMindfulnessBlankPage(), "buildMindfulnessBlankPage");
   currentPage = "mindful-blank";
   // Schedule the next quote
   mindfulIntervalTimer = setTimeout(
@@ -335,9 +358,9 @@ async function showMindfulQuote(bridge: EvenAppBridge): Promise<void> {
   // "mindful-quote" instead of "quote" so ring-click routes to the
   // mindfulness handler (reset → blank), not quote-page reshuffle.
   const fav = isFavorite(pick.quote);
-  await bridge.rebuildPageContainer(
+  await safeRebuild(bridge, 
     buildQuoteViewPage(pick.phil, pick.quote, mindfulShownCount - 1, mindfulShownCount, fav, /* shuffle */ true, mindfulMenu())
-  );
+  , "buildQuoteViewPage");
   currentPage = "mindful-quote";
 
   // Push the emotion sprite to the QuoteView page's sprite slot
@@ -508,7 +531,7 @@ async function commitPicksSelection(bridge: EvenAppBridge, baseUrl: string): Pro
   const phil = phils[Math.max(0, Math.min(picksSelectedIndex, phils.length - 1))];
   currentPhilosopher = phil;
   mindstateSelectedIndex = 0;
-  await bridge.rebuildPageContainer(buildMindstatePage(phil, 0));
+  await safeRebuild(bridge, buildMindstatePage(phil, 0), "buildMindstatePage");
   currentPage = "mindstate";
   lastNavigationTime = Date.now();
   await pushPhilPortrait(bridge, baseUrl, phil, 3, "portrait", 12, "portrait-2");
@@ -760,9 +783,9 @@ async function showCurrentQuote(bridge: EvenAppBridge, baseUrl: string): Promise
   if (!currentPhilosopher || currentQuotes.length === 0) return;
   const quote = currentQuotes[currentQuoteIndex];
   const fav = isFavorite(quote);
-  await bridge.rebuildPageContainer(
+  await safeRebuild(bridge, 
     buildQuoteViewPage(currentPhilosopher, quote, currentQuoteIndex, currentQuotes.length, fav, shuffleMode)
-  );
+  , "buildQuoteViewPage");
   if (quote.sprite) {
     // QuoteView container 3 'sprite' is 100×100 (pages.layout.ts) — push must match
     await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 100, 100);
@@ -814,7 +837,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
     if (currentPage === "quote") {
       stopAutoRotate(); shuffleMode = false;
       if (currentPhilosopher) {
-        await bridge.rebuildPageContainer(buildMindstatePage(currentPhilosopher));
+        await safeRebuild(bridge, buildMindstatePage(currentPhilosopher), "buildMindstatePage");
         currentPage = "mindstate";
         await pushPhilPortrait(bridge, baseUrl, currentPhilosopher, 3, "portrait", 12, "portrait-2");
       }
@@ -823,7 +846,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
     }
     else if (currentPage === "mindstate") {
       if (currentTradition) {
-        await bridge.rebuildPageContainer(buildPhilosopherSelectPage(currentTradition));
+        await safeRebuild(bridge, buildPhilosopherSelectPage(currentTradition), "buildPhilosopherSelectPage");
         currentPage = "philosophers"; lastHoveredPhilIndex = -1; currentPhilosopher = null;
         const phils = getQuotePhilosophersByTradition(currentTradition);
         if (phils.length > 0) { await pushPhilPortrait(bridge, baseUrl, phils[0], 3, "portrait", 11, "portrait-2"); lastHoveredPhilIndex = 0; }
@@ -835,7 +858,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       // Up one level to the tradition list, not all the way home — the
       // traditions moved off the home page, so home is no longer the
       // parent of a philosopher-select screen.
-      await bridge.rebuildPageContainer(buildTraditionsPage());
+      await safeRebuild(bridge, buildTraditionsPage(), "buildTraditionsPage");
       currentPage = "traditions"; currentTradition = null; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();
       await pushLogoToGlasses(bridge, baseUrl);
@@ -843,7 +866,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
     }
     else if (currentPage === "traditions") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
-      await bridge.rebuildPageContainer(rebuildHomePage());
+      await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
       currentPage = "home"; currentTradition = null; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();
       await pushLogoToGlasses(bridge, baseUrl);
@@ -871,7 +894,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
         const phils = getPhilosophersByTradition(speakTradition);
         const idxToShow = Math.max(0, Math.min(speakSelectedIndex, phils.length - 1));
         speakSelectedIndex = idxToShow;
-        await bridge.rebuildPageContainer(buildSpeakPhilosopherPage(speakTradition, idxToShow));
+        await safeRebuild(bridge, buildSpeakPhilosopherPage(speakTradition, idxToShow), "buildSpeakPhilosopherPage");
         currentPage = "speak-philosophers"; lastHoveredPhilIndex = idxToShow;
         if (phils.length > 0) {
           const phil = phils[idxToShow];
@@ -886,7 +909,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       log("< Back to speak philosophers", "success");
     }
     else if (currentPage === "speak-philosophers") {
-      await bridge.rebuildPageContainer(buildSpeakTraditionPage());
+      await safeRebuild(bridge, buildSpeakTraditionPage(), "buildSpeakTraditionPage");
       currentPage = "speak-traditions"; speakTradition = null; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();
       await pushLogoToGlasses(bridge, baseUrl);
@@ -894,7 +917,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
     }
     else if (currentPage === "speak-traditions") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
-      await bridge.rebuildPageContainer(rebuildHomePage());
+      await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
       currentPage = "home"; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();
       await pushLogoToGlasses(bridge, baseUrl);
@@ -902,7 +925,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
     }
     else if (currentPage === "favorites") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
-      await bridge.rebuildPageContainer(rebuildHomePage());
+      await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
       currentPage = "home"; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();
       await pushLogoToGlasses(bridge, baseUrl);
@@ -910,7 +933,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
     }
     else if (currentPage === "calendar") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
-      await bridge.rebuildPageContainer(rebuildHomePage());
+      await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
       currentPage = "home"; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();
       await pushLogoToGlasses(bridge, baseUrl);
@@ -924,14 +947,14 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
     }
     else if (currentPage === "aphorica-read") {
       // Reading a member's thoughts → back to the member list.
-      await bridge.rebuildPageContainer(buildAphoricaPage(aphAuthorItems(), aphGlassIdx));
+      await safeRebuild(bridge, buildAphoricaPage(aphAuthorItems(), aphGlassIdx), "buildAphoricaPage");
       currentPage = "aphorica";
       lastNavigationTime = Date.now();
       log("< Back to Public Aphorica", "success");
     }
     else if (currentPage === "aphorica") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
-      await bridge.rebuildPageContainer(rebuildHomePage());
+      await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
       currentPage = "home"; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();
       await pushLogoToGlasses(bridge, baseUrl);
@@ -939,7 +962,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
     }
     else if (currentPage === "support") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
-      await bridge.rebuildPageContainer(rebuildHomePage());
+      await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
       currentPage = "home"; lastHoveredPhilIndex = -1;
       lastNavigationTime = Date.now();
       await pushLogoToGlasses(bridge, baseUrl);
@@ -974,7 +997,7 @@ async function renderSpeakPage(
   if (speakPageIndex < 0) speakPageIndex = 0;
 
   if (!speakIsInitialized) {
-    await bridge.rebuildPageContainer(
+    await safeRebuild(bridge, 
       buildSpeakConversationPage(
         speakPhilosopher.name,
         speakTradition || "",
@@ -984,7 +1007,7 @@ async function renderSpeakPage(
         speakPageIndex,
         isThinking,
       )
-    );
+    , "buildSpeakConversationPage");
     speakIsInitialized = true;
     // Portrait container is a fresh placeholder after rebuild —
     // callers should follow up with pushEmotionPortrait.
@@ -1155,9 +1178,38 @@ async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> 
  * straight away if the phone is in hand, waiting quietly if it's in a
  * pocket. The latch stores a timestamp so the dashboard can ignore one
  * that's gone stale rather than ambushing someone days later. */
+/** Open the on-glass language picker (home contextual menu). */
+export async function openLanguagePage(bridge: EvenAppBridge): Promise<void> {
+  await safeRebuild(bridge, buildLanguagePage(), "buildLanguagePage");
+  currentPage = "language";
+  lastNavigationTime = Date.now();
+  log("> Language", "success");
+}
+
+/** Commit a language choice made on the glasses.
+ *
+ * setLang persists to the SAME bridge key the phone picker uses
+ * (enki_lang) and fires the listener list, so the dashboard repaints
+ * itself — the two surfaces cannot disagree about the current language.
+ * Home is rebuilt directly rather than via repaintGlassForLanguage,
+ * because currentPage is still "language" here and that helper only
+ * repaints the page you are already on. */
+async function commitLanguage(bridge: EvenAppBridge, baseUrl: string, idx: number): Promise<void> {
+  const def = LANGS[idx];
+  if (!def) return;
+  await setLang(def.code, bridge);
+  try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
+  await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
+  currentPage = "home";
+  lastNavigationTime = Date.now();
+  await pushLogoToGlasses(bridge, baseUrl);
+  log(`> Language: ${def.native}`, "success");
+  publishState();
+}
+
 async function openSupport(bridge: EvenAppBridge): Promise<void> {
   supportPageIndex = 0;
-  await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
+  await safeRebuild(bridge, buildSupportPage(supportPageIndex), "buildSupportPage");
   currentPage = "support";
   // Best-effort: a storage failure must never cost the wearer the page
   // they actually asked for.
@@ -1175,7 +1227,7 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
     // ── HOME ──
     if (currentPage === "home") {
       if (idx === SPEAK_INDEX) {
-        await bridge.rebuildPageContainer(buildSpeakTraditionPage());
+        await safeRebuild(bridge, buildSpeakTraditionPage(), "buildSpeakTraditionPage");
         currentPage = "speak-traditions";
         lastNavigationTime = Date.now();
         await pushLogoToGlasses(bridge, baseUrl);
@@ -1185,7 +1237,7 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         lastNavigationTime = Date.now();
         log("> Public Aphorica", "success");
       } else if (idx === PHILOSOPHIES_INDEX) {
-        await bridge.rebuildPageContainer(buildTraditionsPage());
+        await safeRebuild(bridge, buildTraditionsPage(), "buildTraditionsPage");
         currentPage = "traditions";
         lastNavigationTime = Date.now();
         await pushLogoToGlasses(bridge, baseUrl);
@@ -1206,7 +1258,7 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
       if (idx >= 0 && idx < BROWSABLE_TRADITIONS.length) {
         currentTradition = BROWSABLE_TRADITIONS[idx];
         picksSelectedIndex = 0;
-        await bridge.rebuildPageContainer(buildPhilosopherSelectPage(currentTradition, 0));
+        await safeRebuild(bridge, buildPhilosopherSelectPage(currentTradition, 0), "buildPhilosopherSelectPage");
         currentPage = "philosophers"; lastHoveredPhilIndex = 0;
         lastNavigationTime = Date.now();
         const phils = getQuotePhilosophersByTradition(currentTradition);
@@ -1223,13 +1275,21 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
       return;
     }
 
+    // ── LANGUAGE PICKER ──
+    if (currentPage === "language") {
+      const n = LANGS.length;
+      if (idx === n) { navigating = false; await goBack(bridge, baseUrl); return; }   // Back row
+      if (idx >= 0 && idx < n) await commitLanguage(bridge, baseUrl, idx);
+      return;
+    }
+
     // ── PHILOSOPHERS (quote browse) ──
     if (currentPage === "philosophers" && currentTradition) {
       const phils = getQuotePhilosophersByTradition(currentTradition);
       if (idx === phils.length) { navigating = false; await goBack(bridge, baseUrl); return; }
       if (idx >= 0 && idx < phils.length) {
         currentPhilosopher = phils[idx];
-        await bridge.rebuildPageContainer(buildMindstatePage(currentPhilosopher));
+        await safeRebuild(bridge, buildMindstatePage(currentPhilosopher), "buildMindstatePage");
         currentPage = "mindstate"; lastNavigationTime = Date.now();
         await pushPhilPortrait(bridge, baseUrl, currentPhilosopher, 3, "portrait", 12, "portrait-2");
         log(`> ${currentPhilosopher.name}`, "success");
@@ -1256,7 +1316,7 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
       if (idx >= 0 && idx < TRADITIONS.length) {
         speakTradition = TRADITIONS[idx];
         speakSelectedIndex = 0;
-        await bridge.rebuildPageContainer(buildSpeakPhilosopherPage(speakTradition, 0));
+        await safeRebuild(bridge, buildSpeakPhilosopherPage(speakTradition, 0), "buildSpeakPhilosopherPage");
         currentPage = "speak-philosophers"; lastHoveredPhilIndex = 0; lastNavigationTime = Date.now();
         const phils = getPhilosophersByTradition(speakTradition);
         if (phils.length > 0) {
@@ -1406,7 +1466,7 @@ export async function openFavoritesPage(bridge: EvenAppBridge, baseUrl: string):
   favView = resolveFavorites();
   favIndex = 0;
   if (favView.length === 0) {
-    await bridge.rebuildPageContainer(buildFavoritesEmptyPage());
+    await safeRebuild(bridge, buildFavoritesEmptyPage(), "buildFavoritesEmptyPage");
     currentPage = "favorites";
     lastNavigationTime = Date.now();
     log("> Favorites (empty)");
@@ -1420,15 +1480,15 @@ export async function openFavoritesPage(bridge: EvenAppBridge, baseUrl: string):
 
 async function showFavorite(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   if (favView.length === 0) {
-    await bridge.rebuildPageContainer(buildFavoritesEmptyPage());
+    await safeRebuild(bridge, buildFavoritesEmptyPage(), "buildFavoritesEmptyPage");
     return;
   }
   const n = favView.length;
   favIndex = ((favIndex % n) + n) % n;
   const { phil, quote } = favView[favIndex];
-  await bridge.rebuildPageContainer(
+  await safeRebuild(bridge, 
     buildQuoteViewPage(phil, quote, favIndex, n, true, false, favMenu())
-  );
+  , "buildQuoteViewPage");
   if (quote.sprite) {
     try { await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 100, 100); }
     catch (e) { console.warn("[FAV] sprite push failed", e); }
@@ -1452,7 +1512,7 @@ async function renderCalendar(bridge: EvenAppBridge): Promise<void> {
   const header = monthHeaderLine(y, m - 1, calActivity);
   const grid = renderMonthGrid(y, m - 1, calActivity, calCursorKey);
   const footer = cursorPreviewLine(calCursorKey, calActivity);
-  await bridge.rebuildPageContainer(buildCalendarPage(y, m - 1, header, grid, footer));
+  await safeRebuild(bridge, buildCalendarPage(y, m - 1, header, grid, footer), "buildCalendarPage");
 }
 
 /** Move the day cursor ±n days. Crossing a month edge flips the month
@@ -1477,9 +1537,9 @@ async function openCalendarDay(bridge: EvenAppBridge): Promise<void> {
   calDayKey = calCursorKey;
   calDayPageList = dayPages(calDayKey, calActivity);
   calDayPageIdx = 0;
-  await bridge.rebuildPageContainer(
+  await safeRebuild(bridge, 
     buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx)
-  );
+  , "buildCalendarDayPage");
   currentPage = "calendar-day";
   lastNavigationTime = Date.now();
 }
@@ -1512,7 +1572,7 @@ async function goHomeFromMenu(bridge: EvenAppBridge, baseUrl: string): Promise<v
     speakPageIndex = 0;
   }
   try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
-  await bridge.rebuildPageContainer(rebuildHomePage());
+  await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
   currentPage = "home"; currentTradition = null; lastHoveredPhilIndex = -1;
   lastNavigationTime = Date.now();
   await pushLogoToGlasses(bridge, baseUrl);
@@ -1570,9 +1630,9 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
           // Repaint so the ♥ actually changes where the wearer is
           // looking (the mark is baked into the page text), then
           // restore the sprite the rebuild blanked.
-          await bridge.rebuildPageContainer(
+          await safeRebuild(bridge, 
             buildQuoteViewPage(pick.phil, pick.quote, mindfulShownCount - 1, mindfulShownCount, isFavorite(pick.quote), true, mindfulMenu())
-          );
+          , "buildQuoteViewPage");
           if (pick.quote.sprite) {
             try { await pushSpriteSingle(bridge, baseUrl, pick.quote.sprite, 3, "sprite", 100, 100); } catch { /* sprite is decoration */ }
           }
@@ -1656,7 +1716,7 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
       case MENU_RESTART_STORY:
         if (currentPage !== "support") return;
         supportPageIndex = 0;
-        await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
+        await safeRebuild(bridge, buildSupportPage(supportPageIndex), "buildSupportPage");
         return;
 
       case MENU_SHOW_FAVORITES:
@@ -1664,6 +1724,9 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
         await openFavoritesPage(bridge, baseUrl);
         return;
 
+      case MENU_LANGUAGE:
+        if (currentPage === "home") await openLanguagePage(bridge);
+        return;
       case MENU_SHOW_CALENDAR:
         if (currentPage !== "home") return;
         await openCalendarPage(bridge, true);
@@ -1839,15 +1902,22 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
 
     // Calendar day detail: swipe pages entries, same grammar as support.
     if (currentPage === "calendar-day" && calDayPageList.length > 0) {
-      if (up)   { calDayPageIdx -= 1; await bridge.rebuildPageContainer(buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx)); return; }
-      if (down) { calDayPageIdx += 1; await bridge.rebuildPageContainer(buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx)); return; }
+      if (up)   { calDayPageIdx -= 1; await safeRebuild(bridge, buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx), "buildCalendarDayPage"); return; }
+      if (down) { calDayPageIdx += 1; await safeRebuild(bridge, buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx), "buildCalendarDayPage"); return; }
     }
 
     // Support story: swipe pages the letter both ways. Same grammar as
     // the quote page, so nothing new to learn.
-    if (currentPage === "support") {
-      if (up)   { supportPageIndex -= 1; await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex)); return; }
-      if (down) { supportPageIndex += 1; await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex)); return; }
+    if (currentPage === "language") {
+    await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
+    currentPage = "home";
+    await pushLogoToGlasses(bridge, baseUrl);
+    log("< Back to Home", "success");
+    return;
+  }
+  if (currentPage === "support") {
+      if (up)   { supportPageIndex -= 1; await safeRebuild(bridge, buildSupportPage(supportPageIndex), "buildSupportPage"); return; }
+      if (down) { supportPageIndex += 1; await safeRebuild(bridge, buildSupportPage(supportPageIndex), "buildSupportPage"); return; }
     }
 
     if (currentPage === "quote") {
@@ -1876,8 +1946,8 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
     if (currentPage === "aphorica") {
       const n = aphAuthors.length;
       if (n === 0) return;
-      if (up)   { aphGlassIdx = (aphGlassIdx - 1 + n) % n; await bridge.rebuildPageContainer(buildAphoricaPage(aphAuthorItems(), aphGlassIdx)); return; }
-      if (down) { aphGlassIdx = (aphGlassIdx + 1) % n; await bridge.rebuildPageContainer(buildAphoricaPage(aphAuthorItems(), aphGlassIdx)); return; }
+      if (up)   { aphGlassIdx = (aphGlassIdx - 1 + n) % n; await safeRebuild(bridge, buildAphoricaPage(aphAuthorItems(), aphGlassIdx), "buildAphoricaPage"); return; }
+      if (down) { aphGlassIdx = (aphGlassIdx + 1) % n; await safeRebuild(bridge, buildAphoricaPage(aphAuthorItems(), aphGlassIdx), "buildAphoricaPage"); return; }
     }
     // Aphorica reading: swipe cycles the selected member's thoughts.
     if (currentPage === "aphorica-read") {
@@ -1955,7 +2025,7 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
     if (type === OsEventTypeList.CLICK_EVENT) { // 0
       if (currentPage === "support") {
         supportPageIndex += 1;                       // buildSupportPage wraps
-        await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
+        await safeRebuild(bridge, buildSupportPage(supportPageIndex), "buildSupportPage");
         return;
       }
       // handleEvent is fire-and-forget (the subscription does not await
@@ -1970,7 +2040,7 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       if (currentPage === "calendar-day") {
         if (navigating) return;
         calDayPageIdx += 1;                          // builder wraps
-        await bridge.rebuildPageContainer(buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx));
+        await safeRebuild(bridge, buildCalendarDayPage(dayTitle(calDayKey), calDayPageList, calDayPageIdx), "buildCalendarDayPage");
         return;
       }
       if (currentPage === "quote")              { await handleClick(bridge, 0, baseUrl); return; }
@@ -2042,11 +2112,11 @@ export async function repaintGlassForLanguage(bridge: EvenAppBridge, baseUrl: st
   try {
     if (currentPage === "home") {
       try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
-      await bridge.rebuildPageContainer(rebuildHomePage());
+      await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
       await pushLogoToGlasses(bridge, baseUrl);
       log("[LANG] home repainted", "success");
     } else if (currentPage === "traditions") {
-      await bridge.rebuildPageContainer(buildTraditionsPage());
+      await safeRebuild(bridge, buildTraditionsPage(), "buildTraditionsPage");
       await pushLogoToGlasses(bridge, baseUrl);
       log("[LANG] philosophies repainted", "success");
     } else if (currentPage === "favorites") {
@@ -2055,11 +2125,14 @@ export async function repaintGlassForLanguage(bridge: EvenAppBridge, baseUrl: st
     } else if (currentPage === "calendar") {
       await renderCalendar(bridge);
       log("[LANG] calendar repainted", "success");
+    } else if (currentPage === "language") {
+      await safeRebuild(bridge, buildLanguagePage(), "buildLanguagePage");
+      log("[LANG] picker repainted", "success");
     } else if (currentPage === "support") {
       // Page boundaries differ per language, so an index from the old
       // language points nowhere sensible in the new one.
       supportPageIndex = 0;
-      await bridge.rebuildPageContainer(buildSupportPage(supportPageIndex));
+      await safeRebuild(bridge, buildSupportPage(supportPageIndex), "buildSupportPage");
       log("[LANG] support repainted", "success");
     }
   } catch (e) {
