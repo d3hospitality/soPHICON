@@ -247,6 +247,24 @@ let shuffleMode: boolean = false;
  *  philosopher forever — the 33s tick never left them. */
 let surpriseMode: boolean = false;
 
+/** Advance a surprise session to a new philosopher + quote.
+ *
+ *  EVERY way of asking for "the next one" has to go through this, not
+ *  just the auto-rotate tick: the first fix only changed the 33s timer,
+ *  so anyone who clicked or swiped — which is what people actually do —
+ *  kept getting re-randomised inside whichever philosopher came up
+ *  first, and the mode looked broken. Click, swipe and tick now share
+ *  this path. Returns false if there is nothing to draw. */
+function advanceSurprise(): boolean {
+  const pick = drawFromWholeCorpus();
+  if (!pick) return false;
+  currentTradition = pick.phil.tradition as Tradition;
+  currentPhilosopher = pick.phil;
+  currentQuotes = pick.phil.quotes;
+  currentQuoteIndex = pick.idx;
+  return true;
+}
+
 /** One uniformly-random (philosopher, quote index) pair over all 2,801
  *  quotes. Weighted by quote count on purpose: drawing a philosopher
  *  first and then a quote would over-represent the thin ones. */
@@ -753,15 +771,7 @@ function startAutoRotate() {
   autoRotateTimer = setInterval(() => {
     if (currentPage !== "quote" || !bridgeRef) return;
     if (surpriseMode) {
-      // Redraw philosopher AND quote, so a surprise session wanders the
-      // whole corpus instead of settling on whoever came up first.
-      const pick = drawFromWholeCorpus();
-      if (!pick) return;
-      currentTradition = pick.phil.tradition as Tradition;
-      currentPhilosopher = pick.phil;
-      currentQuotes = pick.phil.quotes;
-      currentQuoteIndex = pick.idx;
-      showCurrentQuote(bridgeRef, baseUrlRef);
+      if (advanceSurprise()) showCurrentQuote(bridgeRef, baseUrlRef);
       return;
     }
     if (currentQuotes.length > 1) {
@@ -1335,9 +1345,12 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
 
     // ── QUOTE: click = reshuffle ──
     if (currentPage === "quote" && currentPhilosopher && currentQuotes.length > 0) {
-      currentQuoteIndex = Math.floor(Math.random() * currentQuotes.length);
+      // In a surprise session a click means "somebody else", not
+      // "another quote from this one".
+      if (surpriseMode) advanceSurprise();
+      else currentQuoteIndex = Math.floor(Math.random() * currentQuotes.length);
       startAutoRotate(); await showCurrentQuote(bridge, baseUrl);
-      log("Click > new quote", "success");
+      log(surpriseMode ? `Click > surprise: ${currentPhilosopher.name}` : "Click > new quote", "success");
       return;
     }
 
@@ -1427,7 +1440,10 @@ async function handleDoubleClick(bridge: EvenAppBridge, baseUrl: string): Promis
 // ═══ QUOTE SCROLL ═══
 async function handleQuoteScroll(bridge: EvenAppBridge, baseUrl: string, dir: "up" | "down"): Promise<void> {
   if (!currentPhilosopher || currentQuotes.length === 0) return;
-  if (shuffleMode) { currentQuoteIndex = Math.floor(Math.random() * currentQuotes.length); }
+  // Surprise takes precedence: a swipe is still "next", and next in a
+  // surprise session means a different philosopher.
+  if (surpriseMode) { advanceSurprise(); }
+  else if (shuffleMode) { currentQuoteIndex = Math.floor(Math.random() * currentQuotes.length); }
   else { currentQuoteIndex = dir === "down" ? (currentQuoteIndex + 1) % currentQuotes.length : (currentQuoteIndex - 1 + currentQuotes.length) % currentQuotes.length; }
   startAutoRotate(); await showCurrentQuote(bridge, baseUrl);
 }
