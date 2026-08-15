@@ -156,8 +156,10 @@
   "g.calNoActivity": "今月はまだありません。",
   "g.menuCalToday": "今日に移動",
   "g.favEmpty": "お気に入りはまだありません。引用を開いて長押しし、お気に入りに保存。",
-  "g.menuPrevMonth": "先月",
-  "g.menuNextMonth": "翌月",
+  "g.menuPrevMonth": "先月を表示",
+  "g.menuNextMonth": "翌月を表示",
   "g.calQuietDay": "静かに",
-  "g.calKept": "@{name}を保持"
+  "g.calKept": "@{name}を保持",
+  "g.menuLanguage": "言語を変更",
+  "g.langHeader": "言語"
 }
