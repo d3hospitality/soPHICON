@@ -1,0 +1,276 @@
+# enkiRIDION / enkiSPEAKS — Multilingual Paid Social Cost Estimate
+
+**Scope:** Meta (Facebook + Instagram) and TikTok, using the creative matrix in the
+[enkiRIDION — TikTok Ad Creatives Figma file](https://www.figma.com/design/gxMfTzmYYgdScSF5uZlEjZ/enkiRIDION-%E2%80%94-TikTok-Ad-Creatives?node-id=0-1):
+**7 language lanes × 14 creatives = 98 frames**, with copy variants for 9 locales.
+
+| Lane | Locale(s) | Creatives |
+|---|---|---|
+| PT | pt-BR ("Fala, guerreiro") | 7 concept + 7 device-gated |
+| ES | es-MX ("Qué onda, güey"), es-CO ("Quiubo, parcero"), es-Caribe ("Oye, tigre") | 7 + 7 |
+| FR | fr ("Franchement, frérot") | 7 + 7 |
+| IT | it ("Bella zio") | 7 + 7 |
+| RU | ru ("Хватит ныть") | 7 + 7 |
+| JA | ja ("考えすぎのあなたへ") | 7 + 7 |
+| ZH | zh ("别再精神内耗了") | 7 + 7 |
+
+Device-gated creatives per lane: **iOS · Google Play · iPad · Apple Watch · Vision Pro · Web · Even Realities G2**.
+
+---
+
+## 1. What the platforms actually charge
+
+Neither Meta nor TikTok charges per creative, per language, or per ad. Uploading all
+98 creatives costs **$0**. Both platforms are pure auctions — you pay for delivery
+(impressions/clicks/installs). What your language × device matrix *does* drive is the
+**number of ad sets / ad groups**, and each of those carries a minimum daily budget
+and its own learning-phase data requirement. Structure, not creative count, sets your
+cost floor.
+
+**Platform minimums:**
+
+| Platform | Level | Minimum daily budget |
+|---|---|---|
+| TikTok | Campaign | **$50/day** |
+| TikTok | Ad group | **$20/day** |
+| Meta | Ad set | ~$1–7/day formal floor, but ~**$10–20/day** practical minimum for app-install optimization (needs ~50 conversion events/week per ad set to exit learning) |
+
+## 2. Two lanes you mostly can't buy
+
+- **RU:** Meta halted all ad sales/delivery in Russia in March 2022 and TikTok
+  suspended advertising there as well. The RU creatives can only be used for
+  **Russian-speaking diaspora** targeting (language = Russian, geo = EU/US/Israel/
+  Kazakhstan/Georgia etc.). Budget it as a small diaspora ad set, not a market.
+- **ZH:** Facebook/Instagram and TikTok don't serve ads in mainland China (TikTok
+  also isn't available in Hong Kong). The ZH lane realistically buys **Taiwan,
+  Singapore/Malaysia, and the global Chinese-speaking diaspora**.
+
+Neither of these kills the creative work — it just changes the geo and shrinks the
+audience (and budget) for those two lanes.
+
+## 3. Device targeting: what's real
+
+- **Meta** targets by OS (iOS/Android), min OS version, specific device models
+  (iPad — yes), and Wi-Fi/carrier. **Apple Watch, Vision Pro, and Even Realities G2
+  are not targetable devices** — run those creatives inside the iOS ad set (they act
+  as premium-Apple-ecosystem hooks, and Vision Pro/Watch owners are by definition
+  iPhone owners). The "Web" creative maps to desktop placements / traffic campaigns.
+- **TikTok** targets OS, OS version, device model, device price tier, and carrier.
+  Same story: no wearables/XR targeting; iPad-model targeting is possible but the
+  audience is thin.
+
+So the buyable device matrix is effectively **iOS / Android (/ optional desktop-web)**
+per language — the other device-gated creatives ride along inside the iOS placement
+rather than getting their own ad sets. Note that iOS CPIs run **~2.8–3.5× Android**
+on Meta at equivalent targeting.
+
+## 4. The math
+
+### The trap: buying the matrix as drawn
+
+7 languages × 7 device gates = 49 ad groups. On TikTok alone that's
+49 × $20/day = **$980/day ≈ $29,400/month just to satisfy minimums**, spread so thin
+nothing exits the learning phase. Don't structure it this way.
+
+### The sane structure
+
+7 language campaigns (PT-BR, ES-LatAm, FR, IT, JA, ZH-TW/SG, RU-diaspora) × 2 OS ad
+groups = **14 ad groups per platform**, with all 7 concept creatives + the relevant
+device-gated creatives rotating inside each.
+
+| Platform | Structure | Floor (minimums) | Recommended (exits learning) |
+|---|---|---|---|
+| TikTok | 14 ad groups × $20–35/day | ~$280/day ≈ **$8.4k/mo** | ~$420–490/day ≈ **$13–15k/mo** |
+| Meta | 14 ad sets × $10–25/day | ~$150/day ≈ **$4.5k/mo** | ~$250–350/day ≈ **$8–10k/mo** |
+| **Both** | 28 ad sets/groups | **~$13k/mo** | **~$21–25k/mo** |
+
+### Benchmark rates by market (2026, app installs / lifestyle-education vertical)
+
+| Market | Meta CPM | Blended CPI (Android / iOS) | Notes |
+|---|---|---|---|
+| Brazil (PT) | $1.50–4 | $0.50–1.00 / $1.50–3 | Cheapest volume; TikTok CPM $1–3 |
+| Mexico, Colombia, Caribbean (ES) | $1.50–4 | $0.50–1.50 / $1.50–3.50 | Great volume play |
+| France (FR) | $6–10 | $2–4 / $4–8 | Western-Europe pricing |
+| Italy (IT) | $5–9 | $2–3.50 / $4–7 | Slightly cheaper than FR |
+| Japan (JA) | $8–14 | $2.50–5 / $6–12 | Expensive, high-intent, near-US costs |
+| Taiwan/SG + diaspora (ZH) | $4–8 | $1.50–3 / $3–6 | Smaller pool |
+| RU diaspora | varies by host geo | $1.50–4 | Small audience, host-country CPMs |
+
+### Scenario budgets (both platforms combined)
+
+| Scenario | Structure | Monthly budget | Expected installs* |
+|---|---|---|---|
+| **Pilot** — PT-BR + ES-MX only, iOS+Android, Meta + TikTok | 8 ad sets/groups | **$3–5k** | ~2,500–5,000 |
+| **Full rollout floor** — all 7 lanes, minimum viable | 28 | **$13k** | ~5,000–8,000 |
+| **Full rollout recommended** — all lanes exit learning | 28 | **$21–25k** | ~9,000–15,000 |
+| **Aggressive scale** — winners scaled, LatAm heavy | 30–40 | **$40k+** | ~25,000+ |
+
+\* Blended across markets; LatAm dominates install volume at any budget because CPIs
+are 3–8× cheaper than JA/FR/IT.
+
+### Micro-budget plan: $1,000 total
+
+Skip TikTok (minimums eat the budget: 7 languages = 7 ad groups × $20/day). Run
+**Meta only**, one app-install campaign at ~$33/day × 30 days:
+
+- Geo: Brazil + Mexico + Colombia (cheapest CPI), **Android-first**
+- All locale copy variants loaded into ONE ad set via **dynamic language
+  optimization** — Meta serves each user the version matching their language
+  setting (up to 48 languages, own text + own image per language) and shifts
+  budget to whichever language converts. Don't use the Advantage+ AI
+  auto-translate; the hand-tuned slang copy is the asset.
+
+Expected funnel: ~300–500k impressions ($2–4 CPM) → ~1–1.5% CTR → 15–30%
+click-to-install at $0.60–1.50 CPI → **~700–1,500 installs** → 1–3%
+install-to-paid → **~10–40 paying users**. Same budget on Japan/France yields
+4–5× fewer installs; iOS costs ~3× Android everywhere.
+
+Treat $1k as a *learning* budget: its output is the per-language/per-hook CPI
+breakdown that tells you where the next tranche goes.
+
+**Language-flipping capability by platform:** Meta = native (dynamic language
+optimization). TikTok = none; language is an ad-group targeting setting (one
+language per ad group), and Smart+ auto-translate generates its own
+translations rather than rotating supplied locale variants.
+
+## 5. Dayparting: when to push
+
+Strategy: hit the four daily "phone-in-hand" windows — **wake-up/bathroom scroll,
+lunch break, commute home, and post-dinner wind-down** — in each market's local
+rhythm, not a single global clock.
+
+### Platform mechanics first
+
+- **Meta:** ad scheduling (dayparting) requires switching the ad set to a
+  **lifetime budget**, and you can choose to deliver by the **viewer's timezone** —
+  use that for every lane, and it's the only sane option for the RU/ZH diaspora
+  audiences spread across many timezones.
+- **TikTok:** dayparting is set at the ad-group level and works with daily budgets,
+  but runs on the **ad-account timezone**, not the viewer's. Since each language
+  campaign targets one dominant timezone cluster, offset each ad group's schedule
+  to that market's local time (e.g. account in UTC: Brazil windows shift +3h,
+  Japan −9h).
+- Dayparting does **not** lower the daily minimums — $20/day/ad group on TikTok
+  still applies. What it does is concentrate that spend into peak-attention hours
+  instead of letting the algorithm dribble it out at 4am.
+- Trade-off: restricting hours shrinks auction inventory and can nudge CPMs up
+  ~10–20% while slowing learning-phase exit. Recommended sequence: run **broad for
+  the first 2 weeks**, pull the hourly breakdown reports, then clamp to the four
+  windows keeping ~9–10 delivery hours/day.
+
+### The four windows, per market (all times local)
+
+| Market | 🚽 Wake / bathroom scroll | 🥪 Lunch break | 🚗 Commute home | 🛋 Post-dinner wind-down |
+|---|---|---|---|---|
+| Brazil (UTC−3) | 06:30–09:00 | 11:30–13:30 | 17:30–19:30 (long bus/metro rides = heavy scroll) | 20:30–23:00 |
+| Mexico (UTC−6) | 06:30–09:00 | **14:00–16:00** (comida, not noon) | 18:00–20:00 (CDMX traffic) | 21:00–23:30 |
+| Colombia (UTC−5) | **05:30–08:00** (early risers) | 12:00–14:00 | 17:00–19:00 | 20:00–22:30 |
+| France (UTC+1/+2) | 07:00–09:00 | 12:00–14:00 | 17:30–19:00 | 21:00–23:00 (dinner ~20:00) |
+| Italy (UTC+1/+2) | 07:00–09:00 | 13:00–14:30 | 18:00–19:30 | **21:30–23:30** (dinner ~20:30) |
+| Japan (UTC+9) | 06:30–09:00 — merges with **train commute**, the single best window in JA | 12:00–13:00 (strict) | 18:00–20:00 (train again) | 21:00–24:00 |
+| Taiwan/SG (UTC+8) | 07:00–09:00 | 12:00–13:30 | 18:00–19:30 | 21:00–23:30 |
+| RU/ZH diaspora | Use Meta viewer-timezone delivery with the generic 06:30–09:00 / 12:00–14:00 / 17:30–19:30 / 20:30–23:00 grid | | | |
+
+### Matching creative to window
+
+- **Wake/toilet + commute:** short-attention moments — run the punchy hooks
+  ("Хватит ныть", "别再精神内耗了", "Qué onda, güey") and the *5 minutes* /
+  *Daily 1-3-5* concepts. Commute is also where the mobile app-install CTA
+  converts best.
+- **Lunch:** *Ask a Stoic* / *Which philosopher* — interactive, mid-attention.
+- **Post-dinner couch:** longest sessions, best completion rates for the deeper
+  *Seeker to Prophet* / *Real conversation* creatives, and the right slot for the
+  device-gated iPad / Vision Pro / Web frames (people are on the couch with the
+  bigger screen in reach).
+- Note the evening window is also every platform's **CPM peak** (7–11pm carries
+  the most competition); the wake and lunch windows deliver similar attention at
+  10–25% cheaper CPMs, which matters most in JA/FR/IT.
+
+## 6. Monetization prerequisite (do this before spending)
+
+Organic baseline from Even Hub (Jul 5 → Jul 11): 9.7K→10.6K listing views,
+2.9K→3K downloads, 202→206 likes. Listing-view→download conversion ≈ **30%
+lifetime** — the creative hook works. But downloads→paying = **1 customer
+(0.03%)** because all features are free. At that rate, $1k of ads ≈ 0.3
+customers. Ship the paywall first.
+
+**Tier structure:**
+
+| | Free | Premium |
+|---|---|---|
+| Browse (2,801 quotes, all sprites/expressions) | ✅ unlimited, forever | ✅ |
+| Speak — Confucius, Epictetus, Ibn Sina | ✅ metered (3–5 exchanges/day) | ✅ unmetered |
+| Speak — remaining 14 (Marcus, Socrates, Buddha…) | 🔒 | ✅ |
+| Future figures (the 64 "influential figures" roster) | 🔒 | ✅ as they ship |
+
+- Free trio = one ambassador per civilization (East Asian / Greco-Roman /
+  Islamic), each anchoring a campaign lane. Epictetus free + Marcus Aurelius
+  paid is deliberate: the teacher's Stoic hooks, the famous Stoic converts.
+- **Grandfather all existing installs** (pre-cutoff = "founders" keep Speak on
+  all 17). Sacrifices ~zero revenue (base converted at 0.03%) and protects the
+  reviews/likes/word-of-mouth in a niche community with no anonymity of scale.
+  Announce founders' status the same day as the pre-order push.
+- Daily meter on the free trio caps Whisper/LLM cost exposure per free user
+  and creates a second upgrade trigger.
+- Highest-converting paywall placement: contextual — an "Ask Marcus about
+  this" button on the quote being read, not a locked menu list.
+- Premium = subscription (matches recurring API costs); future figure drops
+  become recurring justification, culturally matched to language lanes
+  (Dostoevsky → RU push, Rumi → future AR lane, etc.).
+
+## 7. Launch calendar (Jul 11 → Oct 11, release Aug 8)
+
+| Date | Milestone |
+|---|---|
+| **Jul 11–13** | Confirm release build + subscription IAPs are **submitted/approved** — App Store pre-orders require an approved app. AI-persona voice chat draws App Review attention (moderation controls, age rating, AI disclosure); budget a rejection cycle (~1 week each). |
+| **Jul 13** | Pre-orders open (iOS + Watch). Same day: founders' announcement to Even Hub community. Push channels: Even Hub listing/changelog, community, enkiSPEAKS web, email. **$0 ad spend pre-launch** — install campaigns can't optimize against an unreleased app. |
+| **Jul 13–Aug 8** | 26-day pre-order window. Cadence: launch push (Jul 13), mid-window reminder (~Jul 25), last-48h push (Aug 6). Target: **100+ pre-orders** = success (day-one auto-install spike for ranking + Meta signal). |
+| **~Jul 28** | Hard deadline: final release build (paywall in, IAPs approved) through App Review with buffer. Watch app = smallest viable companion; don't let it slip the date. |
+| **Aug 8** | Release day (a Saturday — have crash monitoring watched over the weekend). Pre-orders auto-download. |
+| **Aug 10–11** | After ~48h crash-free: start Meta $1k, ~$33/day × 30 days. One campaign, LatAm-weighted geo, all locales via dynamic language optimization. |
+| **~Aug 24** | Two weeks of data: clamp dayparting to the four windows (§5), kill clearly losing lanes, shift budget to leaders. |
+| **~Sep 9** | Campaign ends. Sep 10–15: full readout — CPI per language lane, trial starts, conversion, D7 retention. |
+| **Sep 15–Oct 15** | Decision window: next tranche into the winning lane **before Q4 CPMs ramp** (Oct–Dec +30–60%). |
+| **Oct 11** | Scoreboard check (below). |
+
+**90-day scoreboard:** launched on time with paywall in build → 100+
+community pre-orders → 1,000+ total iOS installs → **15+ paying subscribers**
+→ one language lane identified as the winner. Expected revenue by Oct 11 is
+honestly **~$150–600** (10–40 subs at ~$6/mo or ~$40/yr minus Apple's 15%) —
+the $1k buys the map (conversion baseline + winning lane + retention curve),
+not the revenue.
+
+## 8. Recommendations
+
+1. **Phase it.** Launch PT-BR and ES first (cheapest CPI, biggest lanes — ES has 3
+   copy variants ready). Use 4–6 weeks of data to set CPI expectations before
+   opening FR/IT/JA.
+2. **Don't give wearable/XR creatives their own ad sets.** Watch/Vision Pro/G2
+   frames live inside the iOS ad set as creative rotation; let the algorithm find
+   the Apple-ecosystem buyers.
+3. **TikTok needs motion.** The Figma frames are static; TikTok in-feed strongly
+   favors video. Budget creative production for animating the 7 concepts per lane
+   (or use TikTok Smart Creative), otherwise CPMs quoted above will run high.
+4. **Expect iOS to cost ~3× Android** per install; judge iOS on downstream
+   subscription value, not CPI.
+5. **One caveat on Q4:** CPMs spike 30–60% October–December; the scenario table
+   assumes non-holiday pricing.
+6. **Daypart in phase two, not day one.** Two weeks broad to gather hourly data,
+   then clamp each lane to its four local windows (section 5) — Meta via
+   lifetime-budget + viewer-timezone scheduling, TikTok via account-timezone
+   offsets per ad group.
+
+## Sources
+
+- [AdAmigo — Meta Ads CPM/CPC benchmarks by country, 2026](https://www.adamigo.ai/blog/meta-ads-cpm-cpc-benchmarks-by-country-2026)
+- [AdAmigo — Meta Ads benchmarks 2026 (CPM, CPC, CTR, CVR, ROAS)](https://www.adamigo.ai/blog/meta-ads-benchmarks-2026-cpm-cpc-ctr-cvr-roas-by-industry-country)
+- [Adligator — Meta Ads CPM by country 2026](https://adligator.com/blog/meta-ads-cpm-by-country-benchmarks)
+- [Superads — Facebook cost-per-app-install benchmarks](https://www.superads.ai/facebook-ads-costs/cost-per-app-install)
+- [Vmobify — Meta app install campaigns, 2026 guide](https://vmobify.com/blog/meta-app-install-campaigns)
+- [TikTok Ads Manager — About budgets (official minimums)](https://ads.tiktok.com/help/article/budget)
+- [Stackmatix — TikTok ads minimum daily budget 2026](https://www.stackmatix.com/blog/tiktok-ads-minimum-daily-budget-2026)
+- [TikAdSuite — TikTok CPM rates 2026 by industry](https://tikadsuite.com/blog/tiktok-cpm-rates/)
+- [Darkroom — TikTok advertising costs 2026](https://www.darkroomagency.com/observatory/how-much-does-tiktok-advertising-cost-in-2026)
+- [Insert Affiliate — Mobile app UA cost benchmarks by category](https://insertaffiliate.com/blog/mobile-app-user-acquisition-cost-benchmarks/)
+- [AppBrain — Android CPI per country](https://www.appbrain.com/stats/android-cpi-per-country)
+- [Business of Apps — CPI rates research](https://www.businessofapps.com/ads/cpi/research/cost-per-install/)
