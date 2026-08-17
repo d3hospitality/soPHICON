@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>soΦcon · Solo Leveling concept</title>
+<style>
+  :root{
+    --bg:#0a0a0c; --surface:#111115; --surface-2:#16161c; --surface-3:#1c1c24;
+    --border:#26262f; --border-hi:#3a3a48;
+    --ink:#e9e9ef; --dim:#8a8a99; --dimmer:#565664;
+    --gold:#d4af37; --gold-dim:rgba(212,175,55,.14);
+    --ok:#4ade80; --warn:#facc15; --err:#f87171;
+    --accent-b:#60a5fa; --accent-p:#a78bfa;
+    --sys:#67e8f9; --sys-dim:rgba(103,232,249,.10); --sys-glow:rgba(103,232,249,.45);
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,system-ui,sans-serif;
+    background:radial-gradient(1200px 800px at 50% -100px,#101027 0%,var(--bg) 60%) fixed;
+    color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;padding:32px 16px 80px}
+  .page{max-width:1180px;margin:0 auto}
+  .page-head{text-align:center;margin-bottom:36px}
+  .page-head h1{font-size:30px;font-weight:700;letter-spacing:-.01em}
+  .page-head h1 .phi{color:var(--gold)}
+  .page-head h1 .sys{color:var(--sys);text-shadow:0 0 12px var(--sys-glow)}
+  .page-head .sub{color:var(--dim);font-size:13px;text-transform:uppercase;letter-spacing:.16em;margin-top:8px;font-family:var(--mono)}
+  .page-head .blurb{max-width:620px;margin:14px auto 0;color:var(--ink);font-size:14px;line-height:1.6}
+
+  .section-label{font-family:var(--mono);font-size:11px;color:var(--sys);text-transform:uppercase;
+    letter-spacing:.24em;margin:42px 0 14px;display:flex;align-items:center;gap:12px}
+  .section-label::before,.section-label::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,transparent,#67e8f933,transparent)}
+
+  .deck{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:22px;align-items:start}
+
+  /* phone frame */
+  .device{max-width:380px;margin:0 auto;background:#000;border:8px solid #1a1a22;
+    border-radius:36px;padding:14px 10px;box-shadow:0 30px 60px rgba(0,0,0,.6),0 0 0 1px #2a2a34 inset;position:relative}
+  .device::before{content:"";position:absolute;top:14px;left:50%;transform:translateX(-50%);
+    width:96px;height:22px;background:#000;border-radius:0 0 16px 16px;z-index:2}
+  .device-label{font-family:var(--mono);font-size:10px;color:var(--dim);text-align:center;
+    text-transform:uppercase;letter-spacing:.2em;margin-bottom:10px}
+  .device-label .badge{color:var(--sys);border:1px solid #67e8f944;padding:2px 7px;border-radius:999px;margin-left:8px;font-size:9px}
+  .screen{background:var(--bg);border-radius:28px;padding:14px 12px 28px;overflow:hidden;min-height:560px}
+  .screen .header{display:flex;align-items:center;gap:10px;padding:18px 4px 12px;border-bottom:1px solid var(--border);margin-bottom:10px}
+  .screen .header h1{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .screen .header h1 .phi{color:var(--gold)}
+  .screen .header .tagline{font-size:9px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin-top:1px}
+  .screen .header-spacer{flex:1}
+  .screen .header-icon{width:28px;height:28px;border:1px solid var(--border);border-radius:7px;color:var(--dim);
+    display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+  .card-header{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:600;color:var(--gold);
+    text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+  .card-header .badge{margin-left:auto;font-weight:500;letter-spacing:.02em;color:var(--dim);
+    text-transform:none;font-size:10px;font-family:var(--mono)}
+  .card-header.sys{color:var(--sys)}
+  .card.sys{border-color:#67e8f955;background:linear-gradient(180deg,#67e8f908,transparent 60%),var(--surface);
+    box-shadow:0 0 24px #67e8f91a, inset 0 0 0 1px #67e8f922}
+
+  .muted{color:var(--dim)}
+  .mono{font-family:var(--mono)}
+
+  /* sign-in */
+  .signin{display:flex;flex-direction:column;align-items:center;gap:16px;padding:30px 18px 10px}
+  .crest{width:90px;height:90px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#67e8f955,#67e8f900 70%);
+    display:flex;align-items:center;justify-content:center;font-size:44px;color:var(--sys);
+    text-shadow:0 0 16px var(--sys-glow);border:1px solid #67e8f944}
+  .signin h2{font-size:18px;font-weight:700;text-align:center}
+  .signin .sub{color:var(--dim);font-size:12px;text-align:center;line-height:1.5;margin-top:-4px}
+  .auth-btns{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:6px}
+  .auth-btn{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:9px;
+    background:var(--surface-2);border:1px solid var(--border);color:var(--ink);font-size:13px;cursor:pointer}
+  .auth-btn:hover{border-color:var(--gold)}
+  .auth-btn .ico{width:22px;height:22px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:13px;flex-shrink:0}
+  .auth-btn.apple .ico{background:#fff;color:#000}
+  .auth-btn.google .ico{background:#fff;color:#4285F4}
+  .auth-btn.even .ico{background:#0f0f12;color:var(--sys);border:1px solid #67e8f966}
+  .auth-btn .lbl{flex:1;text-align:left;font-weight:500}
+  .auth-btn .arrow{color:var(--dim)}
+  .sync-blurb{margin-top:14px;padding:10px;border:1px dashed #67e8f955;border-radius:8px;
+    background:var(--sys-dim);font-size:11px;color:var(--ink);line-height:1.5;width:100%}
+  .sync-blurb b{color:var(--sys)}
+
+  /* hunter status window */
+  .status-window{background:var(--surface);border:1px solid #67e8f955;border-radius:12px;padding:16px;
+    box-shadow:0 0 32px #67e8f91f,inset 0 0 0 1px #67e8f922;position:relative;margin-bottom:10px}
+  .status-window::before{content:"[ STATUS ]";position:absolute;top:-9px;left:50%;transform:translateX(-50%);
+    background:var(--bg);padding:0 8px;color:var(--sys);font-family:var(--mono);font-size:10px;letter-spacing:.18em}
+  .sw-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .sw-portrait{width:72px;height:72px;border-radius:50%;background:#000;border:1px solid #67e8f966;
+    object-fit:cover;flex-shrink:0;box-shadow:0 0 16px #67e8f922;image-rendering:pixelated}
+  .sw-id .name{font-size:15px;font-weight:700;color:var(--ink)}
+  .sw-id .title{font-size:11px;color:var(--sys);font-family:var(--mono);text-transform:uppercase;letter-spacing:.12em;margin-top:2px}
+  .sw-id .meta{font-size:10.5px;color:var(--dim);font-family:var(--mono);margin-top:4px}
+  .rank-pill{display:inline-flex;align-items:center;gap:4px;background:#67e8f91a;color:var(--sys);
+    border:1px solid #67e8f966;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-weight:700;
+    font-size:11px;letter-spacing:.1em;margin-left:auto;align-self:flex-start}
+  .xp-bar{height:8px;background:#0a1518;border:1px solid #67e8f944;border-radius:999px;overflow:hidden;position:relative}
+  .xp-fill{height:100%;background:linear-gradient(90deg,var(--sys),#a78bfa);box-shadow:0 0 8px var(--sys-glow)}
+  .xp-meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:4px}
+  .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;margin-top:14px;padding-top:12px;border-top:1px solid #67e8f922}
+  .stat-row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px}
+  .stat-row .k{color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-size:10px}
+  .stat-row .v{color:var(--sys);font-weight:700}
+  .streak{display:flex;align-items:center;gap:8px;margin-top:12px;padding:8px 10px;background:#d4af370f;
+    border:1px solid #d4af3744;border-radius:8px;font-size:11px;color:var(--ink)}
+  .streak b{color:var(--gold);font-family:var(--mono)}
+
+  /* sync row */
+  .sync-row{display:flex;gap:6px;margin-top:10px;padding:8px;background:var(--surface-2);
+    border:1px solid var(--border);border-radius:8px;align-items:center;font-size:10.5px;color:var(--dim);font-family:var(--mono)}
+  .sync-row .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 6px #4ade8088}
+  .sync-row b{color:var(--ink);font-weight:600}
+
+  /* quests */
+  .quest{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:8px;position:relative}
+  .quest.system{border-color:#67e8f955;background:linear-gradient(90deg,#67e8f912,transparent 50%),var(--surface-2)}
+  .quest-head{display:flex;align-items:center;gap:8px;font-size:9.5px;font-family:var(--mono);
+    color:var(--sys);text-transform:uppercase;letter-spacing:.14em;margin-bottom:6px}
+  .quest-head .reward{margin-left:auto;color:var(--gold)}
+  .quest-title{font-size:13px;font-weight:600;color:var(--ink);line-height:1.4}
+  .quest-foot{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:6px}
+  .quest-foot .src{color:var(--accent-p)}
+  .quest-foot .prog{color:var(--sys)}
+  .quest.done{opacity:.55}
+  .quest.done .quest-title{text-decoration:line-through}
+
+  /* mentor codex */
+  .codex-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .codex-card{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:8px;text-align:center;position:relative}
+  .codex-card .sprite{width:100%;aspect-ratio:1;border-radius:6px;background:#000;
+    image-rendering:pixelated;object-fit:cover;border:1px solid var(--border);margin-bottom:6px}
+  .codex-card .name{font-size:10px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .codex-card .tier{font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:2px}
+  .codex-card.locked .sprite{filter:grayscale(1) brightness(.35)}
+  .codex-card.locked .name,.codex-card.locked .tier{color:var(--dimmer)}
+  .codex-card.locked::after{content:"🔒";position:absolute;top:50%;left:50%;transform:translate(-50%,-90%);font-size:18px;opacity:.8}
+  .codex-card.shadow{border-color:#a78bfa66}
+  .codex-card.shadow .sprite{box-shadow:0 0 10px #a78bfa55}
+  .codex-card.shadow::after{content:"";position:absolute;inset:0;border-radius:9px;
+    background:radial-gradient(circle at 50% 30%,#a78bfa22,transparent 70%);pointer-events:none}
+
+  /* gate / dungeon */
+  .gate{background:var(--surface);border:1px solid #a78bfa66;border-radius:12px;padding:14px;
+    position:relative;box-shadow:0 0 24px #a78bfa1a}
+  .gate::before{content:"[ B-RANK GATE ]";position:absolute;top:-9px;left:14px;background:var(--bg);
+    padding:0 8px;color:var(--accent-p);font-family:var(--mono);font-size:10px;letter-spacing:.18em}
+  .gate-head{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:4px}
+  .gate-sub{font-size:11px;color:var(--dim);margin-bottom:12px;font-family:var(--mono)}
+  .floor{display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--surface-2);
+    border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px}
+  .floor .num{width:24px;height:24px;border-radius:50%;background:var(--surface-3);border:1px solid var(--border);
+    font-family:var(--mono);font-size:10px;font-weight:700;color:var(--dim);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+  .floor.cleared .num{background:#4ade8033;border-color:#4ade8088;color:var(--ok)}
+  .floor.current .num{background:#67e8f933;border-color:#67e8f9;color:var(--sys);box-shadow:0 0 8px var(--sys-glow)}
+  .floor .name{flex:1;color:var(--ink)}
+  .floor.cleared .name{color:var(--dim);text-decoration:line-through}
+  .floor .cat{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim)}
+  .gate-boss{margin-top:8px;padding:10px;background:#a78bfa14;border:1px dashed #a78bfa66;
+    border-radius:8px;font-size:11px;color:var(--ink);line-height:1.5}
+  .gate-boss b{color:var(--accent-p);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;font-size:10px}
+
+  /* glass / AR notif */
+  .glass-frame{aspect-ratio:16/7;background:#000;border-radius:8px;border:1px solid var(--border);
+    position:relative;overflow:hidden;padding:10px;display:flex;align-items:flex-start;justify-content:center}
+  .glass-frame::before{content:"";position:absolute;inset:0;background:
+    radial-gradient(ellipse at 50% 50%,#67e8f922 0%,transparent 60%),
+    repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,.02) 2px,rgba(255,255,255,.02) 3px);
+    pointer-events:none}
+  .sys-notif{background:#000a0fcc;border:1px solid var(--sys);border-radius:6px;padding:8px 10px;
+    box-shadow:0 0 16px var(--sys-glow),inset 0 0 0 1px #67e8f933;color:var(--sys);font-family:var(--mono);
+    font-size:9.5px;letter-spacing:.1em;line-height:1.45;max-width:80%;text-align:center;z-index:2;position:relative}
+  .sys-notif .row1{font-weight:700;letter-spacing:.22em;margin-bottom:3px}
+  .sys-notif .row2{color:var(--ink);font-size:11px;letter-spacing:.04em}
+  .sys-notif .row3{color:var(--gold);margin-top:4px;font-size:9px}
+
+  /* device strip */
+  .device-strip{display:flex;justify-content:center;gap:10px;margin-bottom:14px}
+  .mini-device{font-family:var(--mono);font-size:10px;color:var(--dim);padding:6px 10px;
+    border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;gap:6px}
+  .mini-device .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 6px #4ade8077}
+  .mini-device.active{color:var(--sys);border-color:#67e8f966}
+
+  /* settings card */
+  .setting-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;
+    border-bottom:1px solid var(--border);font-size:12.5px}
+  .setting-row:last-child{border-bottom:0}
+  .setting-row .k{color:var(--ink)}
+  .setting-row .v{color:var(--dim);font-family:var(--mono);font-size:11px}
+  .toggle{width:30px;height:18px;background:var(--ok);border-radius:999px;position:relative}
+  .toggle::after{content:"";position:absolute;top:2px;right:2px;width:14px;height:14px;background:#0a0a0c;border-radius:50%}
+  .toggle.off{background:var(--surface-3)}
+  .toggle.off::after{left:2px;right:auto}
+
+  /* architecture diagram */
+  .arch{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-top:24px}
+  .arch h3{font-family:var(--mono);color:var(--sys);font-size:11px;text-transform:uppercase;letter-spacing:.2em;margin-bottom:18px;text-align:center}
+  .arch-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:center;font-size:12px}
+  .arch-col{display:flex;flex-direction:column;gap:10px}
+  .arch-node{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;text-align:center}
+  .arch-node .t{font-size:11px;color:var(--ink);font-weight:600}
+  .arch-node .s{font-size:10px;color:var(--dim);font-family:var(--mono);margin-top:3px}
+  .arch-node.client{border-color:#d4af3766}
+  .arch-node.client .t{color:var(--gold)}
+  .arch-node.core{border-color:#67e8f9;background:linear-gradient(180deg,#67e8f912,transparent),var(--surface-2);
+    box-shadow:0 0 18px #67e8f922;padding:18px 12px}
+  .arch-node.core .t{color:var(--sys);font-size:13px}
+  .arch-node.data{border-color:#a78bfa55}
+  .arch-node.data .t{color:var(--accent-p)}
+  .arch-arrow{display:flex;align-items:center;justify-content:center;font-family:var(--mono);color:var(--dim);font-size:18px}
+  @media (max-width:760px){
+    .arch-grid{grid-template-columns:1fr}
+    .arch-arrow{transform:rotate(90deg)}
+  }
+  .footer-note{color:var(--dim);font-size:12px;text-align:center;margin-top:32px;line-height:1.6}
+  .footer-note code{color:var(--sys);font-family:var(--mono);background:#67e8f912;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-head">
+    <h1>so<span class="phi">Φ</span>con · <span class="sys">[ THE SYSTEM ]</span></h1>
+    <div class="sub">Solo-Leveling concept · iOS · Android · Even Hub</div>
+    <p class="blurb">
+      The contemplative philosophy app reframed as a personal cultivation RPG.
+      One Supabase identity, three clients, the same Hunter wherever you log in.
+      Mockup only — no backend wired up yet.
+    </p>
+    <div class="device-strip">
+      <div class="mini-device active"><span class="dot"></span>iPhone · v0.1</div>
+      <div class="mini-device active"><span class="dot"></span>Pixel 9 · v0.1</div>
+      <div class="mini-device active"><span class="dot"></span>Even G2 · paired</div>
+    </div>
+  </div>
+
+  <!-- ROW 1: sign-in, status, daily quests -->
+  <div class="section-label">[ 01 ] Onboarding · Hunter awakens</div>
+  <div class="deck">
+
+    <div>
+      <div class="device-label">iOS · Sign in <span class="badge">supabase auth</span></div>
+      <div class="device"><div class="screen">
+        <div class="signin">
+          <div class="crest">Φ</div>
+          <h2>Awaken your Hunter</h2>
+          <div class="sub">One profile. iPhone, Android, and the glass on your face — all the same level, all the same quests.</div>
+          <div class="auth-btns">
+            <button class="auth-btn apple"><span class="ico"></span><span class="lbl">Continue with Apple</span><span class="arrow">›</span></button>
+            <button class="auth-btn google"><span class="ico">G</span><span class="lbl">Continue with Google</span><span class="arrow">›</span></button>
+            <button class="auth-btn even"><span class="ico">⊙</span><span class="lbl">Pair with Even Hub</span><span class="arrow">›</span></button>
+          </div>
+          <div class="sync-blurb">
+            <b>[ SYNC PROTOCOL ]</b><br>
+            Your XP, mentors, quest log, and journal live in Supabase. Sign in on any device — the System knows where you left off.
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div>
+      <div class="device-label">Android · Status window <span class="badge">home tab</span></div>
+      <div class="device"><div class="screen">
+        <div class="header">
+          <div><h1>so<span class="phi">Φ</span>con</h1><div class="tagline">Philosophy / On Glass</div></div>
+          <div class="header-spacer"></div>
+          <div class="header-icon">⚙</div>
+        </div>
+
+        <div class="status-window">
+          <div class="sw-head">
+            <img class="sw-portrait" src="./sprites/marcus_aurelius/marcus_aurelius-resolve.png" alt="">
+            <div class="sw-id">
+              <div class="name">Wren Castellan</div>
+              <div class="title">Apprentice Stoic</div>
+              <div class="meta">since 2026-03-11 · 42 sessions</div>
+            </div>
+            <div class="rank-pill">RANK · D</div>
+          </div>
+          <div class="xp-bar"><div class="xp-fill" style="width:62%"></div></div>
+          <div class="xp-meta"><span>LVL 14</span><span>2,480 / 4,000 XP</span></div>
+          <div class="stat-grid">
+            <div class="stat-row"><span class="k">Wisdom</span><span class="v">28</span></div>
+            <div class="stat-row"><span class="k">Discipline</span><span class="v">34</span></div>
+            <div class="stat-row"><span class="k">Compassion</span><span class="v">19</span></div>
+            <div class="stat-row"><span class="k">Equanimity</span><span class="v">22</span></div>
+            <div class="stat-row"><span class="k">Insight</span><span class="v">17</span></div>
+            <div class="stat-row"><span class="k">Resolve</span><span class="v">31</span></div>
+          </div>
+          <div class="streak">🔥 <span>Daily flame: <b>12 days</b> · next rank check in <b>3 days</b></span></div>
+        </div>
+
+        <div class="sync-row">
+          <span class="dot"></span>
+          <span>Synced <b>3s ago</b> · iPhone, Pixel, Even G2</span>
+          <span style="margin-left:auto;color:var(--sys)">●</span>
+        </div>
+      </div></div>
+    </div>
+
+    <div>
+      <div class="device-label">iOS · Daily quests <span class="badge">eisenhower → system</span></div>
+      <div class="device"><div class="screen">
+        <div class="header">
+          <div><h1>so<span class="phi">Φ</span>con</h1><div class="tagline">Daily quest log</div></div>
+          <div class="header-spacer"></div>
+          <div class="header-icon">⚙</div>
+        </div>
+
+        <div class="card sys">
+          <div class="card-header sys">⟁ Today's directives <span class="badge">3 / 5</span></div>
+
+          <div class="quest system done">
+            <div class="quest-head">[ Q1 · DO FIRST ] <span class="reward">+80 XP</span></div>
+            <div class="quest-title">Speak with Epictetus about the 2pm meeting</div>
+            <div class="quest-foot"><span class="src">↳ Journal · "work anxiety"</span><span class="prog">✓ CLEARED</span></div>
+          </div>
+
+          <div class="quest system done">
+            <div class="quest-head">[ Q2 · SCHEDULE ] <span class="reward">+50 XP</span></div>
+            <div class="quest-title">Mindful 5-min · Laozi rotation</div>
+            <div class="quest-foot"><span class="src">↳ Streak · day 12</span><span class="prog">✓ CLEARED</span></div>
+          </div>
+
+          <div class="quest system">
+            <div class="quest-head">[ Q1 · DO FIRST ] <span class="reward">+120 XP</span></div>
+            <div class="quest-title">Reply to the message you've been avoiding</div>
+            <div class="quest-foot"><span class="src">↳ Problem · "conflict avoidance"</span><span class="prog">IN PROGRESS</span></div>
+          </div>
+
+          <div class="quest system">
+            <div class="quest-head">[ Q2 · SCHEDULE ] <span class="reward">+60 XP</span></div>
+            <div class="quest-title">Journal 3 lines before bed</div>
+            <div class="quest-foot"><span class="src">↳ Recurring</span><span class="prog">PENDING</span></div>
+          </div>
+
+          <div class="quest system">
+            <div class="quest-head">[ Q3 · DELEGATE ] <span class="reward">+25 XP</span></div>
+            <div class="quest-title">Hand off the Friday review</div>
+            <div class="quest-foot"><span class="src">↳ Problem · "overcommitment"</span><span class="prog">PENDING</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Penalty quest <span class="badge">overdue</span></div>
+          <div class="quest" style="border-color:#f8717155;background:#f871711a">
+            <div class="quest-head" style="color:var(--err)">[ PENALTY · -40 XP IN 6H ]</div>
+            <div class="quest-title">Address the avoided message before midnight</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <!-- ROW 2: codex, gate, glass -->
+  <div class="section-label">[ 02 ] Progression · Mentors, Gates, the glass</div>
+  <div class="deck">
+
+    <div>
+      <div class="device-label">Android · Mentor codex <span class="badge">17 philosophers</span></div>
+      <div class="device"><div class="screen">
+        <div class="header">
+          <div><h1>so<span class="phi">Φ</span>con</h1><div class="tagline">Codex · Mentors</div></div>
+          <div class="header-spacer"></div>
+          <div class="header-icon">⚙</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Stoicism <span class="badge">3 / 4 unlocked</span></div>
+          <div class="codex-grid">
+            <div class="codex-card"><img class="sprite" src="./sprites/marcus_aurelius/marcus_aurelius-neutral.png"><div class="name">Marcus Aurelius</div><div class="tier">★★★ · ascended</div></div>
+            <div class="codex-card"><img class="sprite" src="./sprites/epictetus/epictetus-neutral.png"><div class="name">Epictetus</div><div class="tier">★★ · ally</div></div>
+            <div class="codex-card"><img class="sprite" src="./sprites/seneca/seneca-neutral.png"><div class="name">Seneca</div><div class="tier">★ · summoned</div></div>
+            <div class="codex-card locked"><img class="sprite" src="./sprites/zeno_of_citium/zeno_of_citium-neutral.png"><div class="name">Zeno</div><div class="tier">LVL 18 to unlock</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Taoism <span class="badge">1 / 2</span></div>
+          <div class="codex-grid">
+            <div class="codex-card shadow"><img class="sprite" src="./sprites/laozi/laozi-serenity.png"><div class="name">Laozi</div><div class="tier">SHADOW · bound</div></div>
+            <div class="codex-card locked"><img class="sprite" src="./sprites/zhuangzi/zhuangzi-neutral.png"><div class="name">Zhuangzi</div><div class="tier">clear 5 Taoist gates</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Buddhism <span class="badge">0 / 2</span></div>
+          <div class="codex-grid">
+            <div class="codex-card locked"><img class="sprite" src="./sprites/gautama_buddha/gautama_buddha-neutral.png"><div class="name">Buddha</div><div class="tier">RANK C to face</div></div>
+            <div class="codex-card locked"><img class="sprite" src="./sprites/nagarjuna/nagarjuna-neutral.png"><div class="name">Nagarjuna</div><div class="tier">RANK C to face</div></div>
+          </div>
+        </div>
+
+        <p class="muted mono" style="font-size:10px;text-align:center;margin-top:8px">8 traditions · 17 mentors · 4 shadows possible</p>
+      </div></div>
+    </div>
+
+    <div>
+      <div class="device-label">iOS · Weekly Gate <span class="badge">action plan</span></div>
+      <div class="device"><div class="screen">
+        <div class="header">
+          <div><h1>so<span class="phi">Φ</span>con</h1><div class="tagline">Week · Jun 22 – 28</div></div>
+          <div class="header-spacer"></div>
+          <div class="header-icon">⚙</div>
+        </div>
+
+        <div class="gate">
+          <div class="gate-head">The Avoidance Gate</div>
+          <div class="gate-sub">5 floors · 2 cleared · reward: <span style="color:var(--gold)">+450 XP, "Resolve +2"</span></div>
+
+          <div class="floor cleared"><div class="num">1</div><div class="name">Name the avoided thing in journal</div><div class="cat">MIND</div></div>
+          <div class="floor cleared"><div class="num">2</div><div class="name">Talk to Epictetus about it</div><div class="cat">MIND</div></div>
+          <div class="floor current"><div class="num">3</div><div class="name">Send the message</div><div class="cat">WORK</div></div>
+          <div class="floor"><div class="num">4</div><div class="name">Sit with the response (5 min Mindful)</div><div class="cat">MIND</div></div>
+          <div class="floor"><div class="num">5</div><div class="name">Note what changed in journal</div><div class="cat">MIND</div></div>
+
+          <div class="gate-boss">
+            <b>[ BOSS · F5 ]</b><br>
+            <span class="muted">"What you refuse to face will face you twice." — Marcus Aurelius will appear on the glass when you reach the final floor.</span>
+          </div>
+        </div>
+
+        <div class="sync-row" style="margin-top:10px">
+          <span class="dot"></span>
+          <span>Gate state synced · all 3 devices</span>
+        </div>
+      </div></div>
+    </div>
+
+    <div>
+      <div class="device-label">Even G2 · The glass <span class="badge">system overlay</span></div>
+      <div class="device"><div class="screen">
+
+        <div class="card">
+          <div class="card-header">On glass · live view <span class="badge">● BLE</span></div>
+          <div class="glass-frame">
+            <div class="sys-notif">
+              <div class="row1">[ QUEST RECEIVED ]</div>
+              <div class="row2">Reply to the message<br>you've been avoiding</div>
+              <div class="row3">REWARD · +120 XP · RESOLVE +1</div>
+            </div>
+          </div>
+          <p class="muted mono" style="font-size:10px;margin-top:8px;text-align:center">
+            System notifications render in cyan over the contemplative gold quotes. Long-press temple to dismiss.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Glass cadence</div>
+          <div class="setting-row"><span class="k">System quests on glass</span><div class="toggle"></div></div>
+          <div class="setting-row"><span class="k">Quotes (Mindful mode)</span><div class="toggle"></div></div>
+          <div class="setting-row"><span class="k">Penalty warnings</span><div class="toggle"></div></div>
+          <div class="setting-row"><span class="k">Boss appearances</span><div class="toggle"></div></div>
+          <div class="setting-row"><span class="k">Rank-up cinematic</span><div class="toggle off"></div></div>
+        </div>
+
+        <div class="card sys">
+          <div class="card-header sys">Pending on glass</div>
+          <div class="quest system">
+            <div class="quest-head">[ NEXT · IN 14m ]</div>
+            <div class="quest-title">Mindful pulse · Laozi · 5 min</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <!-- ROW 3: sync settings -->
+  <div class="section-label">[ 03 ] Identity · One Hunter across devices</div>
+  <div class="deck" style="grid-template-columns:repeat(auto-fit,minmax(330px,1fr))">
+    <div>
+      <div class="device-label">Any device · Account & sync</div>
+      <div class="device"><div class="screen">
+        <div class="header">
+          <div><h1>so<span class="phi">Φ</span>con</h1><div class="tagline">Account</div></div>
+          <div class="header-spacer"></div>
+          <div class="header-icon">⚙</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Hunter identity</div>
+          <div class="setting-row"><span class="k">Email</span><span class="v">admin@redcambria.com</span></div>
+          <div class="setting-row"><span class="k">Hunter ID</span><span class="v">hntr_8f2a1c</span></div>
+          <div class="setting-row"><span class="k">Awakened</span><span class="v">2026-03-11</span></div>
+          <div class="setting-row"><span class="k">Rank</span><span class="v" style="color:var(--sys)">D · LVL 14</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header sys">⟁ Linked devices <span class="badge">3 active</span></div>
+          <div class="setting-row"><span class="k">📱 iPhone 16 Pro</span><span class="v" style="color:var(--ok)">● synced 3s</span></div>
+          <div class="setting-row"><span class="k">📱 Pixel 9</span><span class="v" style="color:var(--ok)">● synced 12s</span></div>
+          <div class="setting-row"><span class="k">👓 Even G2 · "Mirror"</span><span class="v" style="color:var(--ok)">● synced 1s</span></div>
+          <div class="setting-row"><span class="k">💻 Web (claude.ai)</span><span class="v" style="color:var(--dim)">○ idle 4h</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Sync surface</div>
+          <div class="setting-row"><span class="k">Hunter profile (XP, rank)</span><div class="toggle"></div></div>
+          <div class="setting-row"><span class="k">Quest log</span><div class="toggle"></div></div>
+          <div class="setting-row"><span class="k">Mentor codex</span><div class="toggle"></div></div>
+          <div class="setting-row"><span class="k">Journal sessions</span><div class="toggle"></div></div>
+          <div class="setting-row"><span class="k">Glass cadence</span><div class="toggle"></div></div>
+          <div class="setting-row"><span class="k">OpenAI API key</span><div class="toggle off"></div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Realm <span class="badge">private</span></div>
+          <p class="muted" style="font-size:11.5px;line-height:1.5">
+            Your Hunter is private by default. Opt-in to <b style="color:var(--sys)">Guild</b> to share rank tiers (not journal content) with up to 6 allies.
+          </p>
+        </div>
+      </div></div>
+    </div>
+
+    <div style="grid-column:span 2;min-width:0">
+      <div class="device-label">Cross-platform architecture</div>
+      <div class="arch">
+        <h3>[ TOPOLOGY · v0 ]</h3>
+        <div class="arch-grid">
+          <div class="arch-col">
+            <div class="arch-node client"><div class="t">iOS app</div><div class="s">SwiftUI · Capacitor wrap of existing Vite build</div></div>
+            <div class="arch-node client"><div class="t">Android app</div><div class="s">Same Vite shell · Play Billing</div></div>
+            <div class="arch-node client"><div class="t">Even Hub app</div><div class="s">@evenrealities/even_hub_sdk (already in repo)</div></div>
+          </div>
+          <div class="arch-col" style="align-items:center">
+            <div class="arch-arrow">→</div>
+            <div class="arch-node core"><div class="t">Supabase</div><div class="s">auth · postgres · realtime · row-level security</div></div>
+            <div class="arch-arrow">→</div>
+          </div>
+          <div class="arch-col">
+            <div class="arch-node data"><div class="t">hunters</div><div class="s">id, xp, rank, stats, streak</div></div>
+            <div class="arch-node data"><div class="t">quests</div><div class="s">issued_at, source, q1–q4, status, xp_reward</div></div>
+            <div class="arch-node data"><div class="t">mentors_unlocked</div><div class="s">hunter_id, philosopher, tier, shadow_bound</div></div>
+            <div class="arch-node data"><div class="t">sessions / problems</div><div class="s">existing journal data, now keyed to hunter_id</div></div>
+            <div class="arch-node data"><div class="t">devices</div><div class="s">hunter_id, kind, last_seen, push_token</div></div>
+          </div>
+        </div>
+        <p class="footer-note">
+          Auth: Sign-in-with-Apple, Google OAuth, and a custom Even-Hub device flow — all resolve to the same <code>auth.users.id</code>.<br>
+          Realtime: Supabase channels push quest/rank updates to all logged-in clients so the glass and phone never disagree.<br>
+          Offline: each client keeps a local cache; conflicts resolve last-write-wins on quest status, additive on XP.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer-note" style="margin-top:48px">
+    Mockup file · <code>concept-solo-leveling.html</code> · no backend wired up · sprites pulled from the existing <code>/sprites/</code> tree.<br>
+    None of the toggles, quests, or XP bars are live — they're CSS only.
+  </p>
+
+</div>
+</body>
+</html>
