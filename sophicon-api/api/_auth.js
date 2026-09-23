@@ -15,7 +15,7 @@
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { createClient } from '@supabase/supabase-js';
-import { kv } from '@vercel/kv';
+import { kv } from './_store.js'; // Supabase-backed (Vercel KV host is gone)
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 let _jwks = null;
@@ -112,22 +112,16 @@ async function isRevoked(payload) {
 }
 
 async function tierFor(userId) {
-  const cacheKey = `tier:${userId}`;
-  try {
-    const cached = await kv.get(cacheKey);
-    if (cached === 'seeker' || cached === 'sage') return cached;
-  } catch { /* KV down — fall through to DB */ }
-
-  let tier = 'seeker';
+  // Straight from profiles: with counters now in Supabase too, a cache
+  // lookup would cost the same round trip as the real answer.
   try {
     const { data } = await admin()
       .from('profiles')
       .select('tier')
       .eq('id', userId)
       .single();
-    if (data?.tier === 'sage') tier = 'sage';
-  } catch { /* unknown user — seeker */ }
-
-  try { await kv.set(cacheKey, tier, { ex: 60 }); } catch { /* best effort */ }
-  return tier;
+    return data?.tier === 'sage' ? 'sage' : 'seeker';
+  } catch {
+    return 'seeker'; // unknown user
+  }
 }

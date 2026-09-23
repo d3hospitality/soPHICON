@@ -5,7 +5,7 @@ import { test, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 const store = new Map(); let kvDown = false; let currentId = null;
-mock.module('@vercel/kv', { namedExports: { kv: {
+mock.module(new URL('../api/_store.js', import.meta.url).href, { namedExports: { kv: {
   incr: async (k) => { if (kvDown) throw new Error('kv down'); const n = (store.get(k) || 0) + 1; store.set(k, n); return n; },
   expire: async () => 1, get: async () => null, set: async () => 'OK',
 } } });

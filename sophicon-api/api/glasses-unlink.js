@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { kv } from './_store.js'; // Supabase-backed (Vercel KV host is gone)
 import { identify } from './_auth.js';
 
 /**

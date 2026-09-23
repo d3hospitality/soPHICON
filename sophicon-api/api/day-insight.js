@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { kv } from '@vercel/kv';
+import { kv } from './_store.js'; // Supabase-backed (Vercel KV host is gone)
 import { requireEntitlement } from './_entitlements.js';
 // ═══════════════════════════════════════════════════════════════════
 // /api/day-insight

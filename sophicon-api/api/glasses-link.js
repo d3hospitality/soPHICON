@@ -1,6 +1,6 @@
 import { SignJWT } from 'jose';
 import { createClient } from '@supabase/supabase-js';
-import { kv } from '@vercel/kv';
+import { kv } from './_store.js'; // Supabase-backed (Vercel KV host is gone)
 import { randomUUID } from 'node:crypto';
 import { clientIp } from './_policy.js';
 

@@ -3,7 +3,7 @@ import { test, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 const kvStore = new Map(); let kvDown = false;
-mock.module('@vercel/kv', { namedExports: { kv: {
+mock.module(new URL('../api/_store.js', import.meta.url).href, { namedExports: { kv: {
   incr: async (k) => { if (kvDown) throw new Error('down'); const n = (kvStore.get(k) || 0) + 1; kvStore.set(k, n); return n; },
   expire: async () => 1,
   get: async (k) => { if (kvDown) throw new Error('down'); return kvStore.get(k) ?? null; },

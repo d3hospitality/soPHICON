@@ -16,7 +16,7 @@
 // Identity comes only from a verified bearer token (see _auth.js).
 // ═══════════════════════════════════════════════════════════════════
 
-import { kv } from '@vercel/kv';
+import { kv } from './_store.js'; // Supabase-backed (Vercel KV host is gone)
 import { identify } from './_auth.js';
 import { evaluate, quotaKey, clientIp, ANON_GLOBAL_PER_DAY } from './_policy.js';
 

@@ -2,7 +2,7 @@
 import { test, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-mock.module('@vercel/kv', { namedExports: { kv: {
+mock.module(new URL('../api/_store.js', import.meta.url).href, { namedExports: { kv: {
   incr: async () => 1, expire: async () => 1, get: async () => null, set: async () => 'OK' } } });
 let who = { userId: 'u1', tier: 'seeker', scope: 'user' };
 mock.module(new URL('../api/_auth.js', import.meta.url).href, { namedExports: { identify: async () => who } });
