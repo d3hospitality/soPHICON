@@ -943,6 +943,14 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
  * and clicks (commit selection / double-click to go back).
  * State is owned by events.ts (see speakSelectedIndex). Webapp drives
  * the same state via setSpeakSelectedIndex. */
+// Display-only tier hint for Speak (server still enforces every call).
+let viewerSage = false;
+export function setViewerSage(v: boolean): void { viewerSage = v; }
+/** Seekers speak with Enki; every other philosopher is a Sage conversation. */
+export function isLockedForViewer(philId: string): boolean {
+  return !viewerSage && philId !== 'enki';
+}
+
 export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 0): RebuildPageContainer {
   const layout = speakPhilosopherLayout();
   const philosophers = getPhilosophersByTradition(tradition);
@@ -970,7 +978,10 @@ export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 
   const header = new TextContainerProperty({
     ...geo(layout, "header"),
     containerID: 1, containerName: "header",
-    content: `Speak: ${tradition}`, isEventCapture: 0,
+    content: viewerSage || philosophers.every(p => p.philId === 'enki')
+      ? `Speak: ${tradition}`
+      : `Speak: ${tradition} · Sage`,
+    isEventCapture: 0,
     zOrderIndex: 4,
   });
   // Replaces the previous firmware-managed list. We control the cursor.

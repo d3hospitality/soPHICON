@@ -15,6 +15,7 @@
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 
 const LINK_API_URL = 'https://sophicon-api.vercel.app/api/glasses-link';
+const ME_API_URL = 'https://sophicon-api.vercel.app/api/me';
 const TOKEN_KEY = 'enki_token';
 const HANDLE_KEY = 'enki_handle';
 const TIER_KEY = 'enki_tier';
@@ -47,6 +48,29 @@ export async function linkedHandle(): Promise<string | null> {
 export async function linkedTier(): Promise<string | null> {
   await ensureLoaded();
   return cachedToken ? cachedTier : null;
+}
+
+/** Sync, display-only: is the cached tier Sage? (Server still enforces.) */
+export function isSageCached(): boolean {
+  return !!cachedToken && cachedTier === 'sage';
+}
+
+/** Ask the server for the LIVE tier and cache it. The tier captured at
+ *  pairing goes stale after upgrades / trials / cancellations. Silent on
+ *  failure (offline keeps the cached value). */
+export async function refreshTier(): Promise<string | null> {
+  await ensureLoaded();
+  if (!cachedToken) return null;
+  try {
+    const resp = await fetch(ME_API_URL, { headers: { Authorization: `Bearer ${cachedToken}` } });
+    if (!resp.ok) return cachedTier;
+    const data = await resp.json().catch(() => ({}));
+    if (data.tier === 'sage' || data.tier === 'seeker') {
+      cachedTier = data.tier;
+      if (bridgeRef) await bridgeRef.setLocalStorage(TIER_KEY, data.tier).catch(() => false);
+    }
+  } catch { /* offline — keep cached */ }
+  return cachedTier;
 }
 
 /** Extra headers for sophicon-api calls: Bearer token when linked. */

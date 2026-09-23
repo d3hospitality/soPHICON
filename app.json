@@ -2,7 +2,7 @@
   "package_id": "com.d3hospitality.sophicon",
   "edition": "202601",
   "name": "enkiRIDION",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "Philosophy on Glass — speak with 17 philosophers, collect wisdom, and think deeper.",
   "author": "D3 Hospitality",
   "entrypoint": "index.html",
@@ -18,14 +18,13 @@
   "permissions": [
     {
       "name": "network",
-      "desc": "Sync your account and conversations, and load quotes, sprites, and the Aphorica community feed. An optional Support the dev page opens a Stripe-hosted tip page in your browser; it unlocks nothing, and none of your conversations, journal or account data is sent there.",
+      "desc": "Sync your account and conversations, and load quotes, sprites, and the Aphorica community feed.",
       "whitelist": [
         "https://sophicon-api.vercel.app",
         "https://enkiridion.com",
         "https://afdrjzhcfltsngyxaqhb.supabase.co",
         "https://fonts.googleapis.com",
-        "https://fonts.gstatic.com",
-        "https://buy.stripe.com"
+        "https://fonts.gstatic.com"
       ]
     },
     {

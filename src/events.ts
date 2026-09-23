@@ -48,6 +48,8 @@ import {
   favMenu, buildFavoritesEmptyPage, buildCalendarPage,
   buildCalendarDayPage, MENU_CAL_PREV, MENU_CAL_NEXT,
   setGlanceLine,
+  setViewerSage,
+  isLockedForViewer,
 } from './pages';
 import { MINDFUL_LATCH_KEY, SUPPORT_LATCH_KEY } from './support';
 import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl, ghostPreset } from './image-utils';
@@ -60,7 +62,7 @@ import {
 } from './glassCalendar';
 import { authHeaders, linkedHandle } from './enkiAccount';
 import { tGlass, LANGS, setLang } from './i18n';
-import { setAccountBridge } from './enkiAccount';
+import { setAccountBridge, refreshTier, isSageCached } from './enkiAccount';
 import {
   loadPersonas, setSpeakBridge, startConversation,
   startRecording, stopRecordingAndSend, handleAudioChunk,
@@ -759,6 +761,8 @@ export function registerEventHandlers(bridge: EvenAppBridge, baseUrl: string): (
   setSpeakBridge(bridge);
   setAccountBridge(bridge);
   loadPersonas(baseUrl);
+  // Live tier for the Speak labels/gate (display only; server enforces).
+  refreshTier().then(() => setViewerSage(isSageCached())).catch(() => {});
 
   return bridge.onEvenHubEvent((event: EvenHubEvent) => {
     handleEvent(bridge, event, baseUrl);
@@ -1125,6 +1129,15 @@ async function updateEmotionSprite(
 // Empathic map — see userMoodToEmpathySprite() in speak.ts for details.
 async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   if (!speakPhilosopher) return;
+
+  // Gate BEFORE recording: a seeker talking to anyone but Enki would only
+  // be refused by the server after we'd spent a transcription on it.
+  if (!isCurrentlyRecording() && isLockedForViewer(speakPhilosopher.philId)) {
+    lastResponseText = tGlass('g.sageGate', { name: speakPhilosopher.name });
+    await renderSpeakPage(bridge, lastResponseText, false);
+    await updateEmotionSprite(bridge, baseUrl, "teaching");
+    return;
+  }
 
   if (!isCurrentlyRecording()) {
     // Phase 1: LISTENING — context-aware from prior-turn mood

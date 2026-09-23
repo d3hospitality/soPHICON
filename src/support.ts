@@ -24,7 +24,9 @@ import type { DictKey } from './locales/en';
 // quantity adjuster, Stripe's own hosted thanks page), then COPY THE URL
 // OUT OF THE DASHBOARD DOM. Never retype or OCR a payment URL — one
 // wrong character routes real money to nothing.
-export const SUPPORT_URL: string = 'https://buy.stripe.com/00w4gs9Rh46Jb4y1E1bAs01';
+// 2026-09-23: retired in favour of Sage (monetization PRD). Empty = surface off.
+// Previous link kept in git history; do not re-add without a product decision.
+export const SUPPORT_URL: string = '';
 
 // ─── CRYPTO (display only) ───────────────────────────────────────────
 // An address and a tap-to-copy, nothing more. No wallet connection, no

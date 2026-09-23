@@ -151,6 +151,7 @@ export const EN = {
 
   // ─── Glass (length-critical) ──────────────────────────────────────
   'g.speak': 'enkiSPEAKS',
+  'g.sageGate': '{name} speaks with Sage members. Enki is here for you today. Sage: enkiridion.com',
   'g.aphorica': 'Public Aphorica',
   'g.shuffleAll': 'Shuffle All',
   'g.philosophies': 'Philosophies',
