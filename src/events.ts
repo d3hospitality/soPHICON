@@ -49,6 +49,7 @@ import {
   buildCalendarDayPage, MENU_CAL_PREV, MENU_CAL_NEXT,
   setGlanceLine,
   setViewerSage,
+  capForGlass,
   isLockedForViewer,
 } from './pages';
 import { MINDFUL_LATCH_KEY, SUPPORT_LATCH_KEY } from './support';
@@ -1127,14 +1128,26 @@ async function updateEmotionSprite(
 //                    always pushes, even if same as the empathy sprite).
 //
 // Empathic map — see userMoodToEmpathySprite() in speak.ts for details.
+/** Put a one-off line in the conversation text box without touching
+ *  history (renderSpeakPage always renders history when there is some,
+ *  so a transient notice passed to it is silently dropped). */
+async function showSpeakNotice(bridge: EvenAppBridge, text: string): Promise<void> {
+  try {
+    await bridge.textContainerUpgrade({ containerID: 2, containerName: "response", content: capForGlass(text) } as any);
+  } catch {
+    speakIsInitialized = false;
+    await renderSpeakPage(bridge, text, false);
+  }
+}
+
 async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   if (!speakPhilosopher) return;
 
   // Gate BEFORE recording: a seeker talking to anyone but Enki would only
   // be refused by the server after we'd spent a transcription on it.
   if (!isCurrentlyRecording() && isLockedForViewer(speakPhilosopher.philId)) {
-    lastResponseText = tGlass('g.sageGate', { name: speakPhilosopher.name });
-    await renderSpeakPage(bridge, lastResponseText, false);
+    log(`[SPEAK] ${speakPhilosopher.philId} is Sage-only for this viewer — gate shown, mic not opened`);
+    await showSpeakNotice(bridge, tGlass('g.sageGate', { name: speakPhilosopher.name }));
     await updateEmotionSprite(bridge, baseUrl, "teaching");
     return;
   }
@@ -1174,7 +1187,9 @@ async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> 
 
   if (!result) {
     lastResponseText = "I didn't catch that. Tap again.";
-    await renderSpeakPage(bridge, lastResponseText, false);
+    // renderSpeakPage shows history, not this text, once a conversation
+    // exists — so this line never appeared. Show it directly.
+    await showSpeakNotice(bridge, `□ Tap to speak\n${lastResponseText}`);
     await updateEmotionSprite(bridge, baseUrl, "doubt", true);
     return;
   }

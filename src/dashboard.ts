@@ -2912,11 +2912,26 @@ function renderStoryStack(): void {
   applyBidiHints();
 }
 
+/** Re-open the first-run sign-up / trial overlay on demand. The Even
+ *  webview can't open external links or run Google sign-in, so the overlay
+ *  (copy link → phone browser → come back with a code) is the real path.
+ *  onclick (not addEventListener) so repeated opens never stack handlers. */
+function openOnboarding(): void {
+  const overlay = document.getElementById('onboard') as HTMLElement | null;
+  if (!overlay) return;
+  overlay.hidden = false;
+  const free = document.getElementById('onboard-free');
+  if (free) free.onclick = () => { overlay.hidden = true; };
+  const pair = document.getElementById('onboard-pair');
+  if (pair) pair.onclick = () => { overlay.hidden = true; switchTab('about'); };
+}
+
 /** Home pill: sign up (unlinked) or start the free trial (linked Seeker).
  *  Hidden for Sage. Replaces Support the dev as the one loud object on
- *  Home. src= tags the visit so the funnel can see where sign-ups start. */
+ *  Home, and opens the sign-up overlay rather than a link the webview
+ *  can't follow. */
 async function initTrialPill(): Promise<void> {
-  const pill = $('trialpill') as HTMLAnchorElement | null;
+  const pill = $('trialpill') as HTMLButtonElement | null;
   if (!pill) return;
   await refreshTier().catch(() => null);
   if (isSageCached()) { pill.hidden = true; return; }
@@ -2924,7 +2939,7 @@ async function initTrialPill(): Promise<void> {
   const l1 = $('trialpill-1'); const l2 = $('trialpill-2');
   if (l1) l1.textContent = linked ? 'Every philosopher · 7 days free' : 'Free account · keep your conversations';
   if (l2) l2.textContent = linked ? 'Start your free trial ▶' : 'Sign up free ▶';
-  pill.href = `https://enkiridion.com/pricing?src=${linked ? 'g2-trial' : 'g2-signup'}`;
+  pill.onclick = openOnboarding;
   pill.hidden = false;
 }
 
