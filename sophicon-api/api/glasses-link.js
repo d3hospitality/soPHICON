@@ -1,5 +1,12 @@
 import { SignJWT } from 'jose';
 import { createClient } from '@supabase/supabase-js';
+import { kv } from '@vercel/kv';
+import { randomUUID } from 'node:crypto';
+import { clientIp } from './_policy.js';
+
+// PR04: bound brute force on 6-char codes (36^6 space, but unthrottled).
+const ATTEMPTS_PER_IP_PER_HOUR = 10;
+export const GLASSES_AUDIENCE = 'enki-glasses';
 
 /**
  * Exchange a short pairing code (minted by the web app while signed in)
@@ -28,6 +35,17 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Throttle before touching the database. KV outage → refuse (503)
+    // rather than allow unlimited guessing.
+    try {
+      const hourKey = `gl:attempt:${clientIp(req.headers)}:${new Date().toISOString().slice(0, 13)}`;
+      const n = await kv.incr(hourKey);
+      if (n === 1) await kv.expire(hourKey, 3600);
+      if (n > ATTEMPTS_PER_IP_PER_HOUR) return res.status(429).json({ error: 'too_many_attempts', retryAfterMinutes: 60 });
+    } catch {
+      return res.status(503).json({ error: 'pairing_unavailable', retryable: true });
+    }
+
     const code = String(req.body?.code || '').trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(code)) {
       return res.status(400).json({ error: 'invalid_code' });
@@ -37,20 +55,22 @@ export default async function handler(req, res) {
       auth: { persistSession: false },
     });
 
-    const { data: row } = await admin
+    // PR04: consume atomically. The conditional update only matches an
+    // unused, unexpired code, so two simultaneous redemptions cannot both
+    // win (the old select-then-update could mint two tokens).
+    const nowIso = new Date().toISOString();
+    const { data: claimed } = await admin
       .from('glasses_link_codes')
-      .select('code, user_id, expires_at, used_at')
+      .update({ used_at: nowIso })
       .eq('code', code)
-      .single();
+      .is('used_at', null)
+      .gt('expires_at', nowIso)
+      .select('user_id');
 
-    if (!row || row.used_at || new Date(row.expires_at) < new Date()) {
+    const row = Array.isArray(claimed) ? claimed[0] : null;
+    if (!row) {
       return res.status(400).json({ error: 'invalid_code' });
     }
-
-    await admin
-      .from('glasses_link_codes')
-      .update({ used_at: new Date().toISOString() })
-      .eq('code', code);
 
     const { data: profile } = await admin
       .from('profiles')
@@ -58,9 +78,13 @@ export default async function handler(req, res) {
       .eq('id', row.user_id)
       .single();
 
+    // jti lets a single pairing be revoked (see _auth.js); aud separates
+    // glasses tokens from every other HS256 token.
     const token = await new SignJWT({ scope: 'glasses' })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(row.user_id)
+      .setAudience(GLASSES_AUDIENCE)
+      .setJti(randomUUID())
       .setIssuedAt()
       .setExpirationTime('180d')
       .sign(new TextEncoder().encode(process.env.GLASSES_TOKEN_SECRET));

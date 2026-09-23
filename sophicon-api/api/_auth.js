@@ -69,7 +69,13 @@ async function verifyToken(token) {
         token,
         new TextEncoder().encode(process.env.GLASSES_TOKEN_SECRET)
       );
-      if (payload.scope === 'glasses') return payload;
+      if (payload.scope === 'glasses') {
+        // PR04: new tokens carry aud + jti. Legacy tokens (no aud) keep
+        // working until they expire so paired glasses aren't stranded.
+        if (payload.aud && payload.aud !== 'enki-glasses') return null;
+        if (await isRevoked(payload)) return null;
+        return payload;
+      }
     } catch { /* not a glasses token — fall through */ }
   }
 
@@ -89,6 +95,20 @@ async function verifyToken(token) {
     } catch { /* invalid */ }
   }
   return null;
+}
+
+/**
+ * Glasses revocation. "Unpair all glasses" (api/glasses-unlink.js) stores
+ * a cutoff time; any glasses token issued before it is rejected. Works
+ * for legacy tokens too, since every token has iat.
+ * KV outage → not revoked: tier + quotas still gate spend, and failing
+ * closed here would lock every paired device out during a KV blip.
+ */
+async function isRevoked(payload) {
+  try {
+    const cutoff = await kv.get(`gl:revokedBefore:${payload.sub}`);
+    return Boolean(cutoff && payload.iat && payload.iat <= Number(cutoff));
+  } catch { return false; }
 }
 
 async function tierFor(userId) {
