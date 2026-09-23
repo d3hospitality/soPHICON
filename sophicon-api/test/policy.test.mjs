@@ -51,8 +51,9 @@ test('a client cannot smuggle its own prompt under the name "Enki"', () => {
   assert.notEqual(r.persona.persona, forged.persona);
 });
 
-test('Aphorica stays open to seekers: one graded aphorism a day', () => {
-  const r = evaluate('aphorica-classify', { tier: 'seeker', isAnon: false });
-  assert.equal(r.allow, true); assert.equal(r.rule.perDay, 1);
-  assert.equal(evaluate('aphorica-classify', { isAnon: true }).status, 401);
+test('Aphorica stays open to every signed-in member', () => {
+  const post = evaluate('aphorica-post', { tier: 'seeker', isAnon: false });
+  assert.equal(post.allow, true); assert.equal(post.rule.perDay, 3);
+  assert.equal(evaluate('aphorica-classify', { tier: 'seeker', isAnon: false }).allow, true);
+  assert.equal(evaluate('aphorica-post', { isAnon: true }).status, 401);
 });

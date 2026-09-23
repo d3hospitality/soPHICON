@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { classifyAphorism, rarityFromScore, BLOCKING_FLAGS } from './_classify.js';
+import { requireEntitlement } from '../_entitlements.js';
 import { identify } from '../_auth.js';
 
 /**
@@ -20,10 +22,11 @@ function admin() {
   return _admin;
 }
 
-const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const clamp = (v, n) => (v ? String(v).slice(0, n) : null);
 
 // A valid, in-range coordinate or null (geo "wonderment mode" is opt-in).
+const round3 = (n) => (n === null ? null : Math.round(n * 1000) / 1000);
+
 function coord(v, max) {
   const n = Number(v);
   return Number.isFinite(n) && Math.abs(n) <= max ? n : null;
@@ -41,20 +44,33 @@ export default async function handler(req, res) {
 
   const id = await identify(req);
   if (!id?.userId) return res.status(401).json({ error: 'auth_required' });
+  const gate = await requireEntitlement(req, res, 'aphorica-post');
+  if (!gate) return;
 
   const text = String(req.body?.text || '').trim();
   if (text.length < 1 || text.length > 240) {
     return res.status(400).json({ error: 'text must be 1–240 characters' });
   }
-  const rarityIn = String(req.body?.rarity || 'common').toLowerCase();
-  const rarity = RARITIES.includes(rarityIn) ? rarityIn : 'common';
-  const ratingScore = Number.isFinite(req.body?.ratingScore)
-    ? Math.max(0, Math.min(100, Math.round(req.body.ratingScore)))
-    : 0;
+  // PR-A1: the grade is the server's, never the client's. Any rarity,
+  // ratingScore, emotion or archetype in the body is ignored — the post is
+  // classified here, which also moderates it before it goes public.
+  const context = clamp(req.body?.context, 80);
+  let grade;
+  try {
+    grade = await classifyAphorism({ text, context: (context || '').slice(0, 60) });
+  } catch {
+    return res.status(502).json({ error: 'grading_unavailable', retryable: true });
+  }
+  if (BLOCKING_FLAGS.has(grade.moderationFlag)) {
+    return res.status(422).json({ error: 'rejected', flag: grade.moderationFlag, reason: grade.rejectReason });
+  }
+  const rarity = grade.moderationFlag === 'fake_deep' ? 'common' : rarityFromScore(grade.ratingScore);
+  const ratingScore = grade.ratingScore;
 
-  // Opt-in geo tag: both coordinates must be present + valid, else neither is stored.
-  const lat = coord(req.body?.latitude, 90);
-  const lng = coord(req.body?.longitude, 180);
+  // Opt-in geo tag: both coordinates must be present + valid, else neither
+  // is stored. PR-A1: stored at ~110 m precision, never the exact spot.
+  const lat = round3(coord(req.body?.latitude, 90));
+  const lng = round3(coord(req.body?.longitude, 180));
   const geo = lat !== null && lng !== null ? { latitude: lat, longitude: lng } : {};
 
   try {
@@ -63,10 +79,10 @@ export default async function handler(req, res) {
       .insert({
         user_id: id.userId,
         text,
-        context: clamp(req.body?.context, 80),
+        context,
         tradition: clamp(req.body?.tradition, 40),
-        emotion: clamp(req.body?.emotion, 40),
-        archetype: clamp(req.body?.archetype, 40),
+        emotion: grade.emotion,
+        archetype: grade.archetype,
         rarity,
         rating_score: ratingScore,
         ...geo,
@@ -74,7 +90,7 @@ export default async function handler(req, res) {
       .select('id')
       .single();
     if (error) throw error;
-    return res.status(201).json({ id: data.id });
+    return res.status(201).json({ id: data.id, rarity, ratingScore, emotion: grade.emotion, archetype: grade.archetype });
   } catch (err) {
     console.error('[aphorica/create]', err);
     return res.status(500).json({ error: 'create_failed' });

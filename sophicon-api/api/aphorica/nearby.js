@@ -73,12 +73,14 @@ export default async function handler(req, res) {
         text: r.text,
         tradition: r.tradition,
         rarity: r.rarity || 'common',
-        latitude: r.latitude,
-        longitude: r.longitude,
-        distance: Math.round(metres(lat, lng, r.latitude, r.longitude)),
+        // PR-A1: public endpoint, so never reveal where or exactly when a
+        // person stood. ~110 m coordinates, 50 m distance steps, day-level time.
+        latitude: Math.round(r.latitude * 1000) / 1000,
+        longitude: Math.round(r.longitude * 1000) / 1000,
+        distance: Math.max(50, Math.round(metres(lat, lng, r.latitude, r.longitude) / 50) * 50),
         author: r.profiles?.handle || 'a wanderer',
         authorSprite: r.profiles?.sprite_path || null,
-        createdAt: r.created_at ? new Date(r.created_at).getTime() / 1000 : null,
+        createdAt: r.created_at ? Math.floor(new Date(r.created_at).getTime() / 86400000) * 86400 : null,
       }))
       .filter((p) => p.distance <= radius)
       .sort((a, b) => a.distance - b.distance)

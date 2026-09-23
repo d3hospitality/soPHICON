@@ -29,7 +29,10 @@ export const POLICY = {
   actions:             { anon: null, seeker: null, sage: { perDay: 30 } },
   problems:            { anon: null, seeker: null, sage: { perDay: 30 } },
   // Aphorica stays active: seekers get their one daily aphorism graded.
-  'aphorica-classify': { anon: null, seeker: { perDay: 1 }, sage: { perDay: 30 } },
+  'aphorica-classify': { anon: null, seeker: { perDay: 3 }, sage: { perDay: 30 } },
+  // Posting stays open to every signed-in member; the cap only bounds the
+  // (cheap) server-side grading + moderation call each post triggers.
+  'aphorica-post':     { anon: null, seeker: { perDay: 3 }, sage: { perDay: 30 } },
   'community-submit':  { anon: null, seeker: null, sage: { perDay: 20 } },
   'become-philosopher':{ anon: null, seeker: null, sage: { perDay: 5 } },
   sprite:              { anon: null, seeker: null, sage: { perDay: 5 } },
