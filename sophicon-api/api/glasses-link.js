@@ -35,15 +35,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Throttle before touching the database. KV outage → refuse (503)
-    // rather than allow unlimited guessing.
+    // Throttle before touching the database. If the quota store is down,
+    // pairing still works (codes are single-use + short-lived, so guessing
+    // stays impractical) but it is logged loudly — pairing is the one flow
+    // that must not break for already-paying customers.
     try {
       const hourKey = `gl:attempt:${clientIp(req.headers)}:${new Date().toISOString().slice(0, 13)}`;
       const n = await kv.incr(hourKey);
       if (n === 1) await kv.expire(hourKey, 3600);
       if (n > ATTEMPTS_PER_IP_PER_HOUR) return res.status(429).json({ error: 'too_many_attempts', retryAfterMinutes: 60 });
-    } catch {
-      return res.status(503).json({ error: 'pairing_unavailable', retryable: true });
+    } catch (e) {
+      console.error('[glasses-link] QUOTA STORE UNAVAILABLE — pairing unthrottled:', e?.message);
     }
 
     const code = String(req.body?.code || '').trim().toUpperCase();

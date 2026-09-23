@@ -65,9 +65,12 @@ test('brute force is throttled per IP', async () => {
   assert.equal((await call(link, { code: 'ZZZZZZ' })).status, 429);
 });
 
-test('KV outage refuses pairing instead of allowing unlimited guesses', async () => {
+test('quota store outage does not break pairing for real codes', async () => {
+  codes.set('ABC123', { code: 'ABC123', user_id: 'u1', expires_at: future(), used_at: null });
   kvDown = true;
-  assert.equal((await call(link, { code: 'ABC123' })).status, 503);
+  const r = await call(link, { code: 'ABC123' });
+  kvDown = false;
+  assert.equal(r.status, 200);
 });
 
 test('new tokens identify as glasses; unpair-all revokes them', async () => {
