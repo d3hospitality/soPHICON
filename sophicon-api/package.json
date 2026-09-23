@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node --test --experimental-test-module-mocks test/policy.test.mjs test/speak-gate.test.mjs"
+  },
   "description": "Vercel-hosted serverless API for the soPHICON ecosystem (Speak / Symposium / Aphorica / Community / etc).",
   "dependencies": {
     "@vercel/kv": "^3.0.0",

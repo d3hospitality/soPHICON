@@ -1,4 +1,5 @@
 import { requireEntitlement } from './_entitlements.js';
+import { resolvePersona } from './_persona.js';
 import { languageLabel } from './_utils.js';
 import { createClient } from '@supabase/supabase-js';
 
@@ -62,6 +63,10 @@ async function loadServerMemoryBank(userId) {
  * @param {string[]} [req.body.memoryBank] - Persistent memory facts about the user
  * @returns {object} { text: string, emotion: string, userMood: string }
  */
+// PR01 payload bounds — cap prompt size (cost) regardless of client.
+const MAX_TURN_CHARS = 4000;
+const MAX_HISTORY_TURNS = 24;
+
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -75,14 +80,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { persona, history, userMessage, crossContext, userProfile, memoryBank } = req.body;
+    const { persona: clientPersona, history, userMessage, crossContext, userProfile, memoryBank } = req.body || {};
 
-    if (!persona || !userMessage) {
+    if (!clientPersona || !userMessage || typeof userMessage !== 'string') {
       return res.status(400).json({ error: 'Missing persona or userMessage' });
     }
+    if (userMessage.length > MAX_TURN_CHARS) {
+      return res.status(413).json({ error: 'message_too_long', max: MAX_TURN_CHARS });
+    }
 
-    // Tier gate: seeker = Enki only, 5 turns/day; sage = everything.
-    const gate = await requireEntitlement(req, res, 'speak', { persona: persona.name });
+    // SEC-03: the server owns persona prompts. Clients choose WHO, never
+    // WHAT — a client-sent persona body is ignored when the id resolves.
+    const resolved = resolvePersona(clientPersona);
+    const hard = (process.env.ENFORCE_ENTITLEMENTS || '').toLowerCase() === 'hard';
+    if (!resolved && hard) return res.status(400).json({ error: 'unknown_persona' });
+    if (!resolved) console.warn('[/api/speak] unresolved persona — using client body (non-hard mode)');
+    const persona = resolved ? resolved.persona : clientPersona;
+
+    // Tier gate keyed on the server-resolved id, never a client label.
+    const gate = await requireEntitlement(req, res, 'speak', { persona: resolved ? resolved.id : '' });
     if (!gate) return;
 
     // Second brain: when the client didn't ship a memory bank (web, G2,
@@ -161,7 +177,7 @@ RULES:
     // or stutter and responds with shallower, shorter, or formulaic
     // replies. Deduplicate: drop the trailing user-message from history
     // if it matches userMessage, and always push userMessage exactly once.
-    let trimmedHistory = Array.isArray(history) ? history.slice() : [];
+    let trimmedHistory = Array.isArray(history) ? history.slice(-MAX_HISTORY_TURNS) : [];
     if (
       trimmedHistory.length > 0 &&
       trimmedHistory[trimmedHistory.length - 1].role === 'user' &&
@@ -171,7 +187,7 @@ RULES:
     }
     for (const msg of trimmedHistory) {
       if (msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string') {
-        messages.push({ role: msg.role, content: msg.content });
+        messages.push({ role: msg.role, content: msg.content.slice(0, MAX_TURN_CHARS) });
       }
     }
 
@@ -186,7 +202,7 @@ RULES:
       '| msgsLen:', messages.length,
       '| crossContext:', crossContext ? `${crossContext.length}c` : 'none',
       '| stream:', wantsStream ? 'yes' : 'no',
-      '| userMsg:', userMessage.slice(0, 80),
+      '| userMsgLen:', userMessage.length, // no user text in logs
     );
     console.log('[/api/speak] systemPrompt first 400 chars:', systemPrompt.slice(0, 400));
 

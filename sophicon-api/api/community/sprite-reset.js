@@ -70,7 +70,20 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body || {};
-    const userId = String(body.userId || req.headers['x-user-id'] || '').trim();
+    let userId;
+    // SEC-01: in hard mode the owner is the verified token identity, never
+    // a body/header claim. Legacy anonymous-UUID owners keep working only
+    // while ENFORCE_ENTITLEMENTS != hard (migration: PRD PR06).
+    const claimedUserId = String(body.userId || req.headers['x-user-id'] || '').trim();
+    if ((process.env.ENFORCE_ENTITLEMENTS || '').toLowerCase() === 'hard') {
+      if (!gate.userId) return res.status(401).json({ error: 'auth_required' });
+      userId = gate.userId;
+    } else {
+      userId = claimedUserId;
+      if (gate.userId && claimedUserId && claimedUserId !== gate.userId) {
+        console.warn('[sprite-reset] owner claim differs from token identity (non-hard mode)');
+      }
+    }
     const philId = String(body.philId || '').trim();
     if (!userId) return res.status(400).json({ error: 'userId required' });
     if (!philId) return res.status(400).json({ error: 'philId required' });

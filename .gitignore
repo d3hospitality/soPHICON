@@ -10,3 +10,6 @@ files.zip
 *.zip
 sophicon-g2-for-review.zip
 *.ehpk
+
+# PR01: server-owned persona prompts — never commit (public repo)
+sophicon-api/api/_personas.js

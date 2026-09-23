@@ -1,40 +1,31 @@
 // ═══════════════════════════════════════════════════════════════════
-// api/_entitlements.js — per-endpoint tier policy + seeker rate limits.
+// api/_entitlements.js — per-endpoint tier policy + daily quotas.
 //
 // Rollout is controlled by ENFORCE_ENTITLEMENTS:
 //   off  — no checks at all (pre-migration behavior)
 //   warn — evaluate + console.warn violations, never block (default)
-//   hard — enforce with 401/403/429
+//   hard — enforce with 401/403/429/503
 //
-// Policy (two tiers, seeker ⊂ sage):
-//   speak / transcribe   seeker+anon: Enki persona only, 1/day (a taste,
-//                        never persisted); sage/trial: all philosophers,
-//                        40/day (cost cap — protects margin at $8/mo)
-//   sage-only            symposium, photo-reflection, extract-memory,
-//                        aphorica-classify, community-submit,
-//                        become-philosopher, sprite-*
-//   sage (client-local   weekly-overview, actions, problems
-//   fallback for seeker)
-//   open                 community/feed, get-quote, health, glasses-link
+// PR01 changes (see _policy.js for the rules):
+//   • Every feature must be listed in POLICY; unknown → deny.
+//   • tts / transcribe / day-insight now have policies (they were open).
+//   • Anonymous callers are keyed by IP only (X-Device-Id is spoofable)
+//     and share a global per-feature demo budget.
+//   • Quota-store outage fails CLOSED in hard mode (503, retryable),
+//     instead of silently allowing unlimited spend.
+// Identity comes only from a verified bearer token (see _auth.js).
 // ═══════════════════════════════════════════════════════════════════
 
 import { kv } from '@vercel/kv';
 import { identify } from './_auth.js';
-
-const SEEKER_SPEAK_PER_DAY = 1;
-const SAGE_SPEAK_PER_DAY = 40;
-const SEEKER_PERSONA = 'enki';
-
-const SAGE_ONLY = new Set([
-  'symposium', 'photo-reflection', 'extract-memory', 'aphorica-classify',
-  'community-submit', 'become-philosopher', 'sprite',
-  'weekly-overview', 'actions', 'problems',
-]);
+import { evaluate, quotaKey, clientIp, ANON_GLOBAL_PER_DAY } from './_policy.js';
 
 function mode() {
   const m = (process.env.ENFORCE_ENTITLEMENTS || 'warn').toLowerCase();
   return m === 'off' || m === 'hard' ? m : 'warn';
 }
+
+const ANON = { userId: null, tier: 'seeker', scope: 'user' };
 
 /**
  * Gate an endpoint. Returns the identity (or an anonymous stub) when the
@@ -43,81 +34,61 @@ function mode() {
  * @param {import('http').IncomingMessage} req
  * @param {import('http').ServerResponse} res
  * @param {string} feature - policy key, e.g. 'speak', 'symposium'
- * @param {{ persona?: string }} [opts] - persona name for speak/transcribe checks
- * @returns {Promise<{ userId: string|null, tier: string, scope: string } | null>}
+ * @param {{ persona?: string }} [opts] - server-resolved persona id for speak
  */
 export async function requireEntitlement(req, res, feature, opts = {}) {
   const m = mode();
-  if (m === 'off') {
-    // Enforcement off ≠ identity off: downstream features (server-side
-    // memory recall/persist) key on userId, so still resolve identity —
-    // just never block on it.
-    try {
-      const id = await identify(req);
-      return id || { userId: null, tier: 'seeker', scope: 'user' };
-    } catch {
-      return { userId: null, tier: 'seeker', scope: 'user' };
-    }
-  }
 
-  const id = await identify(req);
-  const tier = id?.tier || 'seeker';
-  const who = id?.userId || anonKey(req);
+  let id = null;
+  try { id = await identify(req); } catch { id = null; }
 
+  if (m === 'off') return id || ANON;
+
+  const isAnon = !id?.userId;
   let violation = null;
 
-  if (feature === 'speak') {
-    // transcribe is deliberately NOT counted — a voice turn hits
-    // transcribe then speak, and must burn exactly one unit.
-    const persona = (opts.persona || '').toLowerCase();
-    if (tier !== 'sage') {
-      // Seeker/anon: Enki only, 1 message/day — a taste of the feature.
-      if (persona && persona !== SEEKER_PERSONA) {
-        violation = { status: 403, error: 'sage_required', feature: 'speak_all_philosophers' };
-      } else {
-        const over = await overDailyLimit(who, SEEKER_SPEAK_PER_DAY);
-        if (over) violation = { status: 429, error: 'daily_limit', limit: SEEKER_SPEAK_PER_DAY };
-      }
-    } else {
-      // Sage/trial: any philosopher, but capped at 40/day so a heavy
-      // user can't out-cost the $8 subscription.
-      const over = await overDailyLimit(who, SAGE_SPEAK_PER_DAY);
-      if (over) violation = { status: 429, error: 'daily_limit', limit: SAGE_SPEAK_PER_DAY };
+  const decision = evaluate(feature, { tier: id?.tier, isAnon, persona: opts.persona });
+  if (!decision.allow) {
+    violation = decision;
+  } else {
+    const who = isAnon ? `ip:${clientIp(req.headers)}` : `u:${id.userId}`;
+    const day = new Date().toISOString().slice(0, 10);
+    const q = await consume(quotaKey(feature, who, day), decision.rule.perDay);
+    if (q === 'unavailable') {
+      violation = { status: 503, error: 'quota_unavailable', retryable: true };
+    } else if (q === 'over') {
+      violation = { status: 429, error: 'daily_limit', limit: decision.rule.perDay };
+    } else if (isAnon && ANON_GLOBAL_PER_DAY[feature]) {
+      const g = await consume(quotaKey(feature, 'anon-global', day), ANON_GLOBAL_PER_DAY[feature]);
+      if (g === 'unavailable') violation = { status: 503, error: 'quota_unavailable', retryable: true };
+      else if (g === 'over') violation = { status: 429, error: 'demo_busy', signin: true };
     }
-  } else if (tier !== 'sage' && SAGE_ONLY.has(feature)) {
-    violation = { status: 403, error: 'sage_required', feature };
   }
 
-  if (!violation) return id || { userId: null, tier: 'seeker', scope: 'user' };
+  if (!violation) return id || ANON;
 
   if (m === 'warn') {
-    console.warn(`[entitlements] would block: ${JSON.stringify({ ...violation, who, tier })}`);
-    return id || { userId: null, tier: 'seeker', scope: 'user' };
+    console.warn(`[entitlements] would block: ${JSON.stringify({ ...violation, feature, anon: isAnon, tier: id?.tier || 'seeker' })}`);
+    return id || ANON;
   }
 
   res.status(violation.status).json({
     error: violation.error,
-    feature: violation.feature,
-    upgrade: 'https://enkiridion.com/pricing',
+    feature: violation.feature || feature,
+    limit: violation.limit,
+    retryable: violation.retryable || undefined,
+    upgrade: violation.status === 403 || violation.status === 429 ? 'https://enkiridion.com/pricing' : undefined,
   });
   return null;
 }
 
-function anonKey(req) {
-  const deviceId = req.headers['x-device-id'];
-  if (deviceId) return `dev:${deviceId}`;
-  const fwd = req.headers['x-forwarded-for'];
-  return `ip:${(Array.isArray(fwd) ? fwd[0] : fwd || '').split(',')[0].trim() || 'unknown'}`;
-}
-
-async function overDailyLimit(who, limit) {
-  const day = new Date().toISOString().slice(0, 10);
-  const key = `rl:${who}:${day}`;
+/** Atomically count one use. 'ok' | 'over' | 'unavailable'. */
+async function consume(key, limit) {
   try {
     const n = await kv.incr(key);
     if (n === 1) await kv.expire(key, 86400);
-    return n > limit;
+    return n > limit ? 'over' : 'ok';
   } catch {
-    return false; // KV outage must never take Speak down
+    return 'unavailable';
   }
 }
