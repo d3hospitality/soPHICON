@@ -47,7 +47,7 @@ import {
   setHabitsBridge, listHabits, favoriteAsHabit, unfavoriteHabit,
   isHabit, pendingCheckIns, recordCheckIn, streakHealth, habitSpritePath,
 } from './habits';
-import { authHeaders, linkedHandle, linkedTier, linkWithCode, unlink, setAccountBridge } from './enkiAccount';
+import { authHeaders, linkedHandle, linkedTier, linkWithCode, unlink, setAccountBridge, refreshTier, isSageCached } from './enkiAccount';
 import { isFavoriteText, toggleFavoriteText, onFavoritesChange } from './favorites';
 import { getWisdomEntries, onWisdomLogChange, addWisdomEntry, hasWisdomEntry } from './wisdomlog';
 import {
@@ -2592,6 +2592,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   // when SUPPORT_URL is empty. The latch check catches a Support tap that
   // happened on the glasses while this webview was backgrounded.
   initSupport();
+  initTrialPill().catch(() => {});
   consumeSupportLatch().catch(() => {});
   consumeMindfulLatch().catch(() => {});
 
@@ -2909,6 +2910,22 @@ function renderStoryStack(): void {
     stack.appendChild(card);
   });
   applyBidiHints();
+}
+
+/** Home pill: sign up (unlinked) or start the free trial (linked Seeker).
+ *  Hidden for Sage. Replaces Support the dev as the one loud object on
+ *  Home. src= tags the visit so the funnel can see where sign-ups start. */
+async function initTrialPill(): Promise<void> {
+  const pill = $('trialpill') as HTMLAnchorElement | null;
+  if (!pill) return;
+  await refreshTier().catch(() => null);
+  if (isSageCached()) { pill.hidden = true; return; }
+  const linked = !!(await linkedHandle());
+  const l1 = $('trialpill-1'); const l2 = $('trialpill-2');
+  if (l1) l1.textContent = linked ? 'Every philosopher · 7 days free' : 'Free account · keep your conversations';
+  if (l2) l2.textContent = linked ? 'Start your free trial ▶' : 'Sign up free ▶';
+  pill.href = `https://enkiridion.com/pricing?src=${linked ? 'g2-trial' : 'g2-signup'}`;
+  pill.hidden = false;
 }
 
 function initSupport(): void {
