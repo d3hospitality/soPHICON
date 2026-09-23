@@ -92,8 +92,13 @@ export default async function handler(req, res) {
     // SEC-03: the server owns persona prompts. Clients choose WHO, never
     // WHAT — a client-sent persona body is ignored when the id resolves.
     const resolved = resolvePersona(clientPersona);
-    const hard = (process.env.ENFORCE_ENTITLEMENTS || '').toLowerCase() === 'hard';
-    if (!resolved && hard) return res.status(400).json({ error: 'unknown_persona' });
+    // Unknown personas are refused in hard mode, and ALWAYS for anonymous
+    // callers: an unsigned request with its own persona body is exactly
+    // the free-GPT-4o-proxy abuse this closes. Signed-in callers keep the
+    // legacy fallback outside hard mode.
+    const enfMode = (process.env.ENFORCE_ENTITLEMENTS || '').toLowerCase();
+    const hasBearer = String(req.headers['authorization'] || '').startsWith('Bearer ');
+    if (!resolved && (enfMode === 'hard' || !hasBearer)) return res.status(400).json({ error: 'unknown_persona' });
     if (!resolved) console.warn('[/api/speak] unresolved persona — using client body (non-hard mode)');
     const persona = resolved ? resolved.persona : clientPersona;
 

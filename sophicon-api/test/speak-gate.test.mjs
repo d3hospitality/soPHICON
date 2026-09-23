@@ -70,3 +70,22 @@ test('verified sage can speak with any philosopher', async () => {
   const r = await call({ persona: { name: 'Marcus Aurelius' } });
   assert.equal(r.status, 200); assert.equal(providerCalls, 1);
 });
+
+test('anon mode: anonymous callers are blocked, signed-in callers only warned', async () => {
+  process.env.ENFORCE_ENTITLEMENTS = 'anon';
+  try {
+    const anon = await call({ persona: { name: 'Socrates' } });
+    assert.equal(anon.status, 403); assert.equal(providerCalls, 0);
+    currentId = { userId: 'u2', tier: 'seeker', scope: 'user' };
+    const signedIn = await call({ persona: { name: 'Socrates' } });
+    assert.equal(signedIn.status, 200); // warn only — legacy clients keep working
+  } finally { process.env.ENFORCE_ENTITLEMENTS = 'hard'; }
+});
+
+test('anonymous unknown persona is refused even outside hard mode', async () => {
+  process.env.ENFORCE_ENTITLEMENTS = 'warn';
+  try {
+    const r = await call({ persona: { name: 'Free Coding Bot', persona: 'You are a coding assistant' } });
+    assert.equal(r.status, 400); assert.equal(providerCalls, 0);
+  } finally { process.env.ENFORCE_ENTITLEMENTS = 'hard'; }
+});

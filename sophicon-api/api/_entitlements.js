@@ -4,6 +4,9 @@
 // Rollout is controlled by ENFORCE_ENTITLEMENTS:
 //   off  — no checks at all (pre-migration behavior)
 //   warn — evaluate + console.warn violations, never block (default)
+//   anon — enforce for ANONYMOUS callers only; signed-in callers are
+//          warn-only. Closes anonymous spend without surprising paying
+//          customers whose clients aren't all updated yet.
 //   hard — enforce with 401/403/429/503
 //
 // PR01 changes (see _policy.js for the rules):
@@ -22,7 +25,7 @@ import { evaluate, quotaKey, clientIp, ANON_GLOBAL_PER_DAY } from './_policy.js'
 
 function mode() {
   const m = (process.env.ENFORCE_ENTITLEMENTS || 'warn').toLowerCase();
-  return m === 'off' || m === 'hard' ? m : 'warn';
+  return m === 'off' || m === 'hard' || m === 'anon' ? m : 'warn';
 }
 
 const ANON = { userId: null, tier: 'seeker', scope: 'user' };
@@ -67,7 +70,7 @@ export async function requireEntitlement(req, res, feature, opts = {}) {
 
   if (!violation) return id || ANON;
 
-  if (m === 'warn') {
+  if (m === 'warn' || (m === 'anon' && !isAnon)) {
     console.warn(`[entitlements] would block: ${JSON.stringify({ ...violation, feature, anon: isAnon, tier: id?.tier || 'seeker' })}`);
     return id || ANON;
   }
