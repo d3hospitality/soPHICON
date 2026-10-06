@@ -46,6 +46,29 @@ IDs are never reused for different meanings. New commands take new IDs.
 
 ---
 
+## 1.13.0 — Your path
+
+Leaving a conversation where the wearer said something and got an
+answer now passes through **Your move** before going back:
+
+| Container | ID | Name | Geometry | Notes |
+| --- | --- | --- | --- | --- |
+| Image | 1 | portrait | 15,25 100×100 | philosopher's `teaching` sprite, pushed once |
+| Text | 2 | move | 130,20 430×255 | capture; words change by `textContainerUpgrade` |
+| Text | 4 | phil-name | 15,130 110×60 | name + tradition |
+
+- Opens on "Finding your next step…" while `/api/next-move` answers
+  (8 s budget), then shows the move, the goal it serves ("Toward: …")
+  or a suggested goal ("New goal: …", only when there is room for one:
+  Free 1 goal, Sage 3).
+- Tap keeps it (`src/path.ts`), shows "Kept." for 1.4 s, then goes back.
+  Double-tap skips. Nothing proposed, the API unreachable, or the
+  budget spent → straight back, exactly as before 1.13.
+- Back goes wherever the conversation was opened from
+  (`returnFromConversation`, shared with the plain double-tap path).
+- Every talk now carries the wearer's goals and open moves to
+  `/api/speak` (`pathContext`), so a philosopher can ask about one.
+
 ## 1.11.0 — what changed and why
 
 - **Home rows: Talk to Enki · Philosophers · Quotes · Aphorica.** Enki

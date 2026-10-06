@@ -33,9 +33,13 @@ import { pushSprite, getSpritePushLog, clearSpriteCache } from './image-utils';
 import {
   loadJournal, JournalSession, SpeakMessage, loadActionItems,
   loadPersonas, getPersona, startConversation, sendMessage,
-  emotionToSprite, normalizeEmotion, pullSpeakSessions,
+  emotionToSprite, normalizeEmotion, pullSpeakSessions, sessionExchanges,
   type SpeakResult,
 } from './speak';
+import {
+  activeGoals, openMoves, recentDone, goalById, goalLimit, addGoal, setGoalStatus,
+  keepMove, setMoveStatus, requestMove, onPathChange, type Move,
+} from './path';
 import {
   WeeklyOverview, WeeklyProblem, WeeklyAction, Category, Quadrant, QUADRANTS,
   isoWeekKey, weekRangeLabel, shiftWeek,
@@ -570,6 +574,8 @@ async function renderSpeakThread(philId: string): Promise<void> {
 async function primeSpeakPhil(philId: string): Promise<void> {
   if (speakActivePhil === philId) return;
   speakActivePhil = philId;
+  const moveBox = $('speak-move');
+  if (moveBox) { moveBox.hidden = true; moveBox.innerHTML = ''; }
   const badge = $('speak-compose-badge');
   const phil = PHILOSOPHERS.find(p => p.philId === philId);
   if (badge) badge.textContent = phil ? phil.name : philId;
@@ -577,6 +583,7 @@ async function primeSpeakPhil(philId: string): Promise<void> {
     try { await startConversation(philId); } catch (e) { console.warn('[SPEAK] prime failed', e); }
   }
   await renderSpeakThread(philId);
+  updateMoveButton();
 }
 
 /** Programmatically activate a tab (used by the trial CTA → About/pairing). */
@@ -714,8 +721,11 @@ async function initSpeakCompose(): Promise<void> {
       speakSending = false;
       sendBtn.disabled = false;
       input.focus();
+      updateMoveButton();
     }
   };
+
+  $('speak-move-btn')?.addEventListener('click', askForMove);
 
   sendBtn.addEventListener('click', doSend);
   input.addEventListener('keydown', (ev) => {
@@ -2567,6 +2577,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   // The account card is the first thing on Home — paint it before the
   // slower panels below, so it is never an empty box while they load.
   renderAccountCard().catch(() => {});
+  initPathCard();
   initHomeStats();
   renderPhilosopherGrid();
   // Glass ♥ and phone ★ are the same store now — repaint Picks when
@@ -3003,6 +3014,136 @@ async function openAccountStep(): Promise<void> {
   if (!(await linkedHandle())) { openOnboarding(); return; }
   switchTab('home');
   document.getElementById('account-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ─── YOUR PATH (Today) ─────────────────────────────────────────────
+// Goals the wearer named and the moves they kept at the end of talks
+// (src/path.ts). The circle marks a move done; done moves show under
+// "Done lately" so progress is visible. Free holds 1 goal, Sage 3.
+function pathMoveRow(m: Move): string {
+  return `<li class="path-move" data-move="${escapeAttr(m.id)}">
+      <button class="path-check" data-act="done" aria-label="Mark done"></button>
+      <span class="path-move-text">${escapeHtml(m.text)}${m.philName ? `<span class="path-move-src">from ${escapeHtml(m.philName)}</span>` : ''}</span>
+      <button class="link-btn path-skip" data-act="skip">Skip</button>
+    </li>`;
+}
+
+function renderPathCard(): void {
+  const body = $('path-body');
+  const badge = $('path-count');
+  if (!body) return;
+  const goals = activeGoals();
+  const open = openMoves();
+  const done = recentDone(7);
+  if (badge) badge.textContent = done.length ? `${done.length} done this week` : '';
+  const addRow = (shown: boolean) => `
+    <div class="path-add" ${shown ? '' : 'hidden'}>
+      <input id="path-goal-input" type="text" maxlength="80" placeholder="e.g. Open my own restaurant" />
+      <button class="btn btn-primary" id="path-goal-add">Add goal</button>
+    </div>
+    <p class="link-msg err" id="path-msg" hidden></p>`;
+  if (!goals.length && !open.length) {
+    body.innerHTML = `<p class="muted">What are you working toward? Name it, and every talk ends with one move toward it.</p>${addRow(true)}`;
+    return;
+  }
+  const sections = goals.map(g => {
+    const mine = open.filter(m => m.goalId === g.id);
+    return `<div class="path-goal" data-goal="${escapeAttr(g.id)}">
+      <div class="path-goal-head">
+        <span class="path-goal-title">${escapeHtml(g.title)}</span>
+        <span class="path-goal-acts"><button class="link-btn" data-act="reached">Reached</button><button class="link-btn" data-act="drop">Drop</button></span>
+      </div>
+      ${mine.length ? `<ul class="path-moves">${mine.map(pathMoveRow).join('')}</ul>` : '<p class="muted path-none">No open move. Your next talk will suggest one.</p>'}
+    </div>`;
+  });
+  const loose = open.filter(m => goalById(m.goalId)?.status !== 'active');
+  if (loose.length) sections.push(`<div class="path-goal"><div class="path-goal-head"><span class="path-goal-title">Other moves</span></div><ul class="path-moves">${loose.map(pathMoveRow).join('')}</ul></div>`);
+  const doneHtml = done.length
+    ? `<div class="path-done"><div class="path-done-head">Done lately</div>${done.slice(0, 3).map(m => `<div class="path-done-item">✓ ${escapeHtml(m.text)}</div>`).join('')}</div>`
+    : '';
+  const more = goals.length < goalLimit()
+    ? '<button class="link-btn" id="path-add-toggle">Add a goal</button>'
+    : (!isSageCached() ? '<button class="link-btn" id="path-sage">Sage holds up to 3 goals</button>' : '');
+  body.innerHTML = sections.join('') + doneHtml + (more ? `<div class="path-foot">${more}</div>` : '') + addRow(false);
+}
+
+async function submitGoal(): Promise<void> {
+  const input = $('path-goal-input') as HTMLInputElement | null;
+  const msg = $('path-msg');
+  const r = await addGoal(input?.value || '');
+  if (r.ok || !msg) return;
+  msg.hidden = false;
+  msg.textContent = r.reason === 'limit' ? 'Free holds one goal. Sage holds up to 3.'
+    : r.reason === 'duplicate' ? 'You already have that goal.' : 'Name the goal first.';
+}
+
+function initPathCard(): void {
+  const body = $('path-body');
+  if (!body) return;
+  body.addEventListener('click', ev => {
+    const t = ev.target as HTMLElement;
+    const act = t.closest<HTMLElement>('[data-act]')?.dataset.act;
+    const moveId = t.closest<HTMLElement>('[data-move]')?.dataset.move;
+    const goalId = t.closest<HTMLElement>('[data-goal]')?.dataset.goal;
+    if (act === 'done' && moveId) { setMoveStatus(moveId, 'done'); return; }
+    if (act === 'skip' && moveId) { setMoveStatus(moveId, 'skipped'); return; }
+    if (act === 'reached' && goalId) { setGoalStatus(goalId, 'done'); return; }
+    if (act === 'drop' && goalId) { setGoalStatus(goalId, 'dropped'); return; }
+    if (t.id === 'path-add-toggle') {
+      const row = body.querySelector<HTMLElement>('.path-add');
+      if (row) { row.hidden = false; row.querySelector<HTMLInputElement>('input')?.focus(); }
+      return;
+    }
+    if (t.id === 'path-sage') { openAccountStep(); return; }
+    if (t.id === 'path-goal-add') submitGoal();
+  });
+  body.addEventListener('keydown', ev => {
+    if ((ev.target as HTMLElement).id === 'path-goal-input' && (ev as KeyboardEvent).key === 'Enter') { ev.preventDefault(); submitGoal(); }
+  });
+  onPathChange(renderPathCard);
+  onAccountChange(renderPathCard);   // the goal limit follows the plan
+  renderPathCard();
+}
+
+// ─── WHAT'S MY MOVE? (Talk) ────────────────────────────────────────
+// The phone's version of the glasses' "Your move": after a real
+// exchange, ask for one next step from this talk and keep or skip it.
+function hadRealExchange(ex: { role: string }[]): boolean {
+  const firstUser = ex.findIndex(m => m.role === 'user');
+  return firstUser >= 0 && ex.slice(firstUser + 1).some(m => m.role === 'assistant');
+}
+
+function updateMoveButton(): void {
+  const btn = $('speak-move-btn');
+  if (btn) btn.hidden = !hadRealExchange(sessionExchanges());
+}
+
+async function askForMove(): Promise<void> {
+  const box = $('speak-move');
+  const btn = $('speak-move-btn') as HTMLButtonElement | null;
+  const philId = speakActivePhil;
+  if (!box || !philId) return;
+  const philName = PHILOSOPHERS.find(p => p.philId === philId)?.name || 'Philosopher';
+  box.hidden = false;
+  box.innerHTML = '<p class="muted">Finding your next step…</p>';
+  if (btn) btn.disabled = true;
+  const proposal = await requestMove({ philId, philName, exchanges: sessionExchanges() });
+  if (btn) btn.disabled = false;
+  if (!proposal) { box.innerHTML = '<p class="muted">Nothing to act on from this talk yet. Keep talking, then ask again.</p>'; return; }
+  const goal = goalById(proposal.goalId)?.title || null;
+  if (!goal && activeGoals().length >= goalLimit()) proposal.suggestedGoal = null;
+  const tie = goal ? `Toward: ${goal}` : proposal.suggestedGoal ? `New goal: ${proposal.suggestedGoal}` : '';
+  box.innerHTML = `
+    <div class="move-proposal-head">Your move</div>
+    <div class="move-proposal-text">${escapeHtml(proposal.move)}</div>
+    ${tie ? `<div class="move-proposal-tie">${escapeHtml(tie)}</div>` : ''}
+    <div class="btn-row mt-md"><button class="btn btn-primary" id="move-keep">Keep it</button><button class="btn" id="move-skip">Skip</button></div>`;
+  $('move-keep')?.addEventListener('click', async () => {
+    await keepMove(proposal);
+    box.innerHTML = '<p class="link-msg ok">Kept. It’s on Today, under Your path.</p>';
+    if (btn) btn.hidden = true;
+  });
+  $('move-skip')?.addEventListener('click', () => { box.hidden = true; box.innerHTML = ''; });
 }
 
 // ─── ACCOUNT CARD (top of Home) ────────────────────────────────────

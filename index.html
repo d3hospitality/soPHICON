@@ -56,6 +56,13 @@
       <!-- Your next step: link / unlock — rendered by renderAccountCard(). -->
       <div class="card account-card" id="account-card"></div>
 
+      <!-- Your path: goals you named and the moves kept at the end of
+           talks (src/path.ts) — renderPathCard() in dashboard.ts. -->
+      <div class="card path-card" id="path-card">
+        <div class="card-header">Your path <span class="badge" id="path-count"></span></div>
+        <div class="card-body" id="path-body"></div>
+      </div>
+
       <div class="card today-quote" id="today-quote">
         <div class="tq-head">
           <span class="tq-label">Today’s quote</span>
@@ -199,6 +206,9 @@
             <input id="speak-input" type="text" placeholder="Ask a philosopher…" autocomplete="off" />
             <button class="btn btn-primary" id="speak-send">Send</button>
           </div>
+          <!-- After a real exchange: one next step from this talk. -->
+          <button class="btn btn-block speak-move-btn" id="speak-move-btn" hidden>What’s my move?</button>
+          <div class="move-proposal" id="speak-move" hidden></div>
         </div>
       </div>
     </div>
