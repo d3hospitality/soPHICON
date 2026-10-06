@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test --experimental-test-module-mocks test/policy.test.mjs test/speak-gate.test.mjs test/pairing.test.mjs test/aphorica.test.mjs"
+    "test": "node --test --experimental-test-module-mocks test/policy.test.mjs test/speak-gate.test.mjs test/pairing.test.mjs test/aphorica.test.mjs test/next-move.test.mjs test/speak-path.test.mjs"
   },
   "description": "Vercel-hosted serverless API for the soPHICON ecosystem (Speak / Symposium / Aphorica / Community / etc).",
   "dependencies": {

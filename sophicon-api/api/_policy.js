@@ -21,6 +21,9 @@ export const POLICY = {
   transcribe:          { anon: { perDay: 3 },  seeker: { perDay: 5 },  sage: { perDay: 120 } },
   tts:                 { anon: null,           seeker: { perDay: 3 },  sage: { perDay: 60 } },
   'day-insight':       { anon: null,           seeker: { perDay: 1 },  sage: { perDay: 20 } },
+  // One next step at the end of a talk (gpt-4o-mini, ~200 tokens). Free
+  // talks with Enki get a move too: the path is the reason to come back.
+  'next-move':         { anon: { perDay: 2 },  seeker: { perDay: 5 },  sage: { perDay: 60 } },
   // Sage-only
   symposium:           { anon: null, seeker: null, sage: { perDay: 10 } },
   'photo-reflection':  { anon: null, seeker: null, sage: { perDay: 10 } },

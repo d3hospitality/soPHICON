@@ -80,7 +80,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { persona: clientPersona, history, userMessage, crossContext, userProfile, memoryBank } = req.body || {};
+    const { persona: clientPersona, history, userMessage, crossContext, userProfile, memoryBank, pathContext } = req.body || {};
+    // The person's goals and the moves they kept (src/path.ts on the
+    // glasses). Plain text from the client, capped like crossContext.
+    const path = typeof pathContext === 'string' ? pathContext.trim().slice(0, 1200) : '';
 
     if (!clientPersona || !userMessage || typeof userMessage !== 'string') {
       return res.status(400).json({ error: 'Missing persona or userMessage' });
@@ -152,6 +155,9 @@ ${aboutPerson}
 
 ` : ''}${buildMemoryBlock(effectiveMemoryBank)}${crossContext ? `RECENT CONVERSATION CONTEXT (across other philosophers, last 14 days — same rule: quiet awareness, never volunteer):
 ${crossContext}
+
+` : ''}${path ? `THEIR PATH (goals they chose and the moves they kept at the end of earlier talks. When the conversation gives you room, you may ask about ONE open move, once and briefly, in your own voice, the way a teacher checks in. If they did it, acknowledge it. Never recite this list, never nag, never invent a goal or move that is not here.):
+${path}
 
 ` : ''}${languageDirective}
 
