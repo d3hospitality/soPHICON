@@ -87,7 +87,7 @@ class Session:
                     return route.fulfill(status=403, json={'error': 'sage_required', 'feature': 'speak_all_philosophers'})
                 return route.fulfill(json={'text': REPLY, 'emotion': 'teaching', 'userMood': 'curious'})
             if path.startswith('/api/aphorica'):
-                mk = lambda i, h, t, tier: {'id': i, 'text': t, 'tradition': 'Stoicism', 'emotion': 'resolve', 'rarity': 'rare',
+                mk = lambda i, h, t, tier: {'id': f'post-{i}', 'text': t, 'tradition': 'Stoicism', 'emotion': 'resolve', 'rarity': 'rare',
                                             'stars': 3, 'upvotes': 4, 'downvotes': 0, 'createdAt': '2026-10-05T12:00:00Z',
                                             'author': {'handle': h, 'tier': tier, 'spritePath': None, 'values': []}, 'myVote': 0}
                 return route.fulfill(json={'posts': [
