@@ -261,6 +261,13 @@ export const EN = {
   'g.pagePrev': 'swipe up',
   'g.pageNext': 'click for more',
   'g.pageEnd': 'the end',
+  'g.moveTitle': 'Your move',
+  'g.moveFinding': 'Finding your next step…',
+  'g.moveSkipHint': 'Double-tap: skip',
+  'g.moveToward': 'Toward: {goal}',
+  'g.moveNewGoal': 'New goal: {goal}',
+  'g.moveHint': 'Tap: keep it  ·  Double-tap: skip',
+  'g.moveKept': 'Kept. Your phone shows it under Today.',
 
 } as const;
 

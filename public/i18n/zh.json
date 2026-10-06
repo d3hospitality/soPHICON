@@ -185,5 +185,12 @@
   "g.cardTitle": "今日卡片",
   "g.cardDrawing": "正在抽取今日卡片…",
   "g.cardHint": "单击：浏览所有名言  ·  双击：主页",
-  "g.homeHint": "点击后按住查看更多"
+  "g.homeHint": "点击后按住查看更多",
+  "g.moveTitle": "你的下一步",
+  "g.moveFinding": "正在找出你的下一步…",
+  "g.moveSkipHint": "双击：跳过",
+  "g.moveToward": "目标：{goal}",
+  "g.moveNewGoal": "新目标：{goal}",
+  "g.moveHint": "单击：保留  ·  双击：跳过",
+  "g.moveKept": "已保留。手机的“今天”里可以看到。"
 }

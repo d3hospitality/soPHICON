@@ -23,9 +23,13 @@ REPLY = ("A good question is a lamp, not a map. Before you decide, ask which cho
 
 
 class Session:
-    def __init__(self, tier='anon', speak=None, transcribe='Should I take the job?', seed=None, url_extra=''):
-        """tier: anon | seeker | sage.  speak: dict(status, body) to force a speak response."""
+    def __init__(self, tier='anon', speak=None, transcribe='Should I take the job?', seed=None, url_extra='', move='auto'):
+        """tier: anon | seeker | sage.  speak: dict(status, body) to force a speak response.
+        move: 'auto' (a move tied to the first goal, or suggesting one), 'none' (nothing
+        actionable), 'down' (404, API not deployed), or a dict to return as-is."""
         self.tier, self.speak_override, self.transcript = tier, speak, transcribe
+        self.move = move
+        self.bodies = {}
         self.seed, self.url_extra = seed or {}, url_extra
         self.calls = []
         os.makedirs(OUT, exist_ok=True)
@@ -68,6 +72,7 @@ class Session:
             body = {}
             try: body = req.post_data_json or {}
             except Exception: pass
+            self.bodies[path] = body
             if path == '/api/me':
                 if not auth: return route.fulfill(status=401, json={'error': 'unauthorized'})
                 return route.fulfill(json={'handle': 'romario', 'tier': self.tier})
@@ -86,6 +91,14 @@ class Session:
                 if self.tier != 'sage' and persona and persona != 'Enki':
                     return route.fulfill(status=403, json={'error': 'sage_required', 'feature': 'speak_all_philosophers'})
                 return route.fulfill(json={'text': REPLY, 'emotion': 'teaching', 'userMood': 'curious'})
+            if path == '/api/next-move':
+                if self.move == 'down': return route.fulfill(status=404, body='')
+                if self.move == 'none': return route.fulfill(json={'move': None, 'goalId': None, 'suggestedGoal': None})
+                if isinstance(self.move, dict): return route.fulfill(json=self.move)
+                goals = body.get('goals') or []
+                if goals:
+                    return route.fulfill(json={'move': 'Call the landlord about the lease this week', 'goalId': goals[0]['id'], 'suggestedGoal': None})
+                return route.fulfill(json={'move': 'Call the landlord about the lease this week', 'goalId': None, 'suggestedGoal': 'Open my own restaurant'})
             if path.startswith('/api/aphorica'):
                 mk = lambda i, h, t, tier: {'id': f'post-{i}', 'text': t, 'tradition': 'Stoicism', 'emotion': 'resolve', 'rarity': 'rare',
                                             'stars': 3, 'upvotes': 4, 'downvotes': 0, 'createdAt': '2026-10-05T12:00:00Z',

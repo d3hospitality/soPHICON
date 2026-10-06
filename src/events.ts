@@ -52,7 +52,9 @@ import {
   setViewerSage,
   capForGlass,
   isLockedForViewer,
+  buildMovePage, moveContent,
 } from './pages';
+import { requestMove, keepMove, goalById, activeGoals, goalLimit, type MoveProposal } from './path';
 import { MINDFUL_LATCH_KEY, SUPPORT_LATCH_KEY } from './support';
 import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl, ghostPreset } from './image-utils';
 import { hostSupports214 } from './host';
@@ -70,7 +72,7 @@ import {
   loadPersonas, setSpeakBridge, startConversation,
   startRecording, stopRecordingAndSend, handleAudioChunk,
   emotionToSprite, endConversation, isCurrentlyRecording,
-  getConversationDisplay, flushHistory, checkpointSession,
+  getConversationDisplay, flushHistory, checkpointSession, sessionExchanges,
   normalizeEmotion, userMoodToEmpathySprite, getLastUserMood,
   type SpeakResult,
 } from './speak';
@@ -104,7 +106,7 @@ type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
   | "favorites" | "calendar" | "calendar-day"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
   | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read"
-  | "support" | "language" | "sage-gate" | "card";
+  | "support" | "language" | "sage-gate" | "card" | "move";
 
 let currentPage: Page = "home";
 
@@ -914,6 +916,102 @@ async function updatePhilosopherPortrait(
 }
 
 // ═══ GO BACK ═══
+/** Back to wherever the conversation was opened from. The caller holds
+ *  the navigation lock (goBack, or the move page's own tap). */
+async function returnFromConversation(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+    if (speakFrom === "home") {
+      await goHome(bridge, baseUrl);
+    } else if (speakFrom === "quote" && currentPhilosopher && currentQuotes.length) {
+      currentPage = "quote"; startAutoRotate(); await showCurrentQuote(bridge, baseUrl);
+    } else if (speakFrom === "favorites") {
+      currentPage = "favorites"; await showFavorite(bridge, baseUrl);
+    } else if (speakFrom === "card") {
+      navigating = false; await openDailyCard(bridge, baseUrl); navigating = true;
+    } else if (speakTradition) {
+      if (speakListTradition) speakTradition = speakListTradition;
+      // Restore prior selection on the navpad when coming back from a
+      // conversation; if user came from a different tradition, reset to 0.
+      const phils = getPhilosophersByTradition(speakTradition);
+      const idxToShow = Math.max(0, Math.min(speakSelectedIndex, phils.length - 1));
+      speakSelectedIndex = idxToShow;
+      await safeRebuild(bridge, buildSpeakPhilosopherPage(speakTradition, idxToShow), "buildSpeakPhilosopherPage");
+      currentPage = "speak-philosophers"; lastHoveredPhilIndex = idxToShow;
+      if (phils.length > 0) {
+        const phil = phils[idxToShow];
+        await pushSpriteSingle(bridge, baseUrl, `${phil.philId}/${phil.philId}-neutral.png`, 3, "portrait", 100, 100);
+        publishState({
+          hoveredPhilosopher: { name: phil.name, philId: phil.philId, tradition: speakTradition, index: idxToShow, total: phils.length },
+          spritePath: `${phil.philId}/${phil.philId}-neutral.png`,
+        });
+      }
+    }
+  log("< Back from conversation", "success");
+}
+
+// ═══ YOUR MOVE — the end of a talk ═══════════════════════════════
+// Leaving a conversation where the person said something and was
+// answered shows "Your move": /api/next-move proposes one next step
+// (8 s budget). Tap keeps it (src/path.ts), double-tap skips; nothing
+// proposed → straight back, as before.
+let moveSeq = 0;
+let moveProposal: MoveProposal | null = null;
+
+function hadRealExchange(ex: { role: string; content: string }[]): boolean {
+  const firstUser = ex.findIndex(m => m.role === "user");
+  return firstUser >= 0 && ex.slice(firstUser + 1).some(m => m.role === "assistant");
+}
+
+async function setMoveText(bridge: EvenAppBridge, content: string): Promise<void> {
+  try { await bridge.textContainerUpgrade({ containerID: 2, containerName: "move", content } as any); }
+  catch (e) { console.warn("[MOVE] text update failed", e); }
+}
+
+async function showMovePage(
+  bridge: EvenAppBridge, baseUrl: string, phil: Philosopher,
+  exchanges: { role: "user" | "assistant"; content: string }[],
+): Promise<void> {
+  const seq = ++moveSeq;
+  moveProposal = null;
+  await safeRebuild(bridge, buildMovePage(phil, null), "buildMovePage");
+  currentPage = "move";
+  publishState({ upsell: null });
+  try { await pushSpriteSingle(bridge, baseUrl, `${phil.philId}/${phil.philId}-teaching.png`, 1, "portrait", 100, 100); } catch { /* decoration */ }
+  log(`[MOVE] asking for a move from the talk with ${phil.name}`);
+  requestMove({ philId: phil.philId, philName: phil.name, exchanges }).then(async proposal => {
+    if (seq !== moveSeq || currentPage !== "move") return;
+    if (!proposal) {
+      if (navigating) return;
+      navigating = true;
+      try { moveSeq++; await returnFromConversation(bridge, baseUrl); }
+      finally { navigating = false; }
+      return;
+    }
+    // A suggested goal is only offered when keeping it can create it
+    // (Free holds 1 goal, Sage 3); otherwise the move is kept on its own.
+    const goal = goalById(proposal.goalId)?.title || null;
+    if (!goal && activeGoals().length >= goalLimit()) proposal.suggestedGoal = null;
+    moveProposal = proposal;
+    await setMoveText(bridge, moveContent({ text: proposal.move, goal, newGoal: goal ? null : proposal.suggestedGoal }));
+    log(`[MOVE] proposed: "${proposal.move}"`);
+  });
+}
+
+/** Tap on the move page: keep it, say so, go back. */
+async function keepProposedMove(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  if (navigating || !moveProposal) return;   // still finding: only double-tap does anything
+  navigating = true;
+  try {
+    const proposal = moveProposal;
+    moveProposal = null; moveSeq++;
+    await keepMove(proposal);
+    await setMoveText(bridge, capForGlass(`${tGlass('g.moveTitle')}\n${proposal.move}\n\n${tGlass('g.moveKept')}`));
+    await sleep(1400);
+    if (currentPage === "move") await returnFromConversation(bridge, baseUrl);
+  } finally {
+    navigating = false;
+  }
+}
+
 async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   if (navigating) return;
   navigating = true;
@@ -989,6 +1087,10 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       // doesn't fire after we've already left the page.
       cancelPendingResponseSprite();
       stopMicTimer();
+      // What this visit said, read before endConversation() clears it:
+      // a real exchange ends on "Your move" before going back.
+      const endingPhil = speakPhilosopher;
+      const exchanges = sessionExchanges();
       // Checkpoint the session into the dated journal BEFORE clearing
       // in-memory history, so the calendar tab can see today's entry.
       if (speakPhilosopher && speakTradition) {
@@ -1001,34 +1103,18 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       speakIsInitialized = false;
       lastPushedEmotion = "";
       speakPageIndex = 0;
-      if (speakFrom === "home") {
-        await goHome(bridge, baseUrl);
-      } else if (speakFrom === "quote" && currentPhilosopher && currentQuotes.length) {
-        currentPage = "quote"; startAutoRotate(); await showCurrentQuote(bridge, baseUrl);
-      } else if (speakFrom === "favorites") {
-        currentPage = "favorites"; await showFavorite(bridge, baseUrl);
-      } else if (speakFrom === "card") {
-        navigating = false; await openDailyCard(bridge, baseUrl); navigating = true;
-      } else if (speakTradition) {
-        if (speakListTradition) speakTradition = speakListTradition;
-        // Restore prior selection on the navpad when coming back from a
-        // conversation; if user came from a different tradition, reset to 0.
-        const phils = getPhilosophersByTradition(speakTradition);
-        const idxToShow = Math.max(0, Math.min(speakSelectedIndex, phils.length - 1));
-        speakSelectedIndex = idxToShow;
-        await safeRebuild(bridge, buildSpeakPhilosopherPage(speakTradition, idxToShow), "buildSpeakPhilosopherPage");
-        currentPage = "speak-philosophers"; lastHoveredPhilIndex = idxToShow;
-        if (phils.length > 0) {
-          const phil = phils[idxToShow];
-          await pushSpriteSingle(bridge, baseUrl, `${phil.philId}/${phil.philId}-neutral.png`, 3, "portrait", 100, 100);
-          publishState({
-            hoveredPhilosopher: { name: phil.name, philId: phil.philId, tradition: speakTradition, index: idxToShow, total: phils.length },
-            spritePath: `${phil.philId}/${phil.philId}-neutral.png`,
-          });
-        }
+      if (endingPhil && hadRealExchange(exchanges)) {
+        await showMovePage(bridge, baseUrl, endingPhil, exchanges);
+      } else {
+        await returnFromConversation(bridge, baseUrl);
       }
       lastNavigationTime = Date.now();
-      log("< Back to speak philosophers", "success");
+    }
+    else if (currentPage === "move") {
+      // Double-tap = skip the move (or stop waiting for one).
+      moveSeq++; moveProposal = null;
+      await returnFromConversation(bridge, baseUrl);
+      lastNavigationTime = Date.now();
     }
     else if (currentPage === "speak-philosophers") {
       await safeRebuild(bridge, buildSpeakTraditionPage(), "buildSpeakTraditionPage");
@@ -2433,6 +2519,7 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       }
       if (currentPage === "quote")              { await handleClick(bridge, 0, baseUrl); return; }
       if (currentPage === "speak-conversation") { await toggleMic(bridge, baseUrl); return; }
+      if (currentPage === "move") { await keepProposedMove(bridge, baseUrl); return; }
       // Sage page: the way out that always works — talk to Enki, free.
       if (currentPage === "sage-gate") {
         if (navigating) return;

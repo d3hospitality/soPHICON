@@ -89,6 +89,7 @@ function pageLabel(page: string): string {
     case 'home':                return 'Home';
     case 'sage-gate':           return 'Sage philosopher';
     case 'card':                return 'Today’s card';
+    case 'move':                return 'Your move';
     case 'philosophers':        return 'Philosophers';
     case 'mindstate':           return 'Mindstate';
     case 'quote':               return 'Quote';

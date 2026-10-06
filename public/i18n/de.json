@@ -185,5 +185,12 @@
   "g.cardTitle": "Karte des Tages",
   "g.cardDrawing": "Die Karte des Tages wird gezogen…",
   "g.cardHint": "Klick: alle Zitate  ·  Doppeltipp: Start",
-  "g.homeHint": "Tippen und halten für mehr"
+  "g.homeHint": "Tippen und halten für mehr",
+  "g.moveTitle": "Dein Schritt",
+  "g.moveFinding": "Suche deinen nächsten Schritt…",
+  "g.moveSkipHint": "Doppeltippen: überspringen",
+  "g.moveToward": "Für: {goal}",
+  "g.moveNewGoal": "Neues Ziel: {goal}",
+  "g.moveHint": "Tippen: behalten  ·  Doppeltippen: überspringen",
+  "g.moveKept": "Gemerkt. Dein Handy zeigt ihn unter Heute."
 }

@@ -185,5 +185,12 @@
   "g.cardTitle": "今日のカード",
   "g.cardDrawing": "今日のカードを引いています…",
   "g.cardHint": "クリック：すべての名言  ·  ダブルタップ：ホーム",
-  "g.homeHint": "タップして長押しでメニュー"
+  "g.homeHint": "タップして長押しでメニュー",
+  "g.moveTitle": "次の一歩",
+  "g.moveFinding": "次の一歩を探しています…",
+  "g.moveSkipHint": "ダブルタップ：スキップ",
+  "g.moveToward": "目標：{goal}",
+  "g.moveNewGoal": "新しい目標：{goal}",
+  "g.moveHint": "タップ：残す  ·  ダブルタップ：スキップ",
+  "g.moveKept": "残しました。スマホの「今日」に表示されます。"
 }

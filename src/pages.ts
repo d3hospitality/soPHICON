@@ -1469,6 +1469,52 @@ export function buildSageGatePage(phil: { name: string; tradition: string }): Re
 }
 
 // ══════════════════════════════════════════════════════════════════
+// YOUR MOVE — the end of a talk becomes one next step
+// ══════════════════════════════════════════════════════════════════
+
+export interface MoveView { text: string; goal: string | null; newGoal: string | null }
+
+/** The move page's words: still finding (null), or the proposal. */
+export function moveContent(view: MoveView | null): string {
+  if (!view) return capForGlass(`${tGlass('g.moveTitle')}\n\n${tGlass('g.moveFinding')}\n\n${tGlass('g.moveSkipHint')}`);
+  const tie = view.goal ? tGlass('g.moveToward', { goal: view.goal })
+    : view.newGoal ? tGlass('g.moveNewGoal', { goal: view.newGoal }) : '';
+  return capForGlass(`${tGlass('g.moveTitle')}\n${view.text}${tie ? `\n\n${tie}` : ''}\n\n${tGlass('g.moveHint')}`);
+}
+
+/** Same frame as the Sage page: who you talked to on the left, the move
+ *  on the right. Text-only updates go through textContainerUpgrade on
+ *  container 2 ("move"), so the portrait is pushed once. */
+export function buildMovePage(phil: { name: string; tradition: string }, view: MoveView | null): RebuildPageContainer {
+  const portrait = new ImageContainerProperty({
+    xPosition: 15, yPosition: 25, width: 100, height: 100,
+    containerID: 1, containerName: "portrait",
+    zOrderIndex: 3,
+  });
+  const body = new TextContainerProperty({
+    xPosition: 130, yPosition: 20, width: 430, height: 255,
+    containerID: 2, containerName: "move",
+    content: moveContent(view),
+    isEventCapture: 1,
+    zOrderIndex: 5,
+  });
+  const name = new TextContainerProperty({
+    xPosition: 15, yPosition: 130, width: 110, height: 60,
+    containerID: 4, containerName: "phil-name",
+    content: `${phil.name}\n${tMeta(phil.tradition, true)}`,
+    isEventCapture: 0,
+    zOrderIndex: 4,
+  });
+  return new RebuildPageContainer({
+    ...menuOf(transitMenu()),
+    containerTotalNum: 3,
+    listObject: [],
+    textObject: [body, name],
+    imageObject: [portrait],
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
 // TODAY'S CARD — one quote a day, drawn like a card
 // ══════════════════════════════════════════════════════════════════
 

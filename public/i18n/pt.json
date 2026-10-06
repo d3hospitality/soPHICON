@@ -185,5 +185,12 @@
   "g.cardTitle": "Carta de hoje",
   "g.cardDrawing": "Tirando a carta de hoje…",
   "g.cardHint": "Clique: ver todas as citações  ·  Toque duplo: início",
-  "g.homeHint": "Toque e segure para mais"
+  "g.homeHint": "Toque e segure para mais",
+  "g.moveTitle": "Seu passo",
+  "g.moveFinding": "Procurando seu próximo passo…",
+  "g.moveSkipHint": "Toque duplo: pular",
+  "g.moveToward": "Rumo a: {goal}",
+  "g.moveNewGoal": "Nova meta: {goal}",
+  "g.moveHint": "Toque: guardar  ·  Toque duplo: pular",
+  "g.moveKept": "Guardado. Aparece no seu telefone, em Hoje."
 }

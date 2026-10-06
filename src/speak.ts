@@ -33,6 +33,7 @@ import { authHeaders, handleUnauthorized, linkedHandle } from './enkiAccount';
 import { log } from './ui';
 import { tGlass } from './i18n';
 import { loadProfile, profileForApi } from './profile';
+import { pathContext } from './path';
 
 // ═══ PERSISTENCE GATE ═══
 // A LINKED account (paired via enkiridion.com code) persists + syncs its
@@ -521,6 +522,17 @@ async function saveHistory(philId: string): Promise<void> {
 // ═══ START CONVERSATION ═══
 // Now async: loads prior history from bridge storage so users resume where
 // they left off with each philosopher.
+// Where this visit starts in conversationHistory (earlier visits' turns
+// are loaded in front of it). A move is drawn from this visit only.
+let sessionStartIndex = 0;
+
+/** This visit's exchanges, from the opening on — what a move is drawn from. */
+export function sessionExchanges(): { role: 'user' | 'assistant'; content: string }[] {
+  return conversationHistory.slice(sessionStartIndex)
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+}
+
 export async function startConversation(philId: string): Promise<{ opening: string; emotion: string }> {
   const p = personas[philId];
   if (!p) return { opening: "...", emotion: "contemplative" };
@@ -551,6 +563,7 @@ export async function startConversation(philId: string): Promise<{ opening: stri
   }
   const opening = p.openings[Math.floor(Math.random() * p.openings.length)];
   conversationHistory.push({ role: "assistant", content: opening });
+  sessionStartIndex = conversationHistory.length - 1;
   await saveHistory(philId);
 
   const emotion = p.emotions[Math.floor(Math.random() * p.emotions.length)];
@@ -778,6 +791,7 @@ export async function sendMessage(userText: string): Promise<SpeakResult> {
       userMessage: userText,
       crossContext: activeCrossContext || undefined,
       userProfile: userProfilePayload || undefined,
+      pathContext: pathContext() || undefined,
     });
     log(`[SPEAK] Body size: ${body.length} chars`);
 
@@ -976,6 +990,7 @@ export function endConversation(): void {
   currentPersona = null;
   currentPhilId = "";
   conversationHistory = [];
+  sessionStartIndex = 0;
   isRecording = false;
   currentSessionCheckpointed = false;
   log("[SPEAK] Conversation ended");

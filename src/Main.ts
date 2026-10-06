@@ -24,6 +24,7 @@ import { TOTAL_QUOTES, TOTAL_PHILOSOPHERS, TOTAL_TRADITIONS } from './constants'
 import { initDashboard } from './dashboard';
 import { initFavorites } from './favorites';
 import { initWisdomLog } from './wisdomlog';
+import { initPath } from './path';
 import { initLang, glassLang, onLangChange } from './i18n';
 import { hostSupports214 } from './host';
 
@@ -119,6 +120,8 @@ async function main(): Promise<void> {
   // this call being missing — toggles wrote to an unloaded store.
   await initFavorites(bridge);
   await initWisdomLog(bridge);
+  // Goals + kept moves: philosophers are told about them on every talk.
+  await initPath(bridge);
 
   // Glance line for the Home page — cached by the companion sync into
   // bridge.localStorage. Best-effort; empty when nothing is synced.
