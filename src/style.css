@@ -2003,3 +2003,11 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
   .path-goal + .path-goal { margin-top: 0; }
 }
 @media (min-width: 760px) { #path-body > .path-done, #path-body > .path-foot { margin-top: 0; } }
+
+/* A panel is visible the moment it is active. The fade plays only on a
+   tab you tapped: a webview that pauses animations (a backgrounded or
+   covered window, the simulator) used to leave the first panel stuck at
+   opacity 0 — a blank Today. */
+.tab-panel.active { animation: none; }
+.tab-panel.active.entering { animation: fadeIn .2s ease-out; }
+@media (prefers-reduced-motion: reduce) { .tab-panel.active.entering { animation: none; } }

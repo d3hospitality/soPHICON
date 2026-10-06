@@ -137,7 +137,13 @@ function initTabs(): void {
       if (!tab) return;
       $$('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
       $$('.tab-panel').forEach(p => {
-        p.classList.toggle('active', p.getAttribute('data-panel') === tab);
+        const on = p.getAttribute('data-panel') === tab;
+        p.classList.toggle('active', on);
+        // Fade only the panel you tapped into; see .entering in style.css.
+        if (on) {
+          p.classList.add('entering');
+          p.addEventListener('animationend', () => p.classList.remove('entering'), { once: true });
+        }
       });
       // Refresh debug view whenever debug tab opened
       if (tab === 'debug') { refreshPushLog(); renderSyncStatus().catch(() => {}); }
