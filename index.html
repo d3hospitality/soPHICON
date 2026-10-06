@@ -18,10 +18,10 @@
     <!-- Header -->
     <div class="header">
       <div class="header-brand">
-        <img class="header-logo" src="/sprites/enki/enki-neutral.png" alt="Enki" width="36" height="36" />
+        <svg class="header-logo" viewBox="0 0 64 64" width="36" height="36" aria-label="enkiRIDION"><rect width="64" height="64" rx="15" fill="#050507"/><rect x="1.25" y="1.25" width="61.5" height="61.5" rx="13.75" fill="none" stroke="#F5F5F0" stroke-opacity="0.18"/><g fill="#F5F5F0"><rect x="8.9" y="15.2" width="46.2" height="8.4" rx="0.8"/><rect x="17.3" y="23.6" width="8.4" height="4.2"/><rect x="13.1" y="27.8" width="29.4" height="8.4" rx="0.8"/><rect x="17.3" y="36.2" width="8.4" height="4.2"/><rect x="8.9" y="40.4" width="46.2" height="8.4" rx="0.8"/></g></svg>
         <div>
           <h1>enki<span class="ridion">RIDION</span></h1>
-          <div class="masthead">PHILOSOPHY · EXAMINED DAILY</div>
+          <div class="masthead">PHILOSOPHY ON GLASS</div>
         </div>
       </div>
       <div class="header-spacer"></div>
@@ -49,12 +49,17 @@
 <button class="tab-btn" data-tab="speak" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span data-i18n="tab.speak">Speak</span></button>
 <button class="tab-btn" data-tab="journal" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6C10 5 6 5 4 6v13c2-1 6-1 8 0 2-1 6-1 8 0V6c-2-1-6-1-8 0zM12 6v13"/></svg><span data-i18n="tab.journal">Journal</span></button>
 <button class="tab-btn" data-tab="aphorica" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-11.7 7.8L3 21l1.7-6.2A8.5 8.5 0 1 1 21 11.5z"/></svg><span data-i18n="tab.aphorica">Aphorica</span></button>
-<button class="tab-btn" data-tab="debug" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4zM8 9l3 3-3 3M13 15h4"/></svg><span data-i18n="tab.debug">Debug</span></button>
-<button class="tab-btn" data-tab="about" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8h.01M11 12h1v4h1"/></svg><span data-i18n="tab.about">About</span></button>
+<button class="tab-btn" data-tab="debug" role="tab" id="tab-debug" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4zM8 9l3 3-3 3M13 15h4"/></svg><span data-i18n="tab.debug">Debug</span></button>
+<button class="tab-btn" data-tab="about" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8h.01M11 12h1v4h1"/></svg><span data-i18n="tab.about">Account</span></button>
 </nav>
 
     <!-- HOME -->
     <div class="tab-panel active" data-panel="home">
+
+      <!-- Your glasses: link / unlock / how to use — rendered by
+           renderAccountCard() in dashboard.ts from the account state, so
+           there is exactly one thing to do next and it's at the top. -->
+      <div class="card account-card" id="account-card"></div>
 
       <!-- Today's Quote (Android parity) -->
       <div class="card today-quote" id="today-quote">
@@ -82,22 +87,6 @@
         </ul>
       </div>
 
-      <!-- How to unlock full features (hidden once linked) -->
-      <div class="card" id="home-howto" hidden>
-        <div class="card-header">Unlock full features</div>
-        <div class="card-body">
-          <p class="muted" style="margin-bottom:10px;">Talk to every philosopher, save your conversations, and sync across your glasses, the web &amp; Android. <strong>7 days free</strong>, then $8/mo.</p>
-          <ol class="howto-list">
-            <li>Sign in with Google &amp; start your <strong>7-day free trial</strong>:
-              <div class="howto-link"><a href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener">enkiridion.com/pricing</a><button class="copy-btn" data-copy="https://enkiridion.com/pricing?src=g2">Copy</button></div>
-            </li>
-            <li>Generate a <strong>6-char pairing code</strong> under Settings → G2 Glasses:
-              <div class="howto-link"><a href="https://enkiridion.com/settings" target="_blank" rel="noopener">enkiridion.com/settings</a><button class="copy-btn" data-copy="https://enkiridion.com/settings">Copy</button></div>
-            </li>
-            <li>Enter that code in the <strong>About</strong> tab here, and your account and Sage unlock onto the glasses.</li>
-          </ol>
-        </div>
-      </div>
 
       <!-- Weekly Action Plan -->
       <div class="card weekly-card">
@@ -225,7 +214,7 @@
             </div>
             <div class="glasses-info">
               <div class="page-name" id="glasses-page-name">Not connected</div>
-              <div class="page-sub" id="glasses-page-sub">Waiting for bridge…</div>
+              <div class="page-sub" id="glasses-page-sub">Connecting to your glasses…</div>
             </div>
           </div>
         </div>
@@ -251,10 +240,6 @@
 
       <!-- Sign up / free trial. Replaces Support the dev as the Home pill.
            Hidden for Sage members; copy + link set by initTrialPill(). -->
-      <button class="trialpill" id="trialpill" hidden>
-        <span class="tp1" id="trialpill-1"></span>
-        <span class="tp2" id="trialpill-2"></span>
-      </button>
     </div>
 
     <!-- PHILOSOPHERS -->
@@ -310,7 +295,7 @@
       <div class="card">
         <div class="card-header">
           Philosophers in rotation
-          <span class="badge" id="mindful-phil-count">all 17</span>
+          <span class="badge" id="mindful-phil-count">all 18</span>
         </div>
         <div class="card-body">
           <div class="btn-row" style="margin-bottom:10px">
@@ -345,10 +330,10 @@
           <!-- Trial CTA — sits above the tradition list (above "Greek").
                Shown to seeker/unlinked; hidden once Sage/trial is active. -->
           <button class="trial-cta" id="speak-trial-cta" hidden>
-            <span class="trial-cta-kicker">enkiSPEAKS · 1 WEEK FREE</span>
-            <span class="trial-cta-title">Speak your problems to any philosopher</span>
-            <span class="trial-cta-sub">Seven days free, then $8/mo. Your conversations save to your profile and follow you to web &amp; Android. Free tier: one turn a day with Enki, not saved.</span>
-            <span class="trial-cta-go">Start free trial →</span>
+            <span class="trial-cta-kicker">SAGE · 7 DAYS FREE</span>
+            <span class="trial-cta-title">Talk to every philosopher</span>
+            <span class="trial-cta-sub" id="speak-trial-sub">All 18, 20 replies a day, on your glasses and here. Then $5.99 a month or $49.99 a year. Free: one reply a day from Enki.</span>
+            <span class="trial-cta-go">Start free trial ▶</span>
           </button>
           <div class="field">
             <label>Philosopher</label>
@@ -530,7 +515,7 @@
           <p>Philosophy on Glass. <strong>2,801 quotes</strong> across 17 philosophers and 8 traditions.</p>
           <p class="mt-md muted">Everything works offline as a Seeker. Link your glasses below and your
           Today list, habits, and weekly plan stay in step with the enkiRIDION Android app and enkiridion.com.</p>
-          <p class="mt-md muted">Built with Vite + TypeScript + <code>@evenrealities/even_hub_sdk</code>.</p>
+          <p class="mt-md muted">enkiRIDION <span id="app-version"></span></p>
         </div>
       </div>
 
@@ -552,7 +537,7 @@
         <div class="card-header">Your Profile <span class="badge" id="profile-saved-badge"></span></div>
         <div class="card-body">
           <p class="muted" style="margin-bottom:12px;font-size:12px;">
-            Used by every philosopher conversation. Locks the Whisper transcription language, and your context is injected as quiet awareness so the
+            Used by every philosopher conversation. Sets the language you speak in, and your context is injected as quiet awareness so the
             philosophers can answer with what they know about your life — without
             ever listing it back at you.
           </p>
@@ -565,7 +550,7 @@
             <input id="prof-pronouns" type="text" placeholder="he/him, she/her, they/them..." />
           </div>
           <div class="field">
-            <label>Speech language <span class="hint">locks transcription and stops the language drift bug</span></label>
+            <label>Speech language <span class="hint">the language you speak to the philosophers in</span></label>
             <select id="prof-language"></select>
           </div>
           <div class="field">
@@ -616,8 +601,9 @@
         <div class="card-header">enkiRIDION account</div>
         <div class="field" id="glasses-link-field">
           <label>Pairing code</label>
-          <input id="glasses-code" type="text" placeholder="6-char code from enkiridion.com → Settings" autocomplete="off" maxlength="6" style="text-transform: uppercase;" />
-          <span class="hint" id="glasses-link-hint">Unlinked, Seeker mode: all quotes, plus one conversation a day with Enki (not saved). Start your <strong>7-day free trial</strong> on enkiridion.com (Google sign-in), then generate a code under Settings → G2 Glasses and link here, which brings Sage onto the glasses, unlocks every philosopher, and saves your conversations to your profile so they follow you to web &amp; Android. <a href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener">Start free trial →</a></span>
+          <input id="glasses-code" type="text" placeholder="6-character code" inputmode="text" autocapitalize="characters" autocomplete="off" maxlength="6" style="text-transform: uppercase;" />
+          <span class="hint" id="glasses-link-hint"></span>
+          <p class="link-msg" id="glasses-link-msg" role="status" hidden></p>
         </div>
         <div class="btn-row">
           <button class="btn btn-primary" id="btn-link-glasses">Link glasses</button>
@@ -717,24 +703,28 @@
        to open in their phone browser, subscribe there, and return with a code. -->
   <div class="onboard-overlay" id="onboard" hidden>
     <div class="onboard-card">
-      <div class="onboard-mark">Φ</div>
+      <div class="onboard-mark"><svg class="onboard-logo" viewBox="0 0 64 64" width="52" height="52" aria-label="enkiRIDION"><rect width="64" height="64" rx="15" fill="#050507"/><rect x="1.25" y="1.25" width="61.5" height="61.5" rx="13.75" fill="none" stroke="#F5F5F0" stroke-opacity="0.18"/><g fill="#F5F5F0"><rect x="8.9" y="15.2" width="46.2" height="8.4" rx="0.8"/><rect x="17.3" y="23.6" width="8.4" height="4.2"/><rect x="13.1" y="27.8" width="29.4" height="8.4" rx="0.8"/><rect x="17.3" y="36.2" width="8.4" height="4.2"/><rect x="8.9" y="40.4" width="46.2" height="8.4" rx="0.8"/></g></svg></div>
       <div class="onboard-kicker">ENKIRIDION</div>
-      <h2 class="onboard-title">Speak with every philosopher</h2>
-      <p class="onboard-sub">Enki and 17 philosophers across 9 traditions. <strong>7 days free</strong>, then $8/month. One membership covers your glasses, the web &amp; Android.</p>
+      <h2 class="onboard-title">Link your glasses</h2>
+      <p class="onboard-sub">Enki is free: one reply a day. <strong>Sage</strong> opens all 18 philosophers, 20 replies a day, for $5.99 a month or $49.99 a year after <strong>7 free days</strong>.</p>
 
       <div class="onboard-howto">
-        <div class="onboard-step"><span class="onboard-step-n">1</span><span>Copy this link and open it in your phone&rsquo;s browser:</span></div>
+        <div class="onboard-step"><span class="onboard-step-n">1</span><span>Open this in your phone&rsquo;s browser. Sign in with Google and start your free week:</span></div>
         <div class="onboard-copy">
-          <span class="onboard-url">enkiridion.com/pricing</span>
-          <button class="copy-btn" data-copy="https://enkiridion.com/pricing?src=g2">Copy</button>
+          <span class="onboard-url">enkiridion.com/start</span>
+          <button class="copy-btn" data-copy="https://enkiridion.com/start?plan=sage_monthly&amp;next=%2Fsettings">Copy</button>
         </div>
-        <div class="onboard-step"><span class="onboard-step-n">2</span><span>Sign in with Google &amp; start your <strong>7-day free trial</strong>.</span></div>
-        <div class="onboard-step"><span class="onboard-step-n">3</span><span>Grab your 6-char code (Settings → G2 Glasses), come back, and link below.</span></div>
+        <div class="onboard-step"><span class="onboard-step-n">2</span><span>You land on Settings. Under <strong>G2 Glasses</strong>, tap <strong>Generate pairing code</strong>.</span></div>
+        <div class="onboard-step"><span class="onboard-step-n">3</span><span>Type the code here:</span></div>
+        <div class="onboard-link-row">
+          <input id="onboard-code" type="text" maxlength="6" placeholder="6-character code" autocomplete="off" autocapitalize="characters" />
+          <button class="onboard-primary" id="onboard-link">Link</button>
+        </div>
+        <p class="link-msg" id="onboard-msg" role="status" hidden></p>
       </div>
 
-      <button class="onboard-primary" id="onboard-pair">I have my code, link my glasses →</button>
-      <button class="onboard-ghost" id="onboard-free">Continue free as a Seeker</button>
-      <p class="onboard-fine">Free forever: all 2,801 quotes + one conversation a day with Enki.</p>
+      <p class="onboard-fine">Just want a free account? Use <span class="onboard-url-inline">enkiridion.com/settings</span> <button class="copy-btn copy-inline" data-copy="https://enkiridion.com/settings">Copy</button> for step 1.</p>
+      <button class="onboard-ghost" id="onboard-free">Not now, talk to Enki free</button>
     </div>
   </div>
 

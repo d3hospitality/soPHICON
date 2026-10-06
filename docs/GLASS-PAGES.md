@@ -1,7 +1,8 @@
 # The glasses display, page by page
 
 A review of every page and state the G2 surface can be in, and the
-contextual menu each one carries as of 1.6.0 (SDK 0.0.14, firmware 2.2.9).
+contextual menu each one carries as of 1.6.0 (SDK 0.0.14, firmware 2.2.9),
+with the 1.11.0 changes summarised first.
 
 Grounded in `src/pages.ts` (builders), `src/events.ts` (state + routing),
 verified in the simulator 2026-08-11. The input vocabulary is four
@@ -32,8 +33,8 @@ hold; a plain long press does NOT open it).
 |---|---|---|
 | 1 | Go home | every page except home |
 | 2 | Surprise me (random quote, whole corpus) | home, philosophies, philosophers, mindstate, quote |
-| 3 | Save to favorites | quote |
-| 4 | Speak with this philosopher | quote |
+| 3 | Save to favorites | quote, card |
+| 4 | Speak with this philosopher | quote, card, favorites |
 | 5 | End conversation | speak-conversation |
 | 6 | Refresh feed | aphorica, aphorica-read |
 | 7 | Read the dev story | home |
@@ -45,12 +46,54 @@ IDs are never reused for different meanings. New commands take new IDs.
 
 ---
 
+## 1.11.0 — what changed and why
+
+- **Home rows: Talk to Enki · Philosophers · Quotes · Aphorica.** Enki
+  used to sit behind enkiSPEAKS → "Primordial" (three taps under a word
+  nobody guesses) although he is the one philosopher every wearer can
+  talk to free. He is the first row now; the Philosophers list no longer
+  carries Primordial.
+- **Sage page (`sage-gate`).** A free wearer picking a Sage philosopher
+  gets one honest page — who they are, $5.99/month after 7 free days,
+  start on the phone — instead of a greeting followed by refused taps.
+  Tap → Enki (free). Double-tap → back to the list. The status line under
+  each portrait on the Philosophers list already says "Sage · 7 days
+  free" or "Free every day" before anyone is picked.
+- **Conversation.** The philosopher is *summoned* (portrait arrives in
+  two dither frames, then the real face), the wearer's own words show
+  while the reply is thinking ("You: …"), and replies write themselves
+  in at reading pace (tap to finish). Mic shows elapsed time and sends
+  itself at 60 s. Reply pages are ~400 chars so they fit the box.
+- **Notices, not silence.** Locked / today's limit / dead link / offline
+  / unheard each get their own line on the glass (speak.ts
+  `SpeakResult.notice`); none are written into history. Before, every
+  refusal re-showed the previous reply — "it won't let me speak".
+- **Today's card (`card`).** Quotes opens on one quote a day, drawn like
+  a card: rarity first, then the face, then the words (first visit of
+  the day only). Tap → browse all quotes. Menu: Save to favorites ·
+  Speak with this philosopher · Go home.
+- **Back paths.** Language had no way back; Surprise now returns home;
+  a conversation (or Sage page) returns to wherever it was opened from.
+- **Image pushes are serialized once, in Main.ts**, for every caller.
+- **Live account.** Linking/unlinking on the phone updates the glasses'
+  Sage gate immediately (enkiAccount `onAccountChange`); before, a newly
+  linked Sage stayed gated until restart.
+- `harness/` runs the real app against a stand-in SDK that draws each
+  page to a 576×288 green canvas and checks the container limits:
+  `npx vite --config harness/vite.config.ts`, then drive it with
+  `harness/g2.py` (Playwright). It is not the simulator — still check
+  the simulator and real glasses before shipping.
+
+---
+
 ## HOME
 
-**Shows** four-row menu (enkiSPEAKS · Public Aphorica · Philosophies ·
-● Support the dev) centred left; 200×200 dithered ENKI mark right;
-wordmark under the mark; glance line (today's cockpit state) along the
-bottom, dimmed to brightness 3.
+**Shows** four-row menu (Talk to Enki · Philosophers · Quotes ·
+Aphorica, plus ● Support the dev when a tip destination exists)
+centred left; 200×200 dithered ENKI mark right; wordmark under the
+mark; glance line (today's cockpit state) along the bottom, dimmed to
+brightness 3 — or, when nothing is synced, the hint that tap-and-hold
+opens the menu.
 
 **State** `currentPage === "home"`. The list is the capture container.
 

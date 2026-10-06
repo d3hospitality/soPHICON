@@ -15,7 +15,7 @@ const ENKI_ONLY = ['enki'];
 
 export const POLICY = {
   // Speak: seekers and the public demo get Enki only.
-  speak:               { anon: { perDay: 1, personas: ENKI_ONLY }, seeker: { perDay: 1, personas: ENKI_ONLY }, sage: { perDay: 40 } },
+  speak:               { anon: { perDay: 1, personas: ENKI_ONLY }, seeker: { perDay: 1, personas: ENKI_ONLY }, sage: { perDay: 20 } },   // Sage = 20 replies a day, as sold on enkiridion.com
   // A voice turn = transcribe + speak. Speak is the unit that counts;
   // these caps only stop transcribe being used as a free Whisper proxy.
   transcribe:          { anon: { perDay: 3 },  seeker: { perDay: 5 },  sage: { perDay: 120 } },

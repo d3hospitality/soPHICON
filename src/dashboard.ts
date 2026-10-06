@@ -34,6 +34,7 @@ import {
   loadJournal, JournalSession, SpeakMessage, loadActionItems,
   loadPersonas, getPersona, startConversation, sendMessage,
   emotionToSprite, normalizeEmotion, pullSpeakSessions,
+  type SpeakResult,
 } from './speak';
 import {
   WeeklyOverview, WeeklyProblem, WeeklyAction, Category, Quadrant, QUADRANTS,
@@ -47,7 +48,8 @@ import {
   setHabitsBridge, listHabits, favoriteAsHabit, unfavoriteHabit,
   isHabit, pendingCheckIns, recordCheckIn, streakHealth, habitSpritePath,
 } from './habits';
-import { authHeaders, linkedHandle, linkedTier, linkWithCode, unlink, setAccountBridge, refreshTier, isSageCached } from './enkiAccount';
+import { authHeaders, linkedHandle, linkedTier, linkWithCode, unlink, setAccountBridge, refreshTier, isSageCached, onAccountChange, linkErrorText } from './enkiAccount';
+import { PLAN, PRICE_LINE, TRIAL_URL, SETTINGS_URL } from './plans';
 import { isFavoriteText, toggleFavoriteText, onFavoritesChange } from './favorites';
 import { getWisdomEntries, onWisdomLogChange, addWisdomEntry, hasWisdomEntry } from './wisdomlog';
 import {
@@ -84,14 +86,16 @@ function $$(sel: string): HTMLElement[] { return Array.from(document.querySelect
 
 function pageLabel(page: string): string {
   switch (page) {
-    case 'home':                return 'Home: traditions';
+    case 'home':                return 'Home';
+    case 'sage-gate':           return 'Sage philosopher';
+    case 'card':                return 'Today’s card';
     case 'philosophers':        return 'Philosophers';
     case 'mindstate':           return 'Mindstate';
     case 'quote':               return 'Quote';
-    case 'speak-traditions':    return 'Speak: traditions';
-    case 'speak-philosophers':  return 'Speak: philosophers';
+    case 'speak-traditions':    return 'Philosophers: schools';
+    case 'speak-philosophers':  return 'Philosophers';
     case 'speak-conversation':  return 'Conversation';
-    case 'traditions':          return 'Philosophies';
+    case 'traditions':          return 'Quotes';
     case 'support':             return 'Support the dev';
     default:                    return page;
   }
@@ -266,7 +270,7 @@ function applyGlassState(s: GlassesState): void {
   const dot = $('glasses-live-dot');
   const sprite = $('glasses-sprite');
 
-  if (badge) badge.textContent = s.page;
+  if (badge) badge.textContent = 'live';
   if (name) name.textContent = pageLabel(s.page);
   if (sub) sub.textContent = pageSubtext(s) || '—';
   if (dot) dot.style.display = 'inline-block';
@@ -595,23 +599,7 @@ async function maybeShowOnboarding(): Promise<void> {
   let dismissed = '';
   try { dismissed = (await bridge.getLocalStorage('enki_onboarded')) || ''; } catch {}
   if (linked || dismissed === '1') { (overlay as HTMLElement).hidden = true; return; }
-
-  (overlay as HTMLElement).hidden = false;
-
-  const close = async (remember: boolean) => {
-    (overlay as HTMLElement).hidden = true;
-    if (remember && bridge) { try { await bridge.setLocalStorage('enki_onboarded', '1'); } catch {} }
-  };
-
-  // "Continue free" → remember, so it stops nudging. The About tab still
-  // carries the trial CTA for later.
-  document.getElementById('onboard-free')?.addEventListener('click', () => { close(true); });
-  // "I already subscribed" → jump to the pairing input (don't remember, so
-  // if they bail we still nudge next launch).
-  document.getElementById('onboard-pair')?.addEventListener('click', () => { close(false); switchTab('about'); });
-  // The trial CTA is an <a target="_blank"> to enkiridion.com — let the
-  // browser open; keep the gate un-dismissed so it keeps nudging until the
-  // glasses are actually linked.
+  openOnboarding();
 }
 
 /**
@@ -620,13 +608,9 @@ async function maybeShowOnboarding(): Promise<void> {
  * upgrade path is one tap from where you'd start a conversation.
  */
 async function refreshSpeakTrialCta(): Promise<void> {
-  const linked = await linkedHandle();
   const entitled = (await linkedTier()) === 'sage';
   const cta = $('speak-trial-cta');
   if (cta) cta.hidden = entitled;
-  // The Home "how to unlock" card is only useful before you've paired.
-  const howto = $('home-howto');
-  if (howto) (howto as HTMLElement).hidden = !!linked;
 }
 
 async function initSpeakCompose(): Promise<void> {
@@ -635,11 +619,10 @@ async function initSpeakCompose(): Promise<void> {
   const sendBtn = $('speak-send') as HTMLButtonElement | null;
   if (!select || !input || !sendBtn) return;
 
-  // Trial CTA → jump to About, where the "Link your glasses" pairing lives.
-  // (Starting the trial itself happens on enkiridion.com — Google sign-in +
-  // card — then you pair the glasses with the code.)
+  // Trial CTA → the account card on Home, which shows the next step for
+  // this wearer (link first, or copy the trial link).
   const trialCta = $('speak-trial-cta');
-  trialCta?.addEventListener('click', () => switchTab('about'));
+  trialCta?.addEventListener('click', () => openAccountStep());
 
   // Personas power the persona payload sent to /api/speak.
   await loadPersonas(baseUrl).catch(() => {});
@@ -685,16 +668,43 @@ async function initSpeakCompose(): Promise<void> {
       host.scrollTop = host.scrollHeight;
     }
 
+    let result: SpeakResult | null = null;
     try {
-      // sendMessage handles auth headers + 401/403/429 → returns graceful
-      // upsell copy as the reply text (never throws on entitlement).
-      await sendMessage(text);
+      // sendMessage handles auth headers + 401/403/429 → returns a notice
+      // (never throws on entitlement).
+      result = await sendMessage(text);
     } catch (e) {
       console.warn('[SPEAK] send failed', e);
     } finally {
-      // Re-render from the persisted thread (sendMessage saved it), so the
-      // phone reflects exactly what the glass would show.
+      // Re-render from the persisted thread, so the phone reflects what
+      // the glass would show…
       await renderSpeakThread(philId);
+      // …then add whatever the thread doesn't hold: a notice (limit,
+      // locked, offline), or a free wearer's reply, which isn't saved.
+      // Before, both vanished and the thread said "No turns yet".
+      const thread = $('speak-thread');
+      const shown = result && thread && !thread.textContent?.includes(result.text.slice(0, 40));
+      if (thread && result && shown) {
+        if (thread.querySelector('.muted')) thread.innerHTML = '';
+        if (result.notice) {
+          // The notice text is written for the glasses ("double-tap…");
+          // the phone says the same thing in its own terms.
+          const phoneText = result.notice === 'locked'
+            ? `${philName} talks with Sage members. Sage opens all 18 philosophers, ${PLAN.sageRepliesPerDay} replies a day: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
+            : result.notice === 'limit_free'
+              ? `That was today’s free reply. Enki will be here tomorrow. Sage opens all 18 philosophers: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
+              : result.text.replace(/ Double-tap to go back\.$/, '');
+          thread.insertAdjacentHTML('beforeend', `
+            <div class="speak-turn user"><div class="speak-turn-head"><span class="speak-turn-who">YOU</span></div><div class="speak-turn-body">${escapeHtml(text)}</div></div>
+            <div class="speak-notice">${escapeHtml(phoneText)}${result.notice === 'locked' || result.notice === 'limit_free' ? ' <button class="link-btn" data-open-account>Start 7 days free</button>' : ''}</div>`);
+          thread.querySelector('[data-open-account]')?.addEventListener('click', () => openAccountStep());
+        } else {
+          thread.insertAdjacentHTML('beforeend', `
+            <div class="speak-turn user"><div class="speak-turn-head"><span class="speak-turn-who">YOU</span></div><div class="speak-turn-body">${escapeHtml(text)}</div></div>
+            <div class="speak-turn phil"><div class="speak-turn-head"><span class="speak-turn-who">${escapeHtml(philName.toUpperCase())}</span></div><div class="speak-turn-body">${escapeHtml(result.text)}</div></div>`);
+        }
+        thread.scrollTop = thread.scrollHeight;
+      }
       speakSending = false;
       sendBtn.disabled = false;
       input.focus();
@@ -778,8 +788,8 @@ async function initSettings(): Promise<void> {
     const tier = await linkedTier();
     if (linkHint) {
       linkHint.innerHTML = handle
-        ? `Linked as @${escapeHtml(handle)} · ${escapeHtml((tier || 'seeker').toUpperCase())}. Tier follows your enkiridion.com subscription. ${tier === 'sage' ? 'Your conversations save to your profile and sync across web, Android &amp; glasses.' : 'Still on Seeker — one conversation a day with Enki (not saved). <a href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener">Start your 7-day free trial →</a>'}`
-        : 'Unlinked — Seeker mode: all quotes, plus one conversation a day with Enki (not saved). Start your <strong>7-day free trial</strong> on enkiridion.com (Google sign-in), then generate a code under Settings → G2 Glasses and link here to unlock every philosopher and save your conversations across web &amp; Android. <a href="https://enkiridion.com/pricing?src=g2" target="_blank" rel="noopener">Start free trial →</a>';
+        ? `Linked as @${escapeHtml(handle)} · ${tier === 'sage' ? 'Sage' : 'Free'}. Your plan follows your enkiridion.com account, so an upgrade there shows up here by itself. ${tier === 'sage' ? `Every philosopher, ${PLAN.sageRepliesPerDay} replies a day.` : `Free: one reply a day from Enki. Sage is ${PRICE_LINE} after ${PLAN.trialDays} free days.`}`
+        : `Not linked. Get a 6-character code at enkiridion.com/settings (G2 Glasses → Generate pairing code) and type it here. A free account works; Sage opens every philosopher.`;
     }
     if (btnUnlink) btnUnlink.style.display = handle ? '' : 'none';
     if (btnLink) btnLink.style.display = handle ? 'none' : '';
@@ -788,32 +798,21 @@ async function initSettings(): Promise<void> {
   }
   await renderLinkState();
 
-  btnLink?.addEventListener('click', async () => {
-    const code = codeInput?.value?.trim() || '';
-    if (code.length !== 6) { log('[DASHBOARD] Enter the 6-character code', 'error'); return; }
-    const result = await linkWithCode(code);
-    if (result.ok) {
-      log(`[DASHBOARD] Glasses linked as @${result.handle || 'you'} (${result.tier || 'seeker'})`, 'success');
-      if (codeInput) codeInput.value = '';
-      // First sync right away so the cockpit fills in from the account,
-      // and pull any conversations saved on other devices into the journal.
-      syncNow().then(async () => {
-        await renderChecklist();
-        await renderHabits();
-      }).catch(() => {});
-      pullSpeakSessions().catch(() => {});
-    } else {
-      log(`[DASHBOARD] Link failed: ${result.error || 'invalid code'}`, 'error');
-    }
-    await renderLinkState();
-    await renderHeaderAccount();
+  btnLink?.addEventListener('click', () => {
+    linkFromInput(codeInput, btnLink as HTMLButtonElement, $('glasses-link-msg'));
   });
 
   btnUnlink?.addEventListener('click', async () => {
     await unlink();
     log('[DASHBOARD] Glasses unlinked — back to Seeker', 'success');
-    await renderLinkState();
-    await renderHeaderAccount();
+  });
+
+  // Every screen that shows the account follows it — linking, unlinking,
+  // an upgrade picked up from the server, a dead link dropped on a 401.
+  onAccountChange(() => {
+    renderLinkState().catch(() => {});
+    renderHeaderAccount().catch(() => {});
+    renderAccountCard().catch(() => {});
   });
 
   $('btn-reset-convos')?.addEventListener('click', async () => {
@@ -1214,7 +1213,7 @@ async function extractProblems(auto: boolean = false): Promise<void> {
         </div>`).join('');
     log(`[DASHBOARD] ${problems.length} problems extracted${auto ? ' (auto)' : ''}`, 'success');
   } catch (e) {
-    if (!auto) host.innerHTML = `<p style="color:var(--err);">Failed: ${e}</p>`;
+    if (!auto) host.innerHTML = `<p class="muted">${escapeHtml(friendlyError(e))}</p>`;
     log(`[DASHBOARD] problems failed: ${e}`, 'error');
   } finally {
     problemsRunning = false;
@@ -1255,7 +1254,7 @@ async function computeActions(): Promise<void> {
         </div>`).join('');
     log(`[DASHBOARD] ${actions.length} actions generated`, 'success');
   } catch (e) {
-    host.innerHTML = `<p style="color:var(--err);">Failed: ${e}</p>`;
+    host.innerHTML = `<p class="muted">${escapeHtml(friendlyError(e))}</p>`;
     log(`[DASHBOARD] actions failed: ${e}`, 'error');
   }
 }
@@ -1555,7 +1554,7 @@ async function generateForCurrentWeek(force: boolean): Promise<void> {
     await renderWeekly();
     setWeeklyStatus(`Generated ${ov.problems.length} problem${ov.problems.length === 1 ? '' : 's'}.`);
   } catch (e: any) {
-    setWeeklyStatus(`Failed: ${e?.message || e}`);
+    setWeeklyStatus(friendlyError(e));
   } finally {
     if (generateBtn) generateBtn.disabled = false;
   }
@@ -2294,6 +2293,16 @@ function flashSavedBadge(): void {
   setTimeout(() => { if (b) b.textContent = ''; }, 1800);
 }
 
+/** Server errors in words: Sage-only features say so, instead of
+ *  "Failed: weekly-overview 403: {json}". */
+function friendlyError(e: unknown): string {
+  const m = String((e as any)?.message || e || '');
+  if (/\b403\b/.test(m)) return `This is part of Sage: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`;
+  if (/\b401\b/.test(m)) return 'Link your glasses first (Home → Link my glasses).';
+  if (/\b429\b/.test(m)) return 'That’s enough for today. Try again tomorrow.';
+  return 'Couldn’t reach enkiRIDION. Check your connection and try again.';
+}
+
 // ─── HEADER ACCOUNT CHIP ──────────────────────────────────────────
 // When linked: "@handle ◈ SAGE" (gold) / "@handle SEEKER" (dim) in the
 // masthead row. Hidden when unlinked — the About tab owns the pairing CTA.
@@ -2576,13 +2585,19 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   // Home: Public Aphorica Feed preview + "see all" → Aphorica tab.
   renderAphHome().catch(() => {});
   $('aph-home-all')?.addEventListener('click', () => switchTab('aphorica'));
-  // Copy buttons (how-to links) — clipboard where available, else select-all.
-  $$('.copy-btn').forEach(btn => btn.addEventListener('click', async () => {
-    const url = btn.getAttribute('data-copy') || '';
-    try { await navigator.clipboard.writeText(url); btn.textContent = 'Copied'; btn.classList.add('copied'); }
-    catch { btn.textContent = 'Copied'; btn.classList.add('copied'); }
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1600);
-  }));
+  wireCopyButtons();
+  await renderAccountCard();
+  refreshTier().then(() => renderAccountCard()).catch(() => {});
+  const version = $('app-version');
+  if (version) version.textContent = `v${__APP_VERSION__}`;
+  // Debug is a developer surface (sprite pushes, raw logs): ?debug=1 or a
+  // dev build only.
+  try {
+    if (import.meta.env.DEV || new URLSearchParams(location.search).get('debug') === '1') {
+      const debugTab = $('tab-debug');
+      if (debugTab) debugTab.hidden = false;
+    }
+  } catch { /* stays hidden */ }
 
   // Language first: every render below reads through t().
   initI18n();
@@ -2592,7 +2607,6 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   // when SUPPORT_URL is empty. The latch check catches a Support tap that
   // happened on the glasses while this webview was backgrounded.
   initSupport();
-  initTrialPill().catch(() => {});
   consumeSupportLatch().catch(() => {});
   consumeMindfulLatch().catch(() => {});
 
@@ -2614,8 +2628,8 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   });
   await maybeShowDailyCheckIn();
 
-  // First-run onboarding / sign-in gate (unlinked users): routes to Google
-  // sign-in + the $8/mo trial on enkiridion.com, then pairing.
+  // First-run link-your-glasses overlay (unlinked users): copy a link to
+  // the phone browser, sign in / start the trial there, link with a code.
   await maybeShowOnboarding();
 
   // Subscribe to live glass-state updates; also refresh journal when
@@ -2623,6 +2637,13 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   let lastGlassPage = '';
   onGlassesStateChange((s) => {
     applyGlassState(s);
+    // The glasses hit an upsell moment (or left it): put the way to
+    // unlock at the top of Home, named.
+    const nextUpsell = s.upsell ?? null;
+    if (JSON.stringify(nextUpsell) !== JSON.stringify(glassUpsell)) {
+      glassUpsell = nextUpsell;
+      renderAccountCard().catch(() => {});
+    }
     // Any transition OUT of speak-conversation → journal likely changed.
     // Also refresh the Today card + Habits since both pull from the journal.
     if (s.page !== 'speak-conversation') {
@@ -2912,35 +2933,137 @@ function renderStoryStack(): void {
   applyBidiHints();
 }
 
-/** Re-open the first-run sign-up / trial overlay on demand. The Even
- *  webview can't open external links or run Google sign-in, so the overlay
- *  (copy link → phone browser → come back with a code) is the real path.
- *  onclick (not addEventListener) so repeated opens never stack handlers. */
+/** The link-your-glasses overlay. The Even webview can't open external
+ *  links or run Google sign-in, so the path is: copy a link → phone
+ *  browser → sign in (and start the trial) → back here with a code, which
+ *  is typed into the overlay itself. onclick (not addEventListener) so
+ *  repeated opens never stack handlers. */
 function openOnboarding(): void {
   const overlay = document.getElementById('onboard') as HTMLElement | null;
   if (!overlay) return;
   overlay.hidden = false;
   const free = document.getElementById('onboard-free');
-  if (free) free.onclick = () => { overlay.hidden = true; };
-  const pair = document.getElementById('onboard-pair');
-  if (pair) pair.onclick = () => { overlay.hidden = true; switchTab('about'); };
+  if (free) free.onclick = async () => {
+    overlay.hidden = true;
+    if (bridge) { try { await bridge.setLocalStorage('enki_onboarded', '1'); } catch { /* asks again next launch */ } }
+  };
+  const btn = document.getElementById('onboard-link') as HTMLButtonElement | null;
+  const input = document.getElementById('onboard-code') as HTMLInputElement | null;
+  if (btn) btn.onclick = async () => {
+    const ok = await linkFromInput(input, btn, $('onboard-msg'));
+    if (ok) setTimeout(() => { overlay.hidden = true; }, 1400);
+  };
 }
 
-/** Home pill: sign up (unlinked) or start the free trial (linked Seeker).
- *  Hidden for Sage. Replaces Support the dev as the one loud object on
- *  Home, and opens the sign-up overlay rather than a link the webview
- *  can't follow. */
-async function initTrialPill(): Promise<void> {
-  const pill = $('trialpill') as HTMLButtonElement | null;
-  if (!pill) return;
-  await refreshTier().catch(() => null);
-  if (isSageCached()) { pill.hidden = true; return; }
-  const linked = !!(await linkedHandle());
-  const l1 = $('trialpill-1'); const l2 = $('trialpill-2');
-  if (l1) l1.textContent = linked ? 'Every philosopher · 7 days free' : 'Free account · keep your conversations';
-  if (l2) l2.textContent = linked ? 'Start your free trial ▶' : 'Sign up free ▶';
-  pill.onclick = openOnboarding;
-  pill.hidden = false;
+/** Redeem the code typed into `input`, showing progress and the outcome
+ *  where the wearer is looking (it used to go to the Debug log only). */
+async function linkFromInput(input: HTMLInputElement | null, btn: HTMLButtonElement | null, msg: HTMLElement | null): Promise<boolean> {
+  const show = (text: string, kind: 'ok' | 'err' | 'busy') => {
+    if (!msg) return;
+    msg.hidden = false;
+    msg.textContent = text;
+    msg.className = `link-msg ${kind}`;
+  };
+  const code = (input?.value || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+  if (code.length !== 6) { show(linkErrorText(code ? 'invalid_code' : 'empty'), 'err'); return false; }
+  if (btn) btn.disabled = true;
+  show('Linking…', 'busy');
+  try {
+    const result = await linkWithCode(code);
+    if (!result.ok) { show(linkErrorText(result.error), 'err'); return false; }
+    if (input) input.value = '';
+    const sage = result.tier === 'sage';
+    show(sage
+      ? 'Linked. Every philosopher is open on your glasses.'
+      : 'Linked. Enki is yours on the glasses; start the free trial to open everyone.', 'ok');
+    if (result.saved === false) log('[ACCOUNT] linked, but the glasses store refused the write (kept in the webview mirror)', 'error');
+    // First sync right away so the cockpit fills in from the account,
+    // and pull any conversations saved on other devices into the journal.
+    syncNow().then(async () => { await renderChecklist(); await renderHabits(); }).catch(() => {});
+    pullSpeakSessions().catch(() => {});
+    return true;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/** Take the wearer to their next account step: the overlay when unlinked,
+ *  the Home account card (trial link) when linked. */
+async function openAccountStep(): Promise<void> {
+  if (!(await linkedHandle())) { openOnboarding(); return; }
+  switchTab('home');
+  document.getElementById('account-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ─── ACCOUNT CARD (top of Home) ────────────────────────────────────
+// One card, one next step, chosen by the account state:
+//   unlinked → link your glasses (Enki is free meanwhile)
+//   free     → unlock all 18 (trial link to copy)
+//   Sage     → how to start talking on the glasses
+// When the glasses are showing an upsell moment (a Sage philosopher
+// picked, today's free reply used) the card names it.
+let glassUpsell: GlassesState['upsell'] = null;
+
+async function renderAccountCard(): Promise<void> {
+  const host = $('account-card');
+  if (!host) return;
+  const handle = await linkedHandle();
+  const sage = isSageCached();
+  const moment = glassUpsell && !sage
+    ? (glassUpsell.kind === 'locked' && glassUpsell.philName
+        ? `${escapeHtml(glassUpsell.philName)} is waiting on your glasses`
+        : 'That was today’s free reply')
+    : '';
+  host.classList.toggle('glow', !!moment);
+
+  if (!handle) {
+    host.innerHTML = `
+      <div class="card-header">${moment || 'Link your glasses'}<span class="badge">Free: Enki</span></div>
+      <div class="card-body">
+        <p class="account-lede">Enki talks with you free, one reply a day. Link your enkiRIDION account to keep your conversations, and start <strong>${PLAN.trialDays} days free</strong> to open all 18 philosophers.</p>
+        <button class="btn btn-primary btn-block" id="account-link-btn">Link my glasses</button>
+      </div>`;
+    $('account-link-btn')?.addEventListener('click', openOnboarding);
+    return;
+  }
+  if (!sage) {
+    host.innerHTML = `
+      <div class="card-header">${moment || 'Open every philosopher'}<span class="badge">@${escapeHtml(handle)} · Free</span></div>
+      <div class="card-body">
+        <p class="account-lede">Sage opens all 18 philosophers, ${PLAN.sageRepliesPerDay} replies a day, here and on your glasses. <strong>${PLAN.trialDays} days free</strong>, then ${PRICE_LINE}.</p>
+        <p class="muted account-step">Open this in your phone’s browser to start:</p>
+        <div class="howto-link"><span class="howto-url">enkiridion.com/start</span><button class="copy-btn" data-copy="${escapeAttr(TRIAL_URL)}">Copy</button></div>
+        <p class="muted account-step">Your glasses pick up the upgrade by themselves, usually within a minute. <button class="link-btn" id="account-recheck">Check now</button></p>
+      </div>`;
+    wireCopyButtons(host);
+    $('account-recheck')?.addEventListener('click', async (ev) => {
+      const b = ev.currentTarget as HTMLButtonElement;
+      b.textContent = 'Checking…';
+      await refreshTier().catch(() => null);
+      b.textContent = isSageCached() ? 'You’re a Sage now' : 'Not yet, try again in a minute';
+    });
+    return;
+  }
+  host.innerHTML = `
+    <div class="card-header">On your glasses<span class="badge sage">@${escapeHtml(handle)} · ◈ Sage</span></div>
+    <div class="card-body">
+      <p class="account-lede">Choose <strong>Talk to Enki</strong>, or <strong>Philosophers</strong> and pick anyone. Tap to speak, tap again to send. ${PLAN.sageRepliesPerDay} replies a day.</p>
+    </div>`;
+}
+
+/** Copy buttons: clipboard where the webview allows it, the legacy path
+ *  where it doesn't, and an honest "hold to copy" when neither worked. */
+function wireCopyButtons(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLButtonElement>('.copy-btn').forEach(btn => {
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', async () => {
+      const ok = await copyText(btn.getAttribute('data-copy') || '');
+      btn.textContent = ok ? 'Copied' : 'Hold to copy';
+      btn.classList.toggle('copied', ok);
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+    });
+  });
 }
 
 function initSupport(): void {

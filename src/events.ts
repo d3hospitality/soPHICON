@@ -30,7 +30,8 @@ import {
   rebuildHomePage, loadGlanceLine, buildPhilosopherSelectPage,
   buildMindstatePage, getMindstateSelections,
   buildQuoteViewPage,
-  homeListItems, BROWSABLE_TRADITIONS, SPEAK_INDEX,
+  homeListItems, BROWSABLE_TRADITIONS, SPEAK_INDEX, TALK_ENKI_INDEX, SPEAK_TRADITIONS,
+  buildSageGatePage, buildDailyCardPage, rarityLine, speakStatusLine,
   APHORICA_INDEX, PHILOSOPHIES_INDEX, buildTraditionsPage,
   buildAphoricaPage, buildAphoricaReadPage,
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
@@ -62,14 +63,15 @@ import {
   cursorPreviewLine, shiftDayKey, dayPages, dayTitle, dateKey,
 } from './glassCalendar';
 import { authHeaders, linkedHandle } from './enkiAccount';
-import { tGlass, LANGS, setLang } from './i18n';
-import { setAccountBridge, refreshTier, isSageCached } from './enkiAccount';
+import { tGlass, tQuote, tMeta, LANGS, setLang } from './i18n';
+import { setAccountBridge, refreshTier, isSageCached, onAccountChange } from './enkiAccount';
 import {
   loadPersonas, setSpeakBridge, startConversation,
   startRecording, stopRecordingAndSend, handleAudioChunk,
   emotionToSprite, endConversation, isCurrentlyRecording,
   getConversationDisplay, flushHistory, checkpointSession,
   normalizeEmotion, userMoodToEmpathySprite, getLastUserMood,
+  type SpeakResult,
 } from './speak';
 import { log } from './ui';
 
@@ -101,9 +103,25 @@ type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
   | "favorites" | "calendar" | "calendar-day"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
   | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read"
-  | "support" | "language";
+  | "support" | "language" | "sage-gate" | "card";
 
 let currentPage: Page = "home";
+
+// Where a conversation (or the Sage page) was opened from, so double-tap
+// goes back there: Talk to Enki on home → home; a philosopher on the
+// list → the list; "Speak with this philosopher" on a quote → the quote.
+type SpeakOrigin = "home" | "list" | "quote" | "favorites" | "card";
+let speakFrom: SpeakOrigin = "list";
+let gatePhil: Philosopher | null = null;
+
+// Reading-pace reveal + mic timer. Each reveal / mic session takes a new
+// sequence number; anything still running with an older number stops.
+let revealSeq = 0;
+let revealing = false;
+let micTimer: ReturnType<typeof setInterval> | null = null;
+let micStartedAt = 0;
+const MIC_MAX_SECONDS = 60;
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 /** Cursor into supportStoryPages() while reading the Support story. */
 let supportPageIndex = 0;
 
@@ -492,6 +510,10 @@ export interface GlassesState {
   speakThinking?: boolean;
   speakPageIndex?: number;
   speakPageCount?: number;
+  /** Set while the glasses are showing an upsell moment (a Sage
+   *  philosopher picked by a free wearer, or today's free reply used) so
+   *  the phone can put the way to unlock right where the wearer looks. */
+  upsell?: { kind: 'locked' | 'limit_free'; philName?: string } | null;
 }
 type GlassesStateListener = (s: GlassesState) => void;
 let glassesStateListeners: GlassesStateListener[] = [];
@@ -642,18 +664,7 @@ async function commitSpeakSelection(bridge: EvenAppBridge, baseUrl: string): Pro
   const phils = getPhilosophersByTradition(speakTradition);
   if (phils.length === 0) return;
   const phil = phils[Math.max(0, Math.min(speakSelectedIndex, phils.length - 1))];
-  speakPhilosopher = phil;
-  speakPhilId = phil.philId;
-  lastNavigationTime = Date.now();
-  speakPageIndex = 0;
-  speakIsInitialized = false;
-  lastPushedEmotion = "";
-  const { opening, emotion } = await startConversation(speakPhilId);
-  lastResponseText = opening;
-  currentPage = "speak-conversation";
-  await renderSpeakPage(bridge, opening, false);
-  await updateEmotionSprite(bridge, baseUrl, emotion);
-  log(`> Speak: ${phil.name}`, "success");
+  await openConversation(bridge, baseUrl, phil, "list");
 }
 
 async function setSpeakSelectedIndex(index: number): Promise<void> {
@@ -705,6 +716,9 @@ function publishState(extra: Partial<GlassesState> = {}): void {
     quoteText: currentQuotes[currentQuoteIndex]?.text,
     speakListening: isCurrentlyRecording(),
     speakPageIndex,
+    // An upsell moment stays published while the wearer is still on the
+    // page that raised it; leaving the page clears it.
+    upsell: lastPublishedState?.page === currentPage ? (lastPublishedState?.upsell ?? null) : null,
     ...extra,
   };
   // If caller didn't override and we just left a select page, ensure cleared
@@ -763,11 +777,30 @@ export function registerEventHandlers(bridge: EvenAppBridge, baseUrl: string): (
   setAccountBridge(bridge);
   loadPersonas(baseUrl);
   // Live tier for the Speak labels/gate (display only; server enforces).
+  // Re-read on EVERY account change: linking on the phone mid-session
+  // used to leave a paying Sage gated until the app was restarted.
+  setViewerSage(isSageCached());
+  onAccountChange(() => { onTierChanged(bridge, baseUrl).catch(() => {}); });
   refreshTier().then(() => setViewerSage(isSageCached())).catch(() => {});
 
   return bridge.onEvenHubEvent((event: EvenHubEvent) => {
     handleEvent(bridge, event, baseUrl);
   });
+}
+
+/** The account changed (linked, unlinked, upgraded): update the gate and
+ *  repaint whatever on the glass depends on it. */
+async function onTierChanged(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  setViewerSage(isSageCached());
+  if (navigating) return;
+  if (currentPage === "speak-philosophers" && speakTradition) {
+    await safeRebuild(bridge, buildSpeakPhilosopherPage(speakTradition, speakSelectedIndex), "buildSpeakPhilosopherPage");
+    const phil = getPhilosophersByTradition(speakTradition)[speakSelectedIndex];
+    if (phil) await pushSpriteSingle(bridge, baseUrl, `${phil.philId}/${phil.philId}-neutral.png`, 3, "portrait", 100, 100);
+  } else if (currentPage === "sage-gate" && gatePhil && !isLockedForViewer(gatePhil.philId)) {
+    // They just unlocked the one they were looking at: open the door.
+    await openConversation(bridge, baseUrl, gatePhil, speakFrom);
+  }
 }
 
 // ═══ AUTO-ROTATE ═══
@@ -879,8 +912,36 @@ async function updatePhilosopherPortrait(
 async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   if (navigating) return;
   navigating = true;
+  revealSeq++; revealing = false;   // stop any reveal / draw in progress
   try {
-    if (currentPage === "quote") {
+    if (currentPage === "language" || currentPage === "card") {
+      // Language had no way back (every tap but a language did nothing);
+      // the card is a top-level page off home.
+      await goHome(bridge, baseUrl);
+    }
+    else if (currentPage === "sage-gate") {
+      if (speakFrom === "list" && speakTradition) {
+        const phils = getPhilosophersByTradition(speakTradition);
+        const idxToShow = Math.max(0, Math.min(speakSelectedIndex, phils.length - 1));
+        await safeRebuild(bridge, buildSpeakPhilosopherPage(speakTradition, idxToShow), "buildSpeakPhilosopherPage");
+        currentPage = "speak-philosophers"; lastHoveredPhilIndex = idxToShow;
+        if (phils[idxToShow]) await pushSpriteSingle(bridge, baseUrl, `${phils[idxToShow].philId}/${phils[idxToShow].philId}-neutral.png`, 3, "portrait", 100, 100);
+        lastNavigationTime = Date.now();
+      } else if (speakFrom === "quote" && currentPhilosopher && currentQuotes.length) {
+        currentPage = "quote"; startAutoRotate(); await showCurrentQuote(bridge, baseUrl);
+      } else if (speakFrom === "favorites") {
+        currentPage = "favorites"; await showFavorite(bridge, baseUrl);
+      } else {
+        await goHome(bridge, baseUrl);
+      }
+    }
+    else if (currentPage === "quote" && surpriseMode) {
+      // Surprise is a jump from anywhere: its way back is home, not the
+      // mindstate list of whichever philosopher it happened to land on.
+      stopAutoRotate(); shuffleMode = false; surpriseMode = false;
+      await goHome(bridge, baseUrl);
+    }
+    else if (currentPage === "quote") {
       stopAutoRotate(); shuffleMode = false; surpriseMode = false;
       if (currentPhilosopher) {
         await safeRebuild(bridge, buildMindstatePage(currentPhilosopher), "buildMindstatePage");
@@ -922,6 +983,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       // Cancel any pending empathy → response sprite transition so it
       // doesn't fire after we've already left the page.
       cancelPendingResponseSprite();
+      stopMicTimer();
       // Checkpoint the session into the dated journal BEFORE clearing
       // in-memory history, so the calendar tab can see today's entry.
       if (speakPhilosopher && speakTradition) {
@@ -934,7 +996,15 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       speakIsInitialized = false;
       lastPushedEmotion = "";
       speakPageIndex = 0;
-      if (speakTradition) {
+      if (speakFrom === "home") {
+        await goHome(bridge, baseUrl);
+      } else if (speakFrom === "quote" && currentPhilosopher && currentQuotes.length) {
+        currentPage = "quote"; startAutoRotate(); await showCurrentQuote(bridge, baseUrl);
+      } else if (speakFrom === "favorites") {
+        currentPage = "favorites"; await showFavorite(bridge, baseUrl);
+      } else if (speakFrom === "card") {
+        navigating = false; await openDailyCard(bridge, baseUrl); navigating = true;
+      } else if (speakTradition) {
         // Restore prior selection on the navpad when coming back from a
         // conversation; if user came from a different tradition, reset to 0.
         const phils = getPhilosophersByTradition(speakTradition);
@@ -1032,6 +1102,9 @@ async function renderSpeakPage(
   responseText: string,
   isListening: boolean,
   isThinking: boolean = false,
+  /** Rebuild with only the status line, so revealSpeakBody can write the
+   *  words in without a flash of the finished text first. */
+  blankBody: boolean = false,
 ): Promise<void> {
   if (!speakPhilosopher) return;
   const history = getConversationDisplay(speakPhilosopher.name);
@@ -1052,6 +1125,7 @@ async function renderSpeakPage(
         history,
         speakPageIndex,
         isThinking,
+        blankBody,
       )
     , "buildSpeakConversationPage");
     speakIsInitialized = true;
@@ -1128,82 +1202,211 @@ async function updateEmotionSprite(
 //                    always pushes, even if same as the empathy sprite).
 //
 // Empathic map — see userMoodToEmpathySprite() in speak.ts for details.
-/** Put a one-off line in the conversation text box without touching
- *  history (renderSpeakPage always renders history when there is some,
- *  so a transient notice passed to it is silently dropped). */
-async function showSpeakNotice(bridge: EvenAppBridge, text: string): Promise<void> {
+// ═══ CONVERSATION ═══════════════════════════════════════════════════
+// One entry point for every way into a conversation (Talk to Enki on
+// home, the philosopher list, "Speak with this philosopher" on a quote or
+// favorite). A free wearer picking a Sage philosopher gets the Sage page
+// instead of a greeting followed by refusals.
+
+/** Faint → fainter-dotted → the real face: the portrait "arrives" in
+ *  three pushes. The panel has no grey and no alpha, so presence is
+ *  carried by dot density (see ditherGray in image-utils). */
+const SUMMON_FRAMES = [
+  { coverage: 0.2, dot: 150, blur: 20 },
+  { coverage: 0.5, dot: 190, blur: 48 },
+];
+const SUMMON_STEP_MS = 550;
+
+async function openConversation(bridge: EvenAppBridge, baseUrl: string, phil: Philosopher, from: SpeakOrigin): Promise<void> {
+  if (from === "list") {
+    const idx = getPhilosophersByTradition(phil.tradition as Tradition).findIndex(p => p.philId === phil.philId);
+    if (idx >= 0) speakSelectedIndex = idx;
+  }
+  speakTradition = phil.tradition as Tradition;
+  if (isLockedForViewer(phil.philId)) { await showSageGate(bridge, baseUrl, phil, from); return; }
+
+  speakFrom = from;
+  speakPhilosopher = phil;
+  speakPhilId = phil.philId;
+  lastNavigationTime = Date.now();
+  speakPageIndex = 0;
+  speakIsInitialized = false;
+  lastPushedEmotion = "";
+  const { opening, emotion } = await startConversation(speakPhilId);
+  lastResponseText = opening;
+  currentPage = "speak-conversation";
+  publishState({ upsell: null });
+
+  // The summoning: page up with only the status line, the face arrives,
+  // then the opening line writes itself in.
+  const seq = ++revealSeq;
+  await renderSpeakPage(bridge, opening, false, false, /* blankBody */ true);
+  const sprite = emotionToSprite(phil.philId, emotion);
+  for (const frame of SUMMON_FRAMES) {
+    if (seq !== revealSeq || currentPage !== "speak-conversation") return;
+    await pushSpriteSingle(bridge, baseUrl, sprite, 1, "portrait", 100, 100, frame);
+    await sleep(SUMMON_STEP_MS);
+  }
+  if (seq !== revealSeq || currentPage !== "speak-conversation") return;
+  await updateEmotionSprite(bridge, baseUrl, emotion, /* force */ true);
+  await revealSpeakBody(bridge, seq);
+  log(`> Speak: ${phil.name}`, "success");
+}
+
+async function showSageGate(bridge: EvenAppBridge, baseUrl: string, phil: Philosopher, from: SpeakOrigin): Promise<void> {
+  gatePhil = phil;
+  speakFrom = from;
+  await safeRebuild(bridge, buildSageGatePage(phil), "buildSageGatePage");
+  currentPage = "sage-gate";
+  lastNavigationTime = Date.now();
+  publishState({ upsell: { kind: 'locked', philName: phil.name } });
+  try { await pushSpriteSingle(bridge, baseUrl, `${phil.philId}/${phil.philId}-teaching.png`, 1, "portrait", 100, 100); } catch { /* decoration */ }
+  log(`[SPEAK] ${phil.name} is Sage-only for this wearer — Sage page shown`);
+}
+
+function enkiPhilosopher(): Philosopher | undefined {
+  return PHILOSOPHERS.find(p => p.philId === "enki");
+}
+
+/** Write the newest page of the conversation in at reading pace: a few
+ *  words at a time on the fast textContainerUpgrade path. A tap while it
+ *  runs finishes it at once (handled in toggleMic). */
+const REVEAL_WORDS = 3;
+const REVEAL_STEP_MS = 260;
+async function revealSpeakBody(bridge: EvenAppBridge, seq: number = ++revealSeq): Promise<void> {
+  if (!speakPhilosopher) return;
+  const history = getConversationDisplay(speakPhilosopher.name);
+  const full = composeSpeakResponseContent(speakPhilosopher.name, speakTradition || "", lastResponseText, false, history, speakPageIndex, false);
+  const nl = full.indexOf("\n");
+  const head = nl >= 0 ? full.slice(0, nl) : full;
+  const body = nl >= 0 ? full.slice(nl + 1) : "";
+  // Keep the speaker label ("ENKI:") whole, reveal the words after it.
+  const label = (body.match(/^[^\s:]{1,40}:\s/) || [""])[0];
+  const words = body.slice(label.length).split(/(\s+)/);
+  revealing = true;
   try {
-    await bridge.textContainerUpgrade({ containerID: 2, containerName: "response", content: capForGlass(text) } as any);
+    for (let i = 0; i < words.length; i += REVEAL_WORDS * 2) {
+      if (seq !== revealSeq || currentPage !== "speak-conversation") return;
+      const partial = label + words.slice(0, i + REVEAL_WORDS * 2).join("");
+      await bridge.textContainerUpgrade({ containerID: 2, containerName: "response", content: `${head}\n${partial}` } as any);
+      await sleep(REVEAL_STEP_MS);
+    }
+  } finally {
+    if (seq === revealSeq) revealing = false;
+  }
+}
+
+/** Finish an in-progress reveal immediately (tap to skip). */
+async function finishReveal(bridge: EvenAppBridge): Promise<void> {
+  revealSeq++;
+  revealing = false;
+  speakIsInitialized = true;
+  await renderSpeakPage(bridge, lastResponseText, false);
+}
+
+/** A line the wearer must see — today's limit, a dead link, no
+ *  connection. Never written into the conversation history. Retryable
+ *  notices keep "Tap to speak" on top; the others stand alone. */
+async function showSpeakNotice(bridge: EvenAppBridge, text: string, retryable: boolean = true): Promise<void> {
+  const content = capForGlass(retryable ? `${speakStatusLine(false, false)}\n${text}` : text);
+  try {
+    await bridge.textContainerUpgrade({ containerID: 2, containerName: "response", content } as any);
   } catch {
     speakIsInitialized = false;
     await renderSpeakPage(bridge, text, false);
   }
 }
 
+function stopMicTimer(): void {
+  if (micTimer) { clearInterval(micTimer); micTimer = null; }
+}
+
+/** While the mic is open: show elapsed time, and send on its own at
+ *  MIC_MAX_SECONDS — a long ramble used to grow past the upload limit. */
+function startMicTimer(bridge: EvenAppBridge, baseUrl: string): void {
+  stopMicTimer();
+  micStartedAt = Date.now();
+  micTimer = setInterval(async () => {
+    if (currentPage !== "speak-conversation" || !isCurrentlyRecording()) { stopMicTimer(); return; }
+    const secs = Math.floor((Date.now() - micStartedAt) / 1000);
+    if (secs >= MIC_MAX_SECONDS) { stopMicTimer(); await toggleMic(bridge, baseUrl); return; }
+    try {
+      const history = getConversationDisplay(speakPhilosopher?.name || "");
+      const full = composeSpeakResponseContent(speakPhilosopher?.name || "", "", "", true, history, 0, false);
+      const rest = full.slice(full.indexOf("\n") + 1);
+      await bridge.textContainerUpgrade({ containerID: 2, containerName: "response", content: capForGlass(`${speakStatusLine(true, false, secs)}\n${rest}`) } as any);
+    } catch { /* the timer is decoration */ }
+  }, 1000);
+}
+
 async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   if (!speakPhilosopher) return;
 
-  // Gate BEFORE recording: a seeker talking to anyone but Enki would only
-  // be refused by the server after we'd spent a transcription on it.
+  // A tap while the words are still arriving means "I've read enough":
+  // finish the page, don't open the mic.
+  if (revealing && !isCurrentlyRecording()) { await finishReveal(bridge); return; }
+  revealSeq++;
+
+  // Safety net: openConversation shows the Sage page before this point.
   if (!isCurrentlyRecording() && isLockedForViewer(speakPhilosopher.philId)) {
-    log(`[SPEAK] ${speakPhilosopher.philId} is Sage-only for this viewer — gate shown, mic not opened`);
-    await showSpeakNotice(bridge, tGlass('g.sageGate', { name: speakPhilosopher.name }));
-    await updateEmotionSprite(bridge, baseUrl, "teaching");
+    await showSageGate(bridge, baseUrl, speakPhilosopher, speakFrom);
     return;
   }
 
   if (!isCurrentlyRecording()) {
     // Phase 1: LISTENING — context-aware from prior-turn mood
-    // Any pending empathy→response transition is cancelled because the
-    // listening sprite is about to take over anyway.
     cancelPendingResponseSprite();
     const ok = await startRecording();
-    if (ok) {
-      log("[SPEAK] Recording...", "success");
-      speakPageIndex = 0; // snap back to newest while speaking
-      await renderSpeakPage(bridge, "", true);
-      const priorMood = getLastUserMood();
-      const listenSprite = priorMood
-        ? userMoodToEmpathySprite(priorMood)
-        : "contemplation";
-      await updateEmotionSprite(bridge, baseUrl, listenSprite);
+    if (!ok) {
+      await showSpeakNotice(bridge, tGlass('g.noticeMic'));
+      return;
     }
+    log("[SPEAK] Recording...", "success");
+    speakPageIndex = 0; // snap back to newest while speaking
+    await renderSpeakPage(bridge, "", true);
+    startMicTimer(bridge, baseUrl);
+    const priorMood = getLastUserMood();
+    const listenSprite = priorMood ? userMoodToEmpathySprite(priorMood) : "contemplation";
+    await updateEmotionSprite(bridge, baseUrl, listenSprite);
     return;
   }
 
-  // Phase 2: THINKING — hold the empathic frame (don't snap to wonder,
-  // that reads as "confused / surprised" during heavy moments)
+  // Phase 2: THINKING — hold the empathic frame, and once the words are
+  // transcribed, show them: "you were heard" before the answer arrives.
+  stopMicTimer();
   cancelPendingResponseSprite();
   log("[SPEAK] Processing...");
   speakPageIndex = 0;
-  await renderSpeakPage(bridge, "Thinking...", false, true);
+  await renderSpeakPage(bridge, "", false, true);
   const priorMood = getLastUserMood();
-  const thinkSprite = priorMood
-    ? userMoodToEmpathySprite(priorMood)
-    : "contemplation";
+  const thinkSprite = priorMood ? userMoodToEmpathySprite(priorMood) : "contemplation";
   await updateEmotionSprite(bridge, baseUrl, thinkSprite);
 
-  const result = await stopRecordingAndSend();
+  const result: SpeakResult | null = await stopRecordingAndSend((heard) => {
+    bridge.textContainerUpgrade({
+      containerID: 2, containerName: "response",
+      content: capForGlass(`${speakStatusLine(false, true)}\n${tGlass('g.youSaid', { text: heard })}`),
+    } as any).catch(() => {});
+  });
 
-  if (!result) {
-    lastResponseText = "I didn't catch that. Tap again.";
-    // renderSpeakPage shows history, not this text, once a conversation
-    // exists — so this line never appeared. Show it directly.
-    await showSpeakNotice(bridge, `□ Tap to speak\n${lastResponseText}`);
-    await updateEmotionSprite(bridge, baseUrl, "doubt", true);
+  if (!result || result.notice) {
+    const text = result?.text || tGlass('g.noticeUnheard');
+    const kind = result?.notice || 'unheard';
+    const retryable = kind === 'unheard' || kind === 'offline' || kind === 'error' || kind === 'too_long';
+    await showSpeakNotice(bridge, text, retryable);
+    if (kind === 'limit_free' || kind === 'locked') publishState({ upsell: { kind, philName: speakPhilosopher.name } });
+    await updateEmotionSprite(bridge, baseUrl, result?.emotion || "doubt", true);
     return;
   }
 
   lastResponseText = result.text;
   if (result.userMood) log(`[MOOD] user: ${result.userMood}`);
-  await renderSpeakPage(bridge, lastResponseText, false);
+  const seq = ++revealSeq;
+  revealSpeakBody(bridge, seq).catch(() => {});
 
   // Phase 3: EMPATHY HOLD — the face tethers to what YOU just said and
-  // is held for ~7 s so you have time to read the philosopher's reply
-  // while seeing them acknowledge the weight of your words. The
-  // transition to the philosopher's OWN response emotion fires later
-  // via a cancellable timer — if you tap mic again before the 7s are
-  // up, the timer is cancelled and listening takes over cleanly.
+  // is held for ~7 s while the answer arrives, then turns to the
+  // philosopher's own response emotion (cancellable by the next tap).
   const empathy = (result.userMood && result.userMood !== "neutral")
     ? userMoodToEmpathySprite(result.userMood)
     : null;
@@ -1212,20 +1415,15 @@ async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> 
     await updateEmotionSprite(bridge, baseUrl, empathy, /* force */ true);
     log(`[SPRITE] empathy → ${empathy} (user: ${result.userMood}) · holding ${EMPATHY_HOLD_MS/1000}s`);
   } else {
-    // No user mood detected (or neutral) — go straight to response emotion
     await updateEmotionSprite(bridge, baseUrl, result.emotion, /* force */ true);
     return;
   }
 
-  // Phase 4: RESPONSE EMOTION (deferred). Scheduled, not awaited —
-  // the sprite stays held until the timer fires, and is cancellable
-  // by the next mic tap or by leaving the conversation.
+  // Phase 4: RESPONSE EMOTION (deferred, cancellable).
   const philId = speakPhilId;
   const respEmotion = result.emotion;
   pendingResponseSpriteTimer = setTimeout(async () => {
     pendingResponseSpriteTimer = null;
-    // Sanity: only push if we're still on speak-conversation with the
-    // same philosopher (user may have back'd out in those 7 seconds).
     if (currentPage !== "speak-conversation") return;
     if (speakPhilId !== philId) return;
     try {
@@ -1235,6 +1433,109 @@ async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> 
       console.warn("[SPRITE] deferred response-emotion push failed:", e);
     }
   }, EMPATHY_HOLD_MS);
+}
+
+// ═══ TODAY'S CARD ═══════════════════════════════════════════════════
+// One quote a day, the same all day, drawn like a card: the rarity shows
+// first, then the face arrives and the words write themselves in. Only
+// the first visit of the day animates.
+const CARD_SEEN_KEY = "enki_card_seen";
+let cardFull: { quote: string; info: string } | null = null;
+
+function todayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function pickDailyCard(): { phil: Philosopher; quote: Quote } | null {
+  const pool: { phil: Philosopher; quote: Quote }[] = [];
+  const seen = new Set<string>();
+  for (const phil of PHILOSOPHERS) {
+    for (const quote of phil.quotes) {
+      if (quote.rating < 8 || quote.text.length > 170 || seen.has(quote.text)) continue;
+      seen.add(quote.text);
+      pool.push({ phil, quote });
+    }
+  }
+  if (pool.length === 0) return null;
+  let h = 2166136261;
+  for (const ch of todayKey()) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return pool[(h >>> 0) % pool.length];
+}
+
+async function openDailyCard(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  const pick = pickDailyCard();
+  if (!pick) return;
+  const { phil, quote } = pick;
+  // Same browse state the quote page uses, so Save to favorites and
+  // Speak with this philosopher work from the card's menu.
+  currentPhilosopher = phil; currentTradition = phil.tradition as Tradition;
+  currentQuotes = [quote]; currentQuoteIndex = 0;
+  const quoteText = `"${tQuote(quote.text, true)}"`;
+  const title = `${tGlass('g.cardTitle')} · ${rarityLine(quote)}${isFavorite(quote) ? " ♥" : ""}`;
+  const info = `${title}\n${tMeta(phil.name, true)}, ${tMeta(quote.source, true)}\n\n${tGlass('g.cardHint')}`;
+  cardFull = { quote: quoteText, info };
+
+  let seenToday = false;
+  try { seenToday = (await bridge.getLocalStorage(CARD_SEEN_KEY)) === todayKey(); } catch { /* animate */ }
+
+  if (seenToday) {
+    await safeRebuild(bridge, buildDailyCardPage(quoteText, info), "buildDailyCardPage");
+    currentPage = "card";
+    lastNavigationTime = Date.now();
+    if (quote.sprite) await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 100, 100);
+    publishState({ spritePath: quote.sprite });
+    return;
+  }
+
+  const seq = ++revealSeq;
+  revealing = true;
+  try {
+    await safeRebuild(bridge, buildDailyCardPage("", `${tGlass('g.cardTitle')}\n${tGlass('g.cardDrawing')}`), "buildDailyCardPage");
+    currentPage = "card";
+    lastNavigationTime = Date.now();
+    await sleep(700);
+    if (seq !== revealSeq || currentPage !== "card") return;
+    await bridge.textContainerUpgrade({ containerID: 13, containerName: "card-info", content: title } as any);
+    await sleep(500);
+    for (const frame of SUMMON_FRAMES) {
+      if (seq !== revealSeq || currentPage !== "card") return;
+      if (quote.sprite) await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 100, 100, frame);
+      await sleep(SUMMON_STEP_MS);
+    }
+    if (quote.sprite) await pushSpriteSingle(bridge, baseUrl, quote.sprite, 3, "sprite", 100, 100);
+    const words = quoteText.split(/(\s+)/);
+    for (let i = 0; i < words.length; i += REVEAL_WORDS * 2) {
+      if (seq !== revealSeq || currentPage !== "card") return;
+      await bridge.textContainerUpgrade({ containerID: 2, containerName: "card-quote", content: words.slice(0, i + REVEAL_WORDS * 2).join("") } as any);
+      await sleep(REVEAL_STEP_MS);
+    }
+    await bridge.textContainerUpgrade({ containerID: 13, containerName: "card-info", content: info } as any);
+    try { await bridge.setLocalStorage(CARD_SEEN_KEY, todayKey()); } catch { /* animate again next time */ }
+    publishState({ spritePath: quote.sprite });
+  } finally {
+    if (seq === revealSeq) revealing = false;
+  }
+}
+
+/** Tap during the draw: show the finished card at once. */
+async function finishCard(bridge: EvenAppBridge): Promise<void> {
+  revealSeq++;
+  revealing = false;
+  if (!cardFull) return;
+  await bridge.textContainerUpgrade({ containerID: 2, containerName: "card-quote", content: cardFull.quote } as any);
+  await bridge.textContainerUpgrade({ containerID: 13, containerName: "card-info", content: cardFull.info } as any);
+  try { await bridge.setLocalStorage(CARD_SEEN_KEY, todayKey()); } catch { /* noop */ }
+}
+
+/** Home, from anywhere — the one rebuild every back-to-home path does. */
+async function goHome(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
+  try { await loadGlanceLine(bridge); } catch { /* render without glance */ }
+  await safeRebuild(bridge, rebuildHomePage(), "rebuildHomePage");
+  currentPage = "home"; lastHoveredPhilIndex = -1;
+  lastNavigationTime = Date.now();
+  await pushLogoToGlasses(bridge, baseUrl);
+  log("< Back to Home", "success");
 }
 
 // ═══ SUPPORT ═══
@@ -1295,6 +1596,11 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
 
     // ── HOME ──
     if (currentPage === "home") {
+      if (idx === TALK_ENKI_INDEX) {
+        const enki = enkiPhilosopher();
+        if (enki) { navigating = false; await openConversation(bridge, baseUrl, enki, "home"); }
+        return;
+      }
       if (idx === SPEAK_INDEX) {
         await safeRebuild(bridge, buildSpeakTraditionPage(), "buildSpeakTraditionPage");
         currentPage = "speak-traditions";
@@ -1306,11 +1612,10 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         lastNavigationTime = Date.now();
         log("> Public Aphorica", "success");
       } else if (idx === PHILOSOPHIES_INDEX) {
-        await safeRebuild(bridge, buildTraditionsPage(), "buildTraditionsPage");
-        currentPage = "traditions";
-        lastNavigationTime = Date.now();
-        await pushLogoToGlasses(bridge, baseUrl);
-        log("> Philosophies", "success");
+        // Quotes opens on today's card; a click from there browses all.
+        navigating = false;
+        await openDailyCard(bridge, baseUrl);
+        log("> Today's card", "success");
       } else if (idx === SUPPORT_INDEX) {
         await openSupport(bridge);
         lastNavigationTime = Date.now();
@@ -1384,9 +1689,9 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
 
     // ── SPEAK: TRADITION SELECT ──
     if (currentPage === "speak-traditions") {
-      if (idx === TRADITIONS.length) { navigating = false; await goBack(bridge, baseUrl); return; }
-      if (idx >= 0 && idx < TRADITIONS.length) {
-        speakTradition = TRADITIONS[idx];
+      if (idx === SPEAK_TRADITIONS.length) { navigating = false; await goBack(bridge, baseUrl); return; }
+      if (idx >= 0 && idx < SPEAK_TRADITIONS.length) {
+        speakTradition = SPEAK_TRADITIONS[idx];
         speakSelectedIndex = 0;
         await safeRebuild(bridge, buildSpeakPhilosopherPage(speakTradition, 0), "buildSpeakPhilosopherPage");
         currentPage = "speak-philosophers"; lastHoveredPhilIndex = 0; lastNavigationTime = Date.now();
@@ -1409,21 +1714,8 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
       const phils = getPhilosophersByTradition(speakTradition);
       if (idx === phils.length) { navigating = false; await goBack(bridge, baseUrl); return; }
       if (idx >= 0 && idx < phils.length) {
-        speakPhilosopher = phils[idx];
-        speakPhilId = speakPhilosopher.philId;
-        lastNavigationTime = Date.now();
-        speakPageIndex = 0;
-        // Reset init flag so next renderSpeakPage does a full rebuild
-        // (creates the portrait container before we push the sprite)
-        speakIsInitialized = false;
-        lastPushedEmotion = "";
-        // Load prior history + fresh opening (await: persistence restore)
-        const { opening, emotion } = await startConversation(speakPhilId);
-        lastResponseText = opening;
-        currentPage = "speak-conversation";
-        await renderSpeakPage(bridge, opening, false);
-        await updateEmotionSprite(bridge, baseUrl, emotion);
-        log(`> Speak: ${speakPhilosopher.name}`, "success");
+        navigating = false;
+        await openConversation(bridge, baseUrl, phils[idx], "list");
       }
       return;
     }
@@ -1716,13 +2008,14 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
           log(`[MENU] mindful ${added ? "♥ saved" : "♥ removed"}`, "success");
           return;
         }
-        if (currentPage !== "quote" || currentQuotes.length === 0) return;
+        if ((currentPage !== "quote" && currentPage !== "card") || currentQuotes.length === 0) return;
         const q = currentQuotes[currentQuoteIndex];
         const added = await toggleFavorite(q);
         if (added && currentPhilosopher) await addWisdomEntry("fav", q.text, currentPhilosopher.name, currentTradition || undefined);
-        // The menu shows nothing — repaint the info strip so the ♥
-        // appears/disappears where the wearer is already looking.
-        await showCurrentQuote(bridge, baseUrl);
+        // The menu shows nothing — repaint so the ♥ appears/disappears
+        // where the wearer is already looking.
+        if (currentPage === "card") { navigating = false; await openDailyCard(bridge, baseUrl); }
+        else await showCurrentQuote(bridge, baseUrl);
         log(`[MENU] ${added ? "♥ saved" : "♥ removed"}`, "success");
         return;
       }
@@ -1732,21 +2025,21 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
         // Works from the quote page (browse state) AND the favorites
         // page (favView state) — same command, same meaning.
         let jumpPhil: Philosopher | null = null;
-        if (currentPage === "quote" && currentPhilosopher) {
+        const origin: SpeakOrigin = currentPage === "card" ? "card" : currentPage === "favorites" ? "favorites" : "quote";
+        if ((currentPage === "quote" || currentPage === "card") && currentPhilosopher) {
           stopAutoRotate(); shuffleMode = false; surpriseMode = false;
           jumpPhil = currentPhilosopher;
         } else if (currentPage === "favorites" && favView.length > 0) {
           jumpPhil = favView[favIndex]?.phil ?? null;
         }
         if (!jumpPhil) return;
+        // Quotes carry the corpus philosopher; talk with the persona of
+        // the same id (speak list entries).
         const trad = jumpPhil.tradition as Tradition;
-        const phils = getPhilosophersByTradition(trad);
-        const jumpId = jumpPhil.philId;
-        const idx = phils.findIndex(ph => ph.philId === jumpId);
-        if (idx < 0) return;   // not speakable (should not happen)
-        speakTradition = trad;
-        speakSelectedIndex = idx;
-        await commitSpeakSelection(bridge, baseUrl);
+        const speakable = getPhilosophersByTradition(trad).find(ph => ph.philId === jumpPhil!.philId);
+        if (!speakable) return;   // not speakable (should not happen)
+        navigating = false;
+        await openConversation(bridge, baseUrl, speakable, origin);
         return;
       }
 
@@ -2134,6 +2427,26 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       }
       if (currentPage === "quote")              { await handleClick(bridge, 0, baseUrl); return; }
       if (currentPage === "speak-conversation") { await toggleMic(bridge, baseUrl); return; }
+      // Sage page: the way out that always works — talk to Enki, free.
+      if (currentPage === "sage-gate") {
+        if (navigating) return;
+        const enki = enkiPhilosopher();
+        if (enki) await openConversation(bridge, baseUrl, enki, speakFrom === "list" ? "list" : "home");
+        return;
+      }
+      // Today's card: a tap mid-draw finishes it; after that, browse all.
+      if (currentPage === "card") {
+        if (navigating) return;
+        if (revealing) { await finishCard(bridge); return; }
+        navigating = true;
+        try {
+          await safeRebuild(bridge, buildTraditionsPage(), "buildTraditionsPage");
+          currentPage = "traditions";
+          lastNavigationTime = Date.now();
+          await pushLogoToGlasses(bridge, baseUrl);
+        } finally { navigating = false; publishState(); }
+        return;
+      }
       // Public Aphorica member list: click opens that member's thoughts.
       if (currentPage === "aphorica")           { await openAphoricaAuthor(bridge, aphGlassIdx); return; }
       // Reading a member: click reshuffles to another of their thoughts.

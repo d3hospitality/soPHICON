@@ -27,7 +27,7 @@ test('seeker vs sage', () => {
   assert.equal(evaluate('speak', { tier: 'seeker', isAnon: false, persona: 'marcus_aurelius' }).error, 'sage_required');
   assert.equal(evaluate('symposium', { tier: 'seeker', isAnon: false }).error, 'sage_required');
   assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'marcus_aurelius' }).allow, true);
-  assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'enki' }).rule.perDay, 40);
+  assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'enki' }).rule.perDay, 20);
 });
 
 test('forged tier strings do not grant sage', () => {

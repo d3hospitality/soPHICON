@@ -35,7 +35,7 @@ export const EN = {
   'tab.journal': 'Journal',
   'tab.aphorica': 'Aphorica',
   'tab.debug': 'Debug',
-  'tab.about': 'About',
+  'tab.about': 'Account',
 
   // ─── Home ─────────────────────────────────────────────────────────
   'home.todayQuote': "Today's Quote",
@@ -105,12 +105,12 @@ export const EN = {
   'story.s1.p05': "This is not therapy, and I am not a therapist. It is built for the person with five quiet minutes: before work, after an argument, before a decision they will live with for years. Sometimes five honest minutes change the direction of a day. That is the whole bet.",
 
   'story.s2.t': "Before you support anything",
-  'story.s2.p01': "This page is not the Sage membership. Sage is $8 per month and it is the straightforward way enkiRIDION supports itself. Honestly, I would rather you spend your money there than here.",
+  'story.s2.p01': "This page is not the Sage membership. Sage is $5.99 a month and it is the straightforward way enkiRIDION supports itself. Honestly, I would rather you spend your money there than here.",
   'story.s2.p02': "This page is optional and it buys you nothing. No badge, no unlock, no secret philosopher, no priority, no influence over what I build. If you are already a Sage member, contributing here gets you nothing extra. Saying all of this immediately before a support button is probably not advanced sales strategy. That is fine. I wanted the truth on the record first.",
 
   'story.s3.t': "What remains free",
   'story.s3.p01': "The free version is not a trap or a disguised trial. All 2,801 quotes are browsable without paying and they do not expire. I am not going to wait until you build a habit around them and then move them behind a paywall.",
-  'story.s3.p02': "You also get one conversation a day with Enki. If that is all you ever use, that is a completely valid way to use this. The point is to help you reflect, not to irritate you until paying is the easiest way to make the irritation stop.",
+  'story.s3.p02': "You also get one reply a day from Enki. If that is all you ever use, that is a completely valid way to use this. The point is to help you reflect, not to irritate you until paying is the easiest way to make the irritation stop.",
 
   'story.s4.t': "Why it is called enkiRIDION",
   'story.s4.p01': "Epictetus never wrote a book. He taught, and his student Arrian wrote down what he heard. That became the *Enchiridion*, usually translated \"handbook,\" though it means something closer to *held in the hand*. Enki was the Sumerian god of wisdom, water, and craft. Put them together and you get enkiRIDION: a handbook that talks back.",
@@ -150,18 +150,39 @@ export const EN = {
   'about.appLog': 'App log',
 
   // ─── Glass (length-critical) ──────────────────────────────────────
-  'g.speak': 'enkiSPEAKS',
-  'g.sageGate': '{name} speaks with Sage members. Enki is here for you today. Sage: enkiridion.com',
-  'g.aphorica': 'Public Aphorica',
+  'g.talkEnki': 'Talk to Enki',
+  'g.speak': 'Philosophers',
+  'g.sageGate': '{name} talks with Sage members.',
+  'g.sageGateBody': 'Every philosopher, 20 replies a day.\n7 days free, then $5.99 a month.\nStart on your phone: enkiridion.com',
+  'g.sageGateHint': 'Click: talk to Enki instead  ·  Double-tap: back',
+  'g.lockedRow': 'Sage · 7 days free',
+  'g.freeRow': 'Free every day',
+  'g.youSaid': 'You: {text}',
+  'g.listeningFor': 'Listening {t} · tap to send',
+  'g.noticeLocked': '{name} talks with Sage members. Try 7 days free at enkiridion.com. Double-tap to go back.',
+  'g.noticeLimitFree': 'That was today’s free reply. Enki will be here tomorrow. For every philosopher and 20 replies a day, start 7 days free at enkiridion.com.',
+  'g.noticeLimitSage': 'That’s today’s {n} replies. They come back tomorrow.',
+  'g.noticeBusy': 'Enki is with many travellers right now. Link your glasses on your phone to keep talking.',
+  'g.noticeExpired': 'Your glasses link expired. Link them again on your phone.',
+  'g.noticeOffline': 'No connection, so nothing was sent. Tap to try again.',
+  'g.noticeError': '{name} didn’t answer. Tap to try again.',
+  'g.noticeUnheard': 'I didn’t catch that. Tap and speak again.',
+  'g.noticeTooLong': 'That was too long to send. Tap and ask something shorter.',
+  'g.noticeMic': 'The microphone didn’t open. Tap to try again.',
+  'g.cardTitle': 'Today’s card',
+  'g.cardDrawing': 'Drawing today’s card…',
+  'g.cardHint': 'Click: browse all quotes  ·  Double-tap: home',
+  'g.homeHint': 'Tap, then hold, for more',
+  'g.aphorica': 'Aphorica',
   'g.shuffleAll': 'Shuffle All',
-  'g.philosophies': 'Philosophies',
+  'g.philosophies': 'Quotes',
   'g.support': 'Support the dev',
   'g.supportHeader': 'enkiRIDION · SUPPORT THE DEV',
   'g.back': '‹ Back',
   'g.noPhilosophers': '(no philosophers)',
   'g.noMembers': '(no members yet)',
   'g.thinking': 'Thinking…',
-  'g.listening': 'Listening…',
+  'g.listening': 'Listening · tap to send',
   'g.tapToSpeak': 'Tap to speak',
   'g.finishOnWeb': 'Finish on enkiridion.com →',
 
@@ -185,7 +206,7 @@ export const EN = {
   'g.story5': "Philosophy is usually handed to you after the battle, as a shelf of difficult books and a list of dead names. I wanted it beside you while the problem was still happening, before fear, anger, or doubt made the decision for you.",
   'g.story6': "So I built a system around 2,801 quotes and created 391 portraits of 17 philosophers across 23 emotional states, so the face speaking to you changes when the conversation does.",
   'g.story7': "I wanted reflection to live somewhere other than another glowing rectangle asking for more of your attention. Not a feed. Not a notification. Just a thought arriving while you might still be able to do something with it.",
-  'g.story8': "If one quote reached you before you gave up, that was already enough. I am still building because my war is not over. The rest of the story, and the tip jar, are on your phone.",
+  'g.story8': "If one quote reached you before you gave up, that was already enough. I am still building because my war is not over. Thank you for reading.",
 
   // ─── Contextual menu labels (SDK 0.0.14) ─────────────────────────
   // VERBS ONLY — an action item gives no state feedback, so every label
@@ -239,7 +260,7 @@ export const EN = {
 
   'g.pagePrev': 'swipe up',
   'g.pageNext': 'click for more',
-  'g.pageEnd': 'end. Full story + tip jar on your phone.',
+  'g.pageEnd': 'the end',
 
 } as const;
 

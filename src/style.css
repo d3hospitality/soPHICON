@@ -1702,3 +1702,44 @@ button.trialpill {
 button.trialpill[hidden] { display: none; }
 .trialpill .tp1 { font-size: 10.5px; letter-spacing: .13em; opacity: .75; }
 .trialpill .tp2 { font-size: 14px; font-weight: 800; letter-spacing: .06em; }
+
+/* ═══ 2026-10 · account flow ═══════════════════════════════════════
+   [hidden] must win: several components set display:flex/grid, which
+   overrode the attribute — the trial CTA showed to Sage members and the
+   checklist add-forms could never close. */
+[hidden] { display: none !important; }
+
+:root { --dimmer: #7c7c88; }   /* ≥4.5:1 on --surface (was #565664) */
+
+.account-card { border-color: rgba(212,175,55,0.35); }
+.account-card.glow { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(212,175,55,0.35), 0 8px 28px -12px rgba(212,175,55,0.45); }
+.account-card .badge.sage { color: var(--gold); border-color: rgba(212,175,55,0.5); }
+.account-lede { font-size: 14px; line-height: 1.55; color: var(--ink); margin-bottom: 12px; }
+.account-step { font-size: 12.5px; margin-top: 10px; }
+.howto-url { font-family: var(--mono); font-size: 12.5px; color: var(--gold); word-break: break-all; }
+.btn-block { width: 100%; justify-content: center; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--gold); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+.link-msg { font-size: 13px; line-height: 1.45; margin-top: 10px; color: var(--dim); }
+.link-msg.ok { color: var(--ok); }
+.link-msg.err { color: var(--err); }
+.link-msg.busy { color: var(--gold); }
+
+.onboard-link-row { display: flex; gap: 8px; margin-top: 8px; }
+.onboard-link-row input {
+  flex: 1; min-width: 0; background: var(--surface-2); border: 1px solid var(--border-hi); border-radius: 10px;
+  color: var(--ink); font-family: var(--mono); font-size: 18px; letter-spacing: 0.3em; text-transform: uppercase;
+  padding: 10px 12px;
+}
+.onboard-link-row input:focus { outline: none; border-color: var(--gold); }
+.onboard-link-row .onboard-primary { width: auto; margin: 0; padding: 0 20px; }
+.onboard-logo { display: block; margin: 0 auto; border-radius: 12px; }
+.onboard-url-inline { font-family: var(--mono); color: var(--gold); }
+.copy-btn.copy-inline { padding: 2px 8px; font-size: 11px; vertical-align: middle; }
+
+.speak-notice {
+  margin: 8px 0 4px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5;
+  background: rgba(212,175,55,0.08); border: 1px solid rgba(212,175,55,0.3); color: var(--ink);
+}
+.speak-notice .link-btn { margin-left: 4px; }
+.onboard-link-row input::placeholder { letter-spacing: normal; text-transform: none; font-size: 14px; }

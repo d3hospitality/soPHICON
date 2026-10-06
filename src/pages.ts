@@ -59,10 +59,15 @@ export const BROWSABLE_TRADITIONS = TRADITIONS.filter(t =>
 );
 // On-glass home list — FOUR destinations, nothing else:
 //
-//   enkiSPEAKS       voice conversations
-//   Public Aphorica  the community feed, a living "school of thought"
-//   Philosophies     the quote-browse entry → tradition list
-//   Support the dev  the tip jar (hidden when there's nowhere to send)
+//   Talk to Enki     straight into a conversation (free, one tap)
+//   Philosophers     everyone else: tradition → philosopher → talk
+//   Quotes           today's card, then the quote-browse traditions
+//   Aphorica         the community feed, a living "school of thought"
+//   (Support the dev — the tip jar, only when there's somewhere to send)
+//
+// Enki used to hide behind enkiSPEAKS → "Primordial" — three taps, under
+// a word nobody would guess, for the one philosopher every wearer can
+// talk to free. He is the front door now.
 //
 // The eight quote traditions used to sit inline here, which made home a
 // scrolling menu you had to walk past to reach anything below it —
@@ -75,18 +80,24 @@ export const BROWSABLE_TRADITIONS = TRADITIONS.filter(t =>
 // English and never repaint when the user switches language.
 export function homeListItems(): string[] {
   return [
+    tGlass('g.talkEnki'),
     tGlass('g.speak'),
-    tGlass('g.aphorica'),
     tGlass('g.philosophies'),
+    tGlass('g.aphorica'),
     ...(supportEnabled() ? [`● ${tGlass('g.support')}`] : []),
   ];
 }
-export const SPEAK_INDEX = 0;
-export const APHORICA_INDEX = 1;
+export const TALK_ENKI_INDEX = 0;
+export const SPEAK_INDEX = 1;
 export const PHILOSOPHIES_INDEX = 2;
+export const APHORICA_INDEX = 3;
 /** Home index of the Support row, or -1 when the surface is gated off —
  *  -1 never matches a real click index, so callers need no extra guard. */
-export const SUPPORT_INDEX = supportEnabled() ? 3 : -1;
+export const SUPPORT_INDEX = supportEnabled() ? 4 : -1;
+
+/** Traditions on the Philosophers (talk) list. Primordial is Enki alone,
+ *  and Enki has his own row on home, so it is not a list entry here. */
+export const SPEAK_TRADITIONS = TRADITIONS.filter(t => t !== 'Primordial');
 
 /** Language rows: native names, current marked.
  *
@@ -220,9 +231,11 @@ export function buildReplyPages(history: string[]): string[] {
   const replies = history.filter(line => !line.startsWith("YOU:"));
   if (replies.length === 0) return [""];
 
-  // Budget per chunk: leave ~90 chars for the status prefix + page marker
-  // ("Listening... (tap to send)  [2/5]\n") + a small safety cushion.
-  const CHUNK_CHARS = 780;
+  // Budget per chunk: the response box shows ~10 lines of ~46 chars and
+  // the status line takes one. 780 (the old budget) overflowed the box,
+  // so replies were cut off or scrolled inside the firmware instead of
+  // paging. ~400 leaves room for the status line and wrapping slack.
+  const CHUNK_CHARS = 400;
   const pages: string[] = [];
   // Walk newest (end of array) → oldest so pageIndex 0 = newest reply's chunk 1.
   for (let i = replies.length - 1; i >= 0; i--) {
@@ -365,7 +378,7 @@ function aphoricaMenu()  { return menu([[tGlass('g.menuRefresh'), MENU_REFRESH],
 function aphoricaReadMenu() { return menu([[tGlass('g.menuLikePost'), MENU_LIKE_POST], [tGlass('g.menuRefresh'), MENU_REFRESH], [tGlass('g.menuHome'), MENU_HOME]]); }
 export function favMenu()   { return menu([[tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuUnfavorite'), MENU_UNFAVORITE], [tGlass('g.menuHome'), MENU_HOME]]); }
 function calMenu()          { return menu([[tGlass('g.menuPrevMonth'), MENU_CAL_PREV], [tGlass('g.menuNextMonth'), MENU_CAL_NEXT], [tGlass('g.menuCalToday'), MENU_CAL_TODAY], [tGlass('g.menuHome'), MENU_HOME]]); }
-function supportMenu()   { return menu([[tGlass('g.menuTipJar'), MENU_TIP_JAR], [tGlass('g.menuRestartStory'), MENU_RESTART_STORY], [tGlass('g.menuHome'), MENU_HOME]]); }
+function supportMenu()   { return menu([...(supportEnabled() ? [[tGlass('g.menuTipJar'), MENU_TIP_JAR] as [string, number]] : []), [tGlass('g.menuRestartStory'), MENU_RESTART_STORY], [tGlass('g.menuHome'), MENU_HOME]]); }
 
 // ═══ Glass chrome ═══
 // NO BORDER BOXES. Earlier versions drew empty bordered text containers
@@ -474,7 +487,9 @@ function homeContainers() {
     xPosition: 24, yPosition: 246, width: 310, height: 34,
     containerID: 14, containerName: "glance",
     ...(hostSupports214 ? { textColor: 3 } : {}),
-    content: glanceLine,
+    // Empty glance → the one hint that the tap-and-hold menu exists
+    // (favorites, calendar, language were otherwise undiscoverable).
+    content: glanceLine || (hostSupports214 ? tGlass('g.homeHint') : ''),
     isEventCapture: 0,
     zOrderIndex: 6,
   });
@@ -907,8 +922,8 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
     ...geo(layout, "traditions"),
     containerID: 2, containerName: "traditions",
     itemContainer: new ListItemContainerProperty({
-      itemCount: TRADITIONS.length + 1, itemWidth: 0, isItemSelectBorderEn: 1,
-      itemName: [...TRADITIONS, "Back"],
+      itemCount: SPEAK_TRADITIONS.length + 1, itemWidth: 0, isItemSelectBorderEn: 1,
+      itemName: [...SPEAK_TRADITIONS.map(t => tMeta(t, true)), tGlass('g.back')],
     }),
     isEventCapture: 1,
     zOrderIndex: 6,
@@ -975,12 +990,18 @@ export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 
     ? tGlass('g.noPhilosophers')
     : renderNavpad(philosophers.map(p => tMeta(p.name, true)), idx, 7);
 
+  // Under the portrait: the school, then what picking this one means for
+  // THIS wearer — free, or Sage with the trial. Before, a free wearer
+  // only found out after the greeting, when every tap was refused.
+  const selected = philosophers[idx];
+  const status = !selected ? ''
+    : isLockedForViewer(selected.philId) ? tGlass('g.lockedRow')
+    : selected.philId === 'enki' && !viewerSage ? tGlass('g.freeRow')
+    : '';
   const header = new TextContainerProperty({
     ...geo(layout, "header"),
     containerID: 1, containerName: "header",
-    content: viewerSage || philosophers.every(p => p.philId === 'enki')
-      ? `Speak: ${tradition}`
-      : `Speak: ${tradition} · Sage`,
+    content: status,                       // y=220, under the school
     isEventCapture: 0,
     zOrderIndex: 4,
   });
@@ -1000,7 +1021,7 @@ export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 
   const branding = new TextContainerProperty({
     ...geo(layout, "branding"),
     containerID: 4, containerName: "branding",
-    content: "enkiRIDION",
+    content: tMeta(tradition, true),       // y=190, right under the portrait
     isEventCapture: 0,
     zOrderIndex: 5,
   });
@@ -1040,6 +1061,8 @@ export function buildSpeakConversationPage(
   history: string[] = [],
   pageIndex: number = 0,
   isThinking: boolean = false,
+  /** Status line only — the words are written in afterwards (reveal). */
+  blankBody: boolean = false,
 ): RebuildPageContainer {
   const layout = speakConversationLayout();
 
@@ -1091,18 +1114,11 @@ export function buildSpeakConversationPage(
   const clampedIdx = Math.max(0, Math.min(pageIndex, pages.length - 1));
   const shownChunk = pages.length > 0 ? pages[clampedIdx] : `${philosopherName}: ${responseText}`;
 
-  // Status prefix — visual mic states (LVGL font does render these
-  // geometric glyphs; our earlier ASCII-only theory was wrong).
-  //   ● Listening   — mic open, capturing
-  //   ■ Thinking    — request in flight to /api/speak
-  //   □ Tap to speak — idle, mic closed, waiting for user
-  const status = isThinking
-    ? "■ Thinking"
-    : (isListening ? "● Listening (tap to send)" : "□ Tap to speak");
+  const status = speakStatusLine(isListening, isThinking);
   const pageMarker = pages.length > 1
     ? `  [${clampedIdx + 1}/${pages.length}] ${progressBar(clampedIdx + 1, pages.length, 4)}`
     : "";
-  const visibleContent = capForGlass(`${status}${pageMarker}\n${shownChunk}`);
+  const visibleContent = capForGlass(blankBody ? `${status}${pageMarker}\n` : `${status}${pageMarker}\n${shownChunk}`);
 
   // Reply text (z5) renders ABOVE the ghost halves (z1–2) — no bounding
   // box on this page (design decision 2026-07-14): the words float
@@ -1372,6 +1388,22 @@ export function buildSupportPage(pageIndex: number = 0): RebuildPageContainer {
  * PageIndex 0 = first chunk of the newest reply (what you see right
  * after "Thinking..." resolves). Swipe down keeps reading.
  */
+/** Status prefix — visual mic states (LVGL font renders these glyphs).
+ *   ● Listening   — mic open, capturing (with elapsed time when known)
+ *   ■ Thinking    — request in flight
+ *   □ Tap to speak — idle, mic closed
+ *  ONE function so the rebuild path and the textContainerUpgrade fast
+ *  path can never render different first lines. */
+export function speakStatusLine(isListening: boolean, isThinking: boolean, listenSeconds?: number): string {
+  if (isThinking) return `■ ${tGlass('g.thinking')}`;
+  if (isListening) {
+    if (listenSeconds == null) return `● ${tGlass('g.listening')}`;
+    const t = `${Math.floor(listenSeconds / 60)}:${String(listenSeconds % 60).padStart(2, '0')}`;
+    return `● ${tGlass('g.listeningFor', { t })}`;
+  }
+  return `□ ${tGlass('g.tapToSpeak')}`;
+}
+
 export function composeSpeakResponseContent(
   philosopherName: string,
   _tradition: string,
@@ -1385,11 +1417,7 @@ export function composeSpeakResponseContent(
   const fallback = `${philosopherName}: ${responseText}`;
   const clampedIdx = Math.max(0, Math.min(pageIndex, Math.max(0, pages.length - 1)));
   const shown = pages.length > 0 ? pages[clampedIdx] : fallback;
-  // Visual mic states — same as buildSpeakConversationPage.
-  //   ● Listening   ■ Thinking   □ Tap to speak
-  const status = isThinking
-    ? "■ Thinking"
-    : (isListening ? "● Listening (tap to send)" : "□ Tap to speak");
+  const status = speakStatusLine(isListening, isThinking);
   // Marker + mini progress bar — MUST stay identical to
   // buildSpeakConversationPage's pageMarker so the textContainerUpgrade
   // fast path and the full-rebuild path render the same first line.
@@ -1397,6 +1425,87 @@ export function composeSpeakResponseContent(
     ? `  [${clampedIdx + 1}/${pages.length}] ${progressBar(clampedIdx + 1, pages.length, 4)}`
     : "";
   return capForGlass(`${status}${marker}\n${shown}`);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SAGE PAGE — what a free wearer sees on picking a Sage philosopher
+// ══════════════════════════════════════════════════════════════════
+
+/** One honest page instead of a greeting followed by refusals: who this
+ *  is, what Sage costs, where to start it, and the way out that always
+ *  works (click → Enki, free). Geometry matches the conversation page so
+ *  the portrait doesn't jump when they do get to talk. */
+export function buildSageGatePage(phil: { name: string; tradition: string }): RebuildPageContainer {
+  const portrait = new ImageContainerProperty({
+    xPosition: 15, yPosition: 25, width: 100, height: 100,
+    containerID: 1, containerName: "portrait",
+    zOrderIndex: 3,
+  });
+  const body = new TextContainerProperty({
+    xPosition: 130, yPosition: 20, width: 430, height: 255,
+    containerID: 2, containerName: "gate",
+    content: capForGlass(`${tGlass('g.sageGate', { name: phil.name })}\n\n${tGlass('g.sageGateBody')}\n\n${tGlass('g.sageGateHint')}`),
+    isEventCapture: 1,
+    zOrderIndex: 5,
+  });
+  const name = new TextContainerProperty({
+    xPosition: 15, yPosition: 130, width: 110, height: 60,
+    containerID: 4, containerName: "phil-name",
+    content: `${phil.name}\n${tMeta(phil.tradition, true)}`,
+    isEventCapture: 0,
+    zOrderIndex: 4,
+  });
+  return new RebuildPageContainer({
+    ...menuOf(transitMenu()),
+    containerTotalNum: 3,
+    listObject: [],
+    textObject: [body, name],
+    imageObject: [portrait],
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TODAY'S CARD — one quote a day, drawn like a card
+// ══════════════════════════════════════════════════════════════════
+
+function cardMenu() { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuHome'), MENU_HOME]]); }
+
+/** Same geometry as the quote view (sprite left, words right, strip
+ *  below) so the card reads as a quote — but the strip leads with the
+ *  rarity, which is revealed before the words. */
+export function buildDailyCardPage(quoteText: string, info: string): RebuildPageContainer {
+  const quote = new TextContainerProperty({
+    xPosition: 130, yPosition: 25, width: 440, height: 100,
+    containerID: 2, containerName: "card-quote",
+    content: quoteText,
+    isEventCapture: 1,
+    zOrderIndex: 5,
+  });
+  const sprite = new ImageContainerProperty({
+    xPosition: 15, yPosition: 25, width: 100, height: 100,
+    containerID: 3, containerName: "sprite",
+    zOrderIndex: 3,
+  });
+  const strip = new TextContainerProperty({
+    xPosition: 15, yPosition: 140, width: 555, height: 140,
+    containerID: 13, containerName: "card-info",
+    content: info,
+    isEventCapture: 0,
+    zOrderIndex: 4,
+  });
+  return new RebuildPageContainer({
+    ...menuOf(cardMenu()),
+    containerTotalNum: 3,
+    listObject: [],
+    textObject: [quote, strip],
+    imageObject: [sprite],
+  });
+}
+
+/** Rarity as stars, the way the quote view shows rating. */
+export function rarityLine(quote: Quote): string {
+  const rarity = quote.rarity || getRarity(quote.rating);
+  return `${tMeta(capitalize(String(rarity)), true)}  ${'\u2605'.repeat(quote.rating)}${'\u2606'.repeat(10 - quote.rating)}`;
 }
 
 // ══════════════════════════════════════════════════════════════════

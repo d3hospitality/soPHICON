@@ -31,6 +31,7 @@
 import { EvenAppBridge, AudioInputSource } from '@evenrealities/even_hub_sdk';
 import { authHeaders, handleUnauthorized, linkedHandle } from './enkiAccount';
 import { log } from './ui';
+import { tGlass } from './i18n';
 import { loadProfile, profileForApi } from './profile';
 
 // ═══ PERSISTENCE GATE ═══
@@ -540,7 +541,14 @@ export async function startConversation(philId: string): Promise<{ opening: stri
   catch (e) { console.warn("[SPEAK] crossContext build failed", e); activeCrossContext = ""; }
   if (activeCrossContext) log(`[SPEAK] crossContext: ${activeCrossContext.length} chars loaded`);
 
-  // Append a fresh opening so users always get a greeting on entry
+  // Append a fresh opening so users always get a greeting on entry —
+  // replacing a greeting nobody answered. Otherwise every visit stacked
+  // another one on top ("page 1 of 4" before a word was said).
+  while (conversationHistory.length) {
+    const last = conversationHistory[conversationHistory.length - 1];
+    if (last.role === "assistant" && p.openings.includes(last.content)) conversationHistory.pop();
+    else break;
+  }
   const opening = p.openings[Math.floor(Math.random() * p.openings.length)];
   conversationHistory.push({ role: "assistant", content: opening });
   await saveHistory(philId);
@@ -614,8 +622,47 @@ export function handleAudioChunk(pcm: Uint8Array): void {
   audioChunks.push(new Uint8Array(pcm));
 }
 
+// ═══ RESULT OF ONE TURN ═══════════════════════════════════════════
+// A reply, or a NOTICE: something the wearer must see and act on (a
+// locked philosopher, today's limit, a dead link, no connection). Notices
+// are never written into the conversation history — before, they were,
+// or they were dropped and the previous reply was shown again, which
+// looked exactly like "it won't let me speak".
+export type SpeakNotice =
+  | 'locked' | 'limit_free' | 'limit_sage' | 'busy' | 'expired'
+  | 'offline' | 'error' | 'unheard' | 'too_long';
+export interface SpeakResult {
+  text: string;
+  emotion: string;
+  userMood: string;
+  /** Set when `text` is a notice rather than the philosopher's words. */
+  notice?: SpeakNotice;
+  /** What the wearer said, once transcribed. */
+  heard?: string;
+}
+
+function noticeResult(kind: SpeakNotice, vars: Record<string, string | number> = {}): SpeakResult {
+  const key = ({
+    locked: 'g.noticeLocked', limit_free: 'g.noticeLimitFree', limit_sage: 'g.noticeLimitSage',
+    busy: 'g.noticeBusy', expired: 'g.noticeExpired', offline: 'g.noticeOffline', error: 'g.noticeError',
+    unheard: 'g.noticeUnheard', too_long: 'g.noticeTooLong',
+  } as const)[kind];
+  const emotion = kind === 'locked' || kind === 'limit_free' ? 'teaching' : kind === 'unheard' ? 'doubt' : 'serenity';
+  return { text: tGlass(key, vars), emotion, userMood: 'neutral', notice: kind };
+}
+
+/** A refused / failed turn must not leave the unanswered question behind. */
+async function dropDanglingUserTurn(): Promise<void> {
+  if (conversationHistory.length && conversationHistory[conversationHistory.length - 1].role === 'user') {
+    conversationHistory.pop();
+    if (currentPhilId) await saveHistory(currentPhilId);
+  }
+}
+
 // ═══ STOP RECORDING — closes mic, transcribes, sends to philosopher ═══
-export async function stopRecordingAndSend(): Promise<{ text: string; emotion: string; userMood: string } | null> {
+// `onHeard` fires between transcription and the reply, so the glasses can
+// show the wearer's own words while the philosopher thinks.
+export async function stopRecordingAndSend(onHeard?: (text: string) => void): Promise<SpeakResult | null> {
   if (!bridgeRef) { log("[SPEAK] No bridge ref", "error"); return null; }
   
   // Close mic regardless of isRecording state
@@ -662,34 +709,54 @@ export async function stopRecordingAndSend(): Promise<{ text: string; emotion: s
     lang = prof.language || 'en';
   } catch {}
   let userText = "";
+  let resp: Response;
   try {
-    const resp = await fetch(TRANSCRIBE_API_URL, {
+    resp = await fetch(TRANSCRIBE_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify({ audio: base64, language: lang }),
     });
-    if (!resp.ok) throw new Error(`Transcribe ${resp.status}`);
+  } catch (e) {
+    console.error("[SPEAK] Transcribe unreachable:", e);
+    return noticeResult('offline');
+  }
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({} as any));
+    log(`[SPEAK] Transcribe ${resp.status} ${body?.error || ''}`, "error");
+    // Transcription is metered too: a limit here is the same limit.
+    if (resp.status === 429) return limitNotice(body);
+    if (resp.status === 413) return noticeResult('too_long');
+    if (resp.status === 401) { await handleUnauthorized(); return noticeResult('expired'); }
+    if (resp.status === 403) return noticeResult('locked', { name: currentPersona?.name || '' });
+    return noticeResult('error', { name: currentPersona?.name || '' });
+  }
+  try {
     const data = await resp.json();
     userText = data.text?.trim() || "";
-  } catch (e) {
-    console.error("[SPEAK] Transcribe error:", e);
-    log("[SPEAK] Transcribe failed", "error");
-    return null;
-  }
+  } catch { userText = ""; }
 
   if (!userText) {
     log("[SPEAK] No speech detected", "error");
-    return null;
+    return noticeResult('unheard');
   }
 
   log(`[SPEAK] You: "${userText}"`);
+  try { onHeard?.(userText); } catch { /* display only */ }
 
   // Send to philosopher
-  return await sendMessage(userText);
+  const result = await sendMessage(userText);
+  return { ...result, heard: userText };
+}
+
+/** 429 → which limit: the free one-a-day, or a Sage's daily replies. */
+function limitNotice(body: any): SpeakResult {
+  if (body?.error === 'demo_busy') return noticeResult('busy');
+  const limit = Number(body?.limit) || 1;
+  return limit <= 1 ? noticeResult('limit_free') : noticeResult('limit_sage', { n: limit });
 }
 
 // ═══ SEND MESSAGE TO PHILOSOPHER ═══
-export async function sendMessage(userText: string): Promise<{ text: string; emotion: string; userMood: string }> {
+export async function sendMessage(userText: string): Promise<SpeakResult> {
   if (!currentPersona) {
     return { text: "No philosopher selected.", emotion: "contemplation", userMood: "neutral" };
   }
@@ -725,31 +792,15 @@ export async function sendMessage(userText: string): Promise<{ text: string; emo
     if (!resp.ok) {
       const err = await resp.text();
       log(`[SPEAK] API error body: ${err.slice(0, 100)}`, "error");
-      // Entitlement responses render as an on-glass line, not an error.
-      if (resp.status === 401) {
-        await handleUnauthorized();
-        return {
-          // ▶ is on the official G2 useful-characters set; → (U+2192)
-          // is not and risks tofu on the LVGL glass font.
-          text: "Your glasses link expired. Re-pair from enkiridion.com ▶ Settings.",
-          emotion: "contemplation", userMood: "neutral",
-        };
-      }
-      if (resp.status === 403) {
-        return {
-          text: "Sage unlocks every philosopher. Pair your glasses at enkiridion.com — until then, Enki walks with you.",
-          emotion: "teaching", userMood: "neutral",
-        };
-      }
-      if (resp.status === 429) {
-        let limit = 1;
-        try { limit = JSON.parse(err)?.limit || 1; } catch {}
-        const text = limit <= 1
-          ? "One conversation a day is the seeker's taste. A 7-day free trial opens every philosopher — enkiridion.com"
-          : `Today's ${limit} conversations are spent — they return tomorrow. enkiridion.com`;
-        return { text, emotion: "serenity", userMood: "neutral" };
-      }
-      throw new Error(`API ${resp.status}: ${err}`);
+      // Entitlement answers become a notice the wearer can act on — never
+      // an error, and never a dangling question in the history.
+      let body: any = {};
+      try { body = JSON.parse(err); } catch {}
+      await dropDanglingUserTurn();
+      if (resp.status === 401) { await handleUnauthorized(); return noticeResult('expired'); }
+      if (resp.status === 403) return noticeResult('locked', { name: currentPersona.name });
+      if (resp.status === 429) return limitNotice(body);
+      return noticeResult('error', { name: currentPersona.name });
     }
 
     const data = await resp.json();
@@ -791,9 +842,8 @@ export async function sendMessage(userText: string): Promise<{ text: string; emo
     const msg = e?.message || String(e);
     console.error("[SPEAK] API error:", e);
     log(`[SPEAK] FAILED: ${msg.slice(0, 100)}`, "error");
-    conversationHistory.pop();
-    await saveHistory(currentPhilId);
-    return { text: `Error: ${msg.slice(0, 80)}`, emotion: "contemplation", userMood: "neutral" };
+    await dropDanglingUserTurn();
+    return noticeResult('offline');
   }
 }
 

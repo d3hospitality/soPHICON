@@ -53,6 +53,21 @@ async function main(): Promise<void> {
     };
   }
 
+  // ── One image push at a time ─────────────────────────────────────
+  // Concurrent updateImageRawData calls crash the BLE link (README).
+  // Scroll handlers, the 33 s quote rotation, the empathy timer and the
+  // summon frames can all push at once, and each call site assumed it
+  // was alone. Queue them here, once, for every caller.
+  {
+    const origPush = bridge.updateImageRawData.bind(bridge);
+    let chain: Promise<unknown> = Promise.resolve();
+    bridge.updateImageRawData = (data) => {
+      const run = chain.then(() => origPush(data));
+      chain = run.catch(() => undefined);
+      return run;
+    };
+  }
+
   const user = await bridge.getUserInfo();
   log("User: " + user.name);
 
@@ -179,8 +194,8 @@ async function main(): Promise<void> {
   // wearer changed it expecting both surfaces to follow.
   onLangChange(() => { repaintGlassForLanguage(bridge, baseUrl).catch(() => {}); });
 
-  await bridge.setLocalStorage("sophicon_version", "0.1.0");
-  log(`soΦcon v0.1.0 — ${TOTAL_QUOTES} quotes · ${TOTAL_PHILOSOPHERS} philosophers · ${TOTAL_TRADITIONS} traditions`, "success");
+  await bridge.setLocalStorage("sophicon_version", __APP_VERSION__);
+  log(`enkiRIDION v${__APP_VERSION__} — ${TOTAL_QUOTES} quotes · ${TOTAL_PHILOSOPHERS} philosophers · ${TOTAL_TRADITIONS} traditions`, "success");
 }
 
 main().catch((err) => {
