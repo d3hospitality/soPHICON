@@ -261,6 +261,8 @@ export const EN = {
   'g.pagePrev': 'swipe up',
   'g.pageNext': 'click for more',
   'g.pageEnd': 'the end',
+  'g.talkTo': 'Talk to {name}',
+  'g.talkToSage': 'Talk to {name} · Sage',
   'g.moveTitle': 'Your move',
   'g.moveFinding': 'Finding your next step…',
   'g.moveSkipHint': 'Double-tap: skip',

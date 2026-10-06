@@ -192,5 +192,7 @@
   "g.moveToward": "目标：{goal}",
   "g.moveNewGoal": "新目标：{goal}",
   "g.moveHint": "单击：保留  ·  双击：跳过",
-  "g.moveKept": "已保留。手机的“今天”里可以看到。"
+  "g.moveKept": "已保留。手机的“今天”里可以看到。",
+  "g.talkTo": "与{name}对话",
+  "g.talkToSage": "与{name}对话 · Sage"
 }

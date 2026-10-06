@@ -46,6 +46,16 @@ IDs are never reused for different meanings. New commands take new IDs.
 
 ---
 
+## 1.14.1 — a philosopher's page
+
+Picking a philosopher (from Home → Philosophers, or Quotes → card → tap)
+opens their page: the mood list, with the cursor on **Shuffle all** so a
+tap shows their quotes, and **Talk to {name}** one row up ("· Sage" when
+locked; the Sage page opens from there). Double-tap from the
+conversation or the Sage page comes back to this page. Home →
+Philosophers now opens the tradition browse; before 1.14.1 it opened
+conversations only, so picking a philosopher never showed a quote.
+
 ## 1.13.0 — Your path
 
 Leaving a conversation where the wearer said something and got an

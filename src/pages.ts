@@ -715,7 +715,11 @@ export function buildAphoricaReadPage(
  * gets the `▶ NAME ◀` cursor, and as the user scrolls onto an EMOTION
  * item, the philosopher's sprite shifts to that emotion variant —
  * scrolling becomes a live preview of the philosopher in that mood. */
-export function buildMindstatePage(philosopher: Philosopher, index: number = 0): RebuildPageContainer {
+/** Where the cursor lands on a philosopher's page: their quotes
+ *  (Shuffle all). Talk sits one row up. */
+export const MINDSTATE_START = 1;
+
+export function buildMindstatePage(philosopher: Philosopher, index: number = MINDSTATE_START): RebuildPageContainer {
   const layout = mindstateLayout();
   const items = mindstateItemLabels(philosopher);
   const total = items.length;
@@ -771,7 +775,9 @@ export function mindstateItemLabels(philosopher: Philosopher): string[] {
   // the quote page's info strip uses, so the picker and the quote agree.
   // These were raw English literals until 1.5.4, which meant a Chinese
   // reader got Chinese quotes and then an English emotion picker.
+  const name = tMeta(philosopher.name, true);
   return [
+    isLockedForViewer(philosopher.philId) ? tGlass('g.talkToSage', { name }) : tGlass('g.talkTo', { name }),
     `${tGlass('g.shuffleAll')} (${philosopher.quotes.length})`,
     ...emotions.map(e => {
       const count = philosopher.quotes.filter(q => q.emotion === e).length;
@@ -812,10 +818,12 @@ function renderNavpad(items: string[], idx: number, windowSize: number = 7): str
  * scroll-preview sprite falls back to the neutral face — index-aligned
  * with mindstateItemLabels above. */
 export function getMindstateSelections(philosopher: Philosopher): {
-  type: "emotion" | "shuffle";
+  type: "talk" | "emotion" | "shuffle";
   value: string;
 }[] {
   return [
+    // A philosopher's page: talk to them (top row), or read them.
+    { type: "talk" as const, value: "teaching" },
     { type: "shuffle" as const, value: "neutral" },
     ...getEmotionsForPhilosopher(philosopher).map(e => ({ type: "emotion" as const, value: e })),
   ];

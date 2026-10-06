@@ -192,5 +192,7 @@
   "g.moveToward": "Rumo a: {goal}",
   "g.moveNewGoal": "Nova meta: {goal}",
   "g.moveHint": "Toque: guardar  ·  Toque duplo: pular",
-  "g.moveKept": "Guardado. Aparece no seu telefone, em Hoje."
+  "g.moveKept": "Guardado. Aparece no seu telefone, em Hoje.",
+  "g.talkTo": "Conversar com {name}",
+  "g.talkToSage": "Conversar com {name} · Sage"
 }

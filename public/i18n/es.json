@@ -192,5 +192,7 @@
   "g.moveToward": "Hacia: {goal}",
   "g.moveNewGoal": "Nueva meta: {goal}",
   "g.moveHint": "Toca: guardarlo  ·  Doble toque: omitir",
-  "g.moveKept": "Guardado. Lo verás en tu teléfono, en Hoy."
+  "g.moveKept": "Guardado. Lo verás en tu teléfono, en Hoy.",
+  "g.talkTo": "Hablar con {name}",
+  "g.talkToSage": "Hablar con {name} · Sage"
 }

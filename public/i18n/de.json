@@ -192,5 +192,7 @@
   "g.moveToward": "Für: {goal}",
   "g.moveNewGoal": "Neues Ziel: {goal}",
   "g.moveHint": "Tippen: behalten  ·  Doppeltippen: überspringen",
-  "g.moveKept": "Gemerkt. Dein Handy zeigt ihn unter Heute."
+  "g.moveKept": "Gemerkt. Dein Handy zeigt ihn unter Heute.",
+  "g.talkTo": "Mit {name} sprechen",
+  "g.talkToSage": "Mit {name} sprechen · Sage"
 }

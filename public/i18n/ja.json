@@ -192,5 +192,7 @@
   "g.moveToward": "目標：{goal}",
   "g.moveNewGoal": "新しい目標：{goal}",
   "g.moveHint": "タップ：残す  ·  ダブルタップ：スキップ",
-  "g.moveKept": "残しました。スマホの「今日」に表示されます。"
+  "g.moveKept": "残しました。スマホの「今日」に表示されます。",
+  "g.talkTo": "{name}と話す",
+  "g.talkToSage": "{name}と話す · Sage"
 }

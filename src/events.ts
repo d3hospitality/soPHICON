@@ -28,7 +28,7 @@ import {
 } from './constants';
 import {
   rebuildHomePage, loadGlanceLine, buildPhilosopherSelectPage,
-  buildMindstatePage, getMindstateSelections,
+  buildMindstatePage, getMindstateSelections, MINDSTATE_START,
   buildQuoteViewPage,
   homeListItems, BROWSABLE_TRADITIONS, SPEAK_INDEX, TALK_ENKI_INDEX, SPEAK_TRADITIONS,
   buildSageGatePage, buildDailyCardPage, rarityLine, speakStatusLine,
@@ -113,7 +113,7 @@ let currentPage: Page = "home";
 // Where a conversation (or the Sage page) was opened from, so double-tap
 // goes back there: Talk to Enki on home → home; a philosopher on the
 // list → the list; "Speak with this philosopher" on a quote → the quote.
-type SpeakOrigin = "home" | "list" | "quote" | "favorites" | "card";
+type SpeakOrigin = "home" | "list" | "quote" | "favorites" | "card" | "mindstate";
 let speakFrom: SpeakOrigin = "list";
 let gatePhil: Philosopher | null = null;
 
@@ -597,8 +597,8 @@ async function commitPicksSelection(bridge: EvenAppBridge, baseUrl: string): Pro
   if (phils.length === 0) return;
   const phil = phils[Math.max(0, Math.min(picksSelectedIndex, phils.length - 1))];
   currentPhilosopher = phil;
-  mindstateSelectedIndex = 0;
-  await safeRebuild(bridge, buildMindstatePage(phil, 0), "buildMindstatePage");
+  mindstateSelectedIndex = MINDSTATE_START;
+  await safeRebuild(bridge, buildMindstatePage(phil, MINDSTATE_START), "buildMindstatePage");
   currentPage = "mindstate";
   lastNavigationTime = Date.now();
   await pushPhilPortrait(bridge, baseUrl, phil, 3, "portrait", 12, "portrait-2");
@@ -638,6 +638,12 @@ async function commitMindstateSelection(bridge: EvenAppBridge, baseUrl: string):
   if (selections.length === 0) return;
   const idx = Math.max(0, Math.min(mindstateSelectedIndex, selections.length - 1));
   const sel = selections[idx];
+  if (sel.type === "talk") {
+    // Talk to the philosopher whose page this is (Sage page if locked);
+    // double-tap comes back here.
+    await openConversation(bridge, baseUrl, currentPhilosopher, "mindstate");
+    return;
+  }
   if (sel.type === "shuffle") {
     // Fisher–Yates over a copy — never mutate the philosopher's pool.
     const pool = [...currentPhilosopher.quotes];
@@ -927,6 +933,10 @@ async function returnFromConversation(bridge: EvenAppBridge, baseUrl: string): P
       currentPage = "favorites"; await showFavorite(bridge, baseUrl);
     } else if (speakFrom === "card") {
       navigating = false; await openDailyCard(bridge, baseUrl); navigating = true;
+    } else if (speakFrom === "mindstate" && currentPhilosopher) {
+      await safeRebuild(bridge, buildMindstatePage(currentPhilosopher, mindstateSelectedIndex), "buildMindstatePage");
+      currentPage = "mindstate";
+      await pushPhilPortrait(bridge, baseUrl, currentPhilosopher, 3, "portrait", 12, "portrait-2");
     } else if (speakTradition) {
       if (speakListTradition) speakTradition = speakListTradition;
       // Restore prior selection on the navpad when coming back from a
@@ -1034,6 +1044,10 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
         currentPage = "quote"; startAutoRotate(); await showCurrentQuote(bridge, baseUrl);
       } else if (speakFrom === "favorites") {
         currentPage = "favorites"; await showFavorite(bridge, baseUrl);
+      } else if (speakFrom === "mindstate" && currentPhilosopher) {
+        await safeRebuild(bridge, buildMindstatePage(currentPhilosopher, mindstateSelectedIndex), "buildMindstatePage");
+        currentPage = "mindstate";
+        await pushPhilPortrait(bridge, baseUrl, currentPhilosopher, 3, "portrait", 12, "portrait-2");
       } else {
         await goHome(bridge, baseUrl);
       }
@@ -1047,7 +1061,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
     else if (currentPage === "quote") {
       stopAutoRotate(); shuffleMode = false; surpriseMode = false;
       if (currentPhilosopher) {
-        await safeRebuild(bridge, buildMindstatePage(currentPhilosopher), "buildMindstatePage");
+        await safeRebuild(bridge, buildMindstatePage(currentPhilosopher, mindstateSelectedIndex), "buildMindstatePage");
         currentPage = "mindstate";
         await pushPhilPortrait(bridge, baseUrl, currentPhilosopher, 3, "portrait", 12, "portrait-2");
       }
@@ -1694,11 +1708,14 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         return;
       }
       if (idx === SPEAK_INDEX) {
-        await safeRebuild(bridge, buildSpeakTraditionPage(), "buildSpeakTraditionPage");
-        currentPage = "speak-traditions";
+        // Philosophers: tradition → philosopher → their page (quotes,
+        // with Talk one row up). It used to open conversations only, so
+        // picking a philosopher never showed what they wrote.
+        await safeRebuild(bridge, buildTraditionsPage(), "buildTraditionsPage");
+        currentPage = "traditions";
         lastNavigationTime = Date.now();
         await pushLogoToGlasses(bridge, baseUrl);
-        log("> enkiSPEAKS", "success");
+        log("> Philosophers", "success");
       } else if (idx === APHORICA_INDEX) {
         await openAphorica(bridge);
         lastNavigationTime = Date.now();
@@ -1755,7 +1772,8 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
       if (idx === phils.length) { navigating = false; await goBack(bridge, baseUrl); return; }
       if (idx >= 0 && idx < phils.length) {
         currentPhilosopher = phils[idx];
-        await safeRebuild(bridge, buildMindstatePage(currentPhilosopher), "buildMindstatePage");
+        mindstateSelectedIndex = MINDSTATE_START;
+        await safeRebuild(bridge, buildMindstatePage(currentPhilosopher, MINDSTATE_START), "buildMindstatePage");
         currentPage = "mindstate"; lastNavigationTime = Date.now();
         await pushPhilPortrait(bridge, baseUrl, currentPhilosopher, 3, "portrait", 12, "portrait-2");
         log(`> ${currentPhilosopher.name}`, "success");
