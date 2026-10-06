@@ -300,6 +300,9 @@ function drawFromWholeCorpus(): { phil: Philosopher; idx: number } | null {
 }
 
 let speakTradition: Tradition | null = null;
+/** The list the wearer drilled into. Differs from speakTradition when the
+ *  Sage page's way out took them to Enki (Primordial) from, say, Greek. */
+let speakListTradition: Tradition | null = null;
 let speakPhilosopher: Philosopher | null = null;
 let speakPhilId: string = "";
 // Selected-index for the speak philosopher-select page. We own this state
@@ -1007,6 +1010,7 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
       } else if (speakFrom === "card") {
         navigating = false; await openDailyCard(bridge, baseUrl); navigating = true;
       } else if (speakTradition) {
+        if (speakListTradition) speakTradition = speakListTradition;
         // Restore prior selection on the navpad when coming back from a
         // conversation; if user came from a different tradition, reset to 0.
         const phils = getPhilosophersByTradition(speakTradition);
@@ -1220,7 +1224,7 @@ const SUMMON_FRAMES = [
 const SUMMON_STEP_MS = 550;
 
 async function openConversation(bridge: EvenAppBridge, baseUrl: string, phil: Philosopher, from: SpeakOrigin): Promise<void> {
-  if (from === "list") {
+  if (from === "list" && phil.tradition === speakListTradition) {
     const idx = getPhilosophersByTradition(phil.tradition as Tradition).findIndex(p => p.philId === phil.philId);
     if (idx >= 0) speakSelectedIndex = idx;
   }
@@ -1693,7 +1697,7 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
     if (currentPage === "speak-traditions") {
       if (idx === SPEAK_TRADITIONS.length) { navigating = false; await goBack(bridge, baseUrl); return; }
       if (idx >= 0 && idx < SPEAK_TRADITIONS.length) {
-        speakTradition = SPEAK_TRADITIONS[idx];
+        speakTradition = speakListTradition = SPEAK_TRADITIONS[idx];
         speakSelectedIndex = 0;
         await safeRebuild(bridge, buildSpeakPhilosopherPage(speakTradition, 0), "buildSpeakPhilosopherPage");
         currentPage = "speak-philosophers"; lastHoveredPhilIndex = 0; lastNavigationTime = Date.now();
