@@ -45,10 +45,13 @@ async function main(): Promise<void> {
   // Desktop simulator (pre-2.2.9 protocol) rejects zOrderIndex on image
   // containers — "unknown field `zOrderIndex`" — and blanks the whole
   // page. Phones accept it (the ghost layer depends on it). Strip it for
-  // the simulator only, same fork as host.ts does for menu/textColor.
+  // the simulator only, same fork as host.ts does for menu/textColor —
+  // from EVERY container, because SDK 0.0.14 rejects a page where some
+  // containers carry zOrderIndex and others don't (MISSING_Z_ORDER_INDEX).
   const simSafe = <T,>(page: T): T => {
     if (hostSupports214) return page;
-    for (const img of ((page as any)?.imageObject || [])) delete img.zOrderIndex;
+    const p = page as any;
+    for (const c of [...(p?.imageObject || []), ...(p?.textObject || []), ...(p?.listObject || [])]) delete c.zOrderIndex;
     return page;
   };
   {
