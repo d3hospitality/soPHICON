@@ -25,6 +25,7 @@ import { initDashboard } from './dashboard';
 import { initFavorites } from './favorites';
 import { initWisdomLog } from './wisdomlog';
 import { initLang, glassLang, onLangChange } from './i18n';
+import { hostSupports214 } from './host';
 
 async function main(): Promise<void> {
   log("Initializing...");
@@ -41,10 +42,19 @@ async function main(): Promise<void> {
   // events.ts has ~30 rebuild call sites that historically ignore the
   // return value; wrapping the bridge once here makes every silent
   // failure loud without touching any of them.
+  // Desktop simulator (pre-2.2.9 protocol) rejects zOrderIndex on image
+  // containers — "unknown field `zOrderIndex`" — and blanks the whole
+  // page. Phones accept it (the ghost layer depends on it). Strip it for
+  // the simulator only, same fork as host.ts does for menu/textColor.
+  const simSafe = <T,>(page: T): T => {
+    if (hostSupports214) return page;
+    for (const img of ((page as any)?.imageObject || [])) delete img.zOrderIndex;
+    return page;
+  };
   {
     const origRebuild = bridge.rebuildPageContainer.bind(bridge);
     bridge.rebuildPageContainer = async (container) => {
-      const ok = await origRebuild(container);
+      const ok = await origRebuild(simSafe(container));
       if (!ok) {
         log("rebuildPageContainer REJECTED — page never reached the glasses (check menu labels / textColor / zOrder)", "error");
         console.error("[SDK] rejected payload:", container);
@@ -120,7 +130,7 @@ async function main(): Promise<void> {
   const baseUrl = import.meta.env.BASE_URL;
   let glassAlive = false;
   const homePage = buildHomePage();
-  const result = await bridge.createStartUpPageContainer(homePage);
+  const result = await bridge.createStartUpPageContainer(simSafe(homePage));
   if (result !== 0) {
     log("Glass startup failed (" + result + ") — phone dashboard only", "error");
   } else {

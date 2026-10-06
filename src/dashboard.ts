@@ -2557,6 +2557,9 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   setSyncBridge(b);
 
   initTabs();
+  // The account card is the first thing on Home — paint it before the
+  // slower panels below, so it is never an empty box while they load.
+  renderAccountCard().catch(() => {});
   initHomeStats();
   renderPhilosopherGrid();
   // Glass ♥ and phone ★ are the same store now — repaint Picks when
