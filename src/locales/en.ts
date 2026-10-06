@@ -31,7 +31,7 @@ export const EN = {
   'tab.home': 'Today',
   'tab.quotes': 'Quotes',
   'tab.mindful': 'Mindful',
-  'tab.speak': 'Speak',
+  'tab.speak': 'Talk',
   'tab.journal': 'Journal',
   'tab.aphorica': 'Aphorica',
   'tab.debug': 'Debug',

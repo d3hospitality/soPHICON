@@ -38,7 +38,7 @@ import {
 } from './speak';
 import {
   WeeklyOverview, WeeklyProblem, WeeklyAction, Category, Quadrant, QUADRANTS,
-  isoWeekKey, weekRangeLabel, weekDisplayLabel, shiftWeek,
+  isoWeekKey, weekRangeLabel, shiftWeek,
   loadOverview, saveOverview, generateOverview, pickRolloverCandidates,
   setActionDone, setProblemStatus,
   pickQuotesForAction, setWeeklyBridge,
@@ -120,6 +120,7 @@ function pageSubtext(s: GlassesState): string {
   }
   if (s.philosopher) return s.philosopher.name;
   if (s.tradition) return s.tradition;
+  if (s.page === 'home') return 'Choose Talk to Enki or Philosophers';
   return '';
 }
 
@@ -144,8 +145,6 @@ function initTabs(): void {
       if (tab === 'journal') {
         pullSpeakSessions().then(() => refreshJournal()).catch(() => refreshJournal().catch(() => {}));
       }
-      // Aphorica → (re)load the commons feed
-      if (tab === 'aphorica') refreshAphorica().catch(() => {});
       // Home tab → refresh Today card + habits card (both pull from journal),
       // and kick a background sync cycle (pull + push, no-op unlinked).
       if (tab === 'home') {
@@ -158,11 +157,14 @@ function initTabs(): void {
     });
   });
 
-  // Header settings icon → jump to About tab (which has settings)
-  $('header-settings-btn')?.addEventListener('click', () => {
-    const aboutBtn = document.querySelector<HTMLElement>('.tab-btn[data-tab="about"]');
-    aboutBtn?.click();
-  });
+  // Quotes has two views: the philosophers' quotes and the Commons.
+  $$('.seg-btn').forEach(b => b.addEventListener('click', () => showQuotesView(b.dataset.seg || 'phil')));
+}
+
+function showQuotesView(view: string): void {
+  $$('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.seg === view));
+  $$('[data-seg-panel]').forEach(p => { (p as HTMLElement).hidden = p.getAttribute('data-seg-panel') !== view; });
+  if (view === 'commons') refreshAphorica().catch(() => {});
 }
 
 // ─── LIVE GLASS STATE MIRROR ──────────────────────────────────────
@@ -211,7 +213,7 @@ function renderPhilSelectMirror(s: GlassesState): void {
   card.style.display = '';
 
   // Header
-  title.textContent = s.page === 'philosophers' ? 'Browsing philosophers' : 'Speak: pick a philosopher';
+  title.textContent = s.page === 'philosophers' ? 'Browsing philosophers' : 'Choosing who to talk to';
   trad.textContent = (s.tradition || s.hoveredPhilosopher?.tradition || '—');
 
   // Re-render the list only when tradition or list-size changes (avoids
@@ -292,14 +294,12 @@ function applyGlassState(s: GlassesState): void {
   const speakBadge = $('speak-phil-badge');
   const speakMirror = $('speak-mirror');
   if (s.page === 'speak-conversation' && s.philosopher) {
-    if (speakBadge) speakBadge.textContent = `${s.philosopher.name}${s.tradition ? ' · ' + s.tradition : ''}`;
+    if (speakBadge) speakBadge.textContent = `On your glasses: ${s.philosopher.name}`;
     if (speakMirror) {
       const indicator = s.speakThinking
         ? '⋯ Thinking'
         : (s.speakListening ? '● Listening' : '◦ Speaking on glass');
-      speakMirror.innerHTML = `
-        <div class="muted" style="font-size:12px; font-family: var(--mono);">${indicator}${s.speakPageIndex !== undefined && s.speakPageCount ? ` · glass page ${s.speakPageIndex + 1}/${s.speakPageCount}` : ''}</div>
-      `;
+      speakMirror.textContent = ` · ${indicator}`;
     }
     // Render the LIVE glass conversation into the companion thread and prime
     // the phone composer to the same philosopher — so the exchange happening
@@ -314,8 +314,8 @@ function applyGlassState(s: GlassesState): void {
       renderSpeakThread(gpid).catch(() => {});
     }
   } else if (speakBadge) {
-    speakBadge.textContent = '— idle —';
-    if (speakMirror) speakMirror.innerHTML = `<p class="muted">Nothing yet. Pick a philosopher → tap the glass → speak. The exchange renders here live.</p>`;
+    speakBadge.textContent = 'On your glasses: nothing yet';
+    if (speakMirror) speakMirror.textContent = '';
   }
 }
 
@@ -580,8 +580,13 @@ async function primeSpeakPhil(philId: string): Promise<void> {
 
 /** Programmatically activate a tab (used by the trial CTA → About/pairing). */
 function switchTab(name: string): void {
-  const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`) as HTMLElement | null;
+  // Aphorica and Mindful were tabs before 1.12: the Commons is a view in
+  // Quotes now, and Mindful mode lives in Account.
+  const tab = name === 'aphorica' ? 'philosophers' : name === 'mindful' ? 'about' : name;
+  const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`) as HTMLElement | null;
   btn?.click();
+  if (name === 'aphorica') showQuotesView('commons');
+  if (name === 'mindful') setTimeout(() => $('mindful-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
 /**
@@ -690,9 +695,9 @@ async function initSpeakCompose(): Promise<void> {
           // The notice text is written for the glasses ("double-tap…");
           // the phone says the same thing in its own terms.
           const phoneText = result.notice === 'locked'
-            ? `${philName} talks with Sage members. Sage opens all 18 philosophers, ${PLAN.sageRepliesPerDay} replies a day: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
+            ? `${philName} talks with Sage members. Sage opens all ${TOTAL_PHILOSOPHERS} philosophers, ${PLAN.sageRepliesPerDay} replies a day: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
             : result.notice === 'limit_free'
-              ? `That was today’s free reply. Enki will be here tomorrow. Sage opens all 18 philosophers: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
+              ? `That was today’s free reply. Enki will be here tomorrow. Sage opens all ${TOTAL_PHILOSOPHERS} philosophers: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
               : result.text.replace(/ Double-tap to go back\.$/, '');
           thread.insertAdjacentHTML('beforeend', `
             <div class="speak-turn user"><div class="speak-turn-head"><span class="speak-turn-who">YOU</span></div><div class="speak-turn-body">${escapeHtml(text)}</div></div>
@@ -794,6 +799,8 @@ async function initSettings(): Promise<void> {
     if (btnUnlink) btnUnlink.style.display = handle ? '' : 'none';
     if (btnLink) btnLink.style.display = handle ? 'none' : '';
     if (codeInput) codeInput.style.display = handle ? 'none' : '';
+    const codeLabel = $('glasses-code-label');
+    if (codeLabel) codeLabel.style.display = handle ? 'none' : '';
     await refreshSpeakTrialCta();
   }
   await renderLinkState();
@@ -903,7 +910,7 @@ async function renderSessionList(): Promise<void> {
   if (!host) return;
 
   if (journalCache.length === 0) {
-    host.innerHTML = `<p class="muted">No conversations yet. Open Speak on the glasses or the phone to start one.</p>`;
+    host.innerHTML = `<p class="muted">No conversations yet. Talk on your glasses or in the Talk tab.</p>`;
     if (count) count.textContent = '0';
     return;
   }
@@ -1183,6 +1190,7 @@ async function extractProblems(auto: boolean = false): Promise<void> {
   const host = $('problems-list');
   const count = $('problems-count');
   if (!host || problemsRunning) return;
+  if (auto && !isSageCached()) return;
   if (journalCache.length === 0) {
     if (!auto) host.innerHTML = '<p class="muted">No journal yet. Talk to a philosopher first.</p>';
     return;
@@ -1262,8 +1270,8 @@ async function computeActions(): Promise<void> {
 function initJournalPanel(): void {
   // Explicit false: addEventListener would otherwise pass the click Event
   // as the `auto` flag, silencing manual-run feedback.
-  $('btn-extract-problems')?.addEventListener('click', () => extractProblems(false));
-  $('btn-compute-actions')?.addEventListener('click', computeActions);
+  $('btn-extract-problems')?.addEventListener('click', sageOr(() => extractProblems(false)));
+  $('btn-compute-actions')?.addEventListener('click', sageOr(computeActions));
 }
 
 // ─── MINDFULNESS TAB ──────────────────────────────────────────────
@@ -1296,7 +1304,7 @@ function updateMindfulPhilCount(): void {
   const badge = $('mindful-phil-count');
   if (!badge) return;
   const n = mindfulSelectedPhilIds.size;
-  badge.textContent = n === 0 ? `all ${PHILOSOPHERS.length}` : `${n} selected`;
+  badge.textContent = n === 0 ? 'everyone' : `${n} chosen`;
 }
 
 function updateMindfulStatus(): void {
@@ -1376,9 +1384,7 @@ let currentOverview: WeeklyOverview | null = null;
 let activeProblemId: string | null = null;
 
 async function initWeeklyPanel(): Promise<void> {
-  $('btn-weekly-generate')?.addEventListener('click', async () => {
-    await generateForCurrentWeek(false);
-  });
+  $('btn-weekly-generate')?.addEventListener('click', sageOr(() => generateForCurrentWeek(false)));
 
   $('btn-weekly-rollover')?.addEventListener('click', async () => {
     if (!confirm('Generate next week from this week\'s open problems?')) return;
@@ -1544,7 +1550,7 @@ async function generateForCurrentWeek(force: boolean): Promise<void> {
     const journal = await loadJournal();
     const inWindow = filterJournalToWeek(journal, currentWeekKey);
     if (inWindow.length === 0 && !force) {
-      setWeeklyStatus('No conversations in this week. Have a Speak session first.');
+      setWeeklyStatus('No conversations this week yet. Talk to a philosopher first.');
       return;
     }
     const ov = await generateOverview({ weekKey: currentWeekKey, journal: inWindow });
@@ -1571,8 +1577,8 @@ async function renderWeekly(): Promise<void> {
 
   // Header — "2026 // APRIL // W1" big, range subtle below
   const isThisWeek = currentWeekKey === isoWeekKey();
-  titleEl.textContent = weekDisplayLabel(currentWeekKey);
-  keyEl.textContent = `${weekRangeLabel(currentWeekKey)}${isThisWeek ? ' · current' : ''}`;
+  titleEl.textContent = isThisWeek ? 'This week' : `Week of ${weekRangeLabel(currentWeekKey).split(' → ')[0]}`;
+  keyEl.textContent = weekRangeLabel(currentWeekKey).replace(' → ', ' – ');
   updateWeekNavBounds();
 
   // Body
@@ -2304,7 +2310,7 @@ function friendlyError(e: unknown): string {
 }
 
 // ─── HEADER ACCOUNT CHIP ──────────────────────────────────────────
-// When linked: "@handle ◈ SAGE" (gold) / "@handle SEEKER" (dim) in the
+// When linked: "@handle ◈ Sage" (gold) / "@handle Free" (dim) in the
 // masthead row. Hidden when unlinked — the About tab owns the pairing CTA.
 async function renderHeaderAccount(): Promise<void> {
   const host = $('header-account');
@@ -2314,7 +2320,7 @@ async function renderHeaderAccount(): Promise<void> {
   const tier = ((await linkedTier()) || 'seeker').toLowerCase();
   const isSage = tier === 'sage';
   host.style.display = '';
-  host.innerHTML = `@${escapeHtml(handle)} <span class="tier-chip ${isSage ? 'sage' : ''}">${isSage ? '◈ SAGE' : escapeHtml(tier.toUpperCase())}</span>`;
+  host.innerHTML = `@${escapeHtml(handle)} <span class="tier-chip ${isSage ? 'sage' : ''}">${isSage ? '◈ Sage' : 'Free'}</span>`;
 }
 
 // ─── APHORICA — the commons (read + vote; compose is a HANDOFF) ────
@@ -2390,10 +2396,10 @@ function aphPostHtml(p: AphPost): string {
       <div class="aph-post-head">
         ${sprite ? `<img class="aph-author-sprite" src="${sprite}" alt="" onerror="this.style.display='none'"/>` : ''}
         <span class="aph-handle">@${escapeHtml(p.author?.handle || 'anon')}</span>
-        <span class="tier-chip ${isSage ? 'sage' : ''}">${isSage ? '◈ SAGE' : escapeHtml(tier.toUpperCase())}</span>
+        ${isSage ? '<span class="tier-chip sage">◈ Sage</span>' : ''}
         <span class="aph-rarity" title="${escapeAttr(p.rarity || '')}">${rarityGlyph(p.rarity)}</span>
       </div>
-      <div class="aph-text">"${escapeHtml(p.text || '')}"</div>
+      <div class="aph-text">“${escapeHtml(p.text || '')}”</div>
       ${meta ? `<div class="aph-meta">${meta}</div>` : ''}
       <div class="aph-votes">
         <button class="aph-vote up ${p.myVote === 1 ? 'mine' : ''}" data-v="1">♥ ${p.upvotes || 0}</button>
@@ -2442,13 +2448,13 @@ async function renderAphHome(): Promise<void> {
       const resp = await fetch(`${APH_FEED_URL}?sort=hot&limit=8`, { headers: { ...(await authHeaders()) } });
       if (resp.ok) { const data = await resp.json(); aphPosts = Array.isArray(data.posts) ? data.posts : []; }
     }
-    const top = aphPosts.slice(0, 5);
+    const top = aphPosts.slice(0, 1);
     list.innerHTML = top.length
       ? top.map(aphPostHtml).join('')
-      : '<li class="muted" style="padding:8px 2px;">No aphorisms yet — be the first to post one on the web.</li>';
+      : '<li class="muted" style="padding:8px 2px;">Nothing in the Commons yet. Post the first one on enkiridion.com.</li>';
     wireAphVotes(list, () => { renderAphHome(); renderAphList(); });
   } catch {
-    list.innerHTML = '<li style="color:var(--err);font-size:12px;padding:8px 2px;">Couldn’t reach the commons.</li>';
+    list.innerHTML = '<li class="muted" style="font-size:12px;padding:8px 2px;">Couldn’t reach the Commons. Check your connection.</li>';
   }
 }
 
@@ -2671,7 +2677,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   // Deep-link: a #<tab> hash activates that tab on load (e.g. #speak, #philosophers).
   const deepTab = location.hash.replace('#', '').trim();
   if (deepTab) {
-    setTimeout(() => document.querySelector<HTMLElement>(`.tab-btn[data-tab="${deepTab}"]`)?.click(), 600);
+    setTimeout(() => switchTab(deepTab), 600);
   }
   log('[DASHBOARD] Ready', 'success');
 }
@@ -2728,7 +2734,7 @@ async function consumeMindfulLatch(): Promise<void> {
   try { await bridge.setLocalStorage(MINDFUL_LATCH_KEY, ''); } catch { /* best effort */ }
   const at = Number(raw);
   if (!Number.isFinite(at) || Date.now() - at > SUPPORT_LATCH_TTL_MS) return;
-  document.querySelector<HTMLElement>('.tab-btn[data-tab="mindful"]')?.click();
+  switchTab('mindful');
   log('[MINDFUL] setup opened from glasses', 'success');
 }
 
@@ -3001,8 +3007,8 @@ async function openAccountStep(): Promise<void> {
 // ─── ACCOUNT CARD (top of Home) ────────────────────────────────────
 // One card, one next step, chosen by the account state:
 //   unlinked → link your glasses (Enki is free meanwhile)
-//   free     → unlock all 18 (trial link to copy)
-//   Sage     → how to start talking on the glasses
+//   free     → unlock all 17 (trial link to copy)
+//   Sage     → hidden; the glasses card on Today says what to do
 // When the glasses are showing an upsell moment (a Sage philosopher
 // picked, today's free reply used) the card names it.
 let glassUpsell: GlassesState['upsell'] = null;
@@ -3018,12 +3024,14 @@ async function renderAccountCard(): Promise<void> {
         : 'That was today’s free reply')
     : '';
   host.classList.toggle('glow', !!moment);
+  host.hidden = sage;
+  markSageOnly(sage);
 
   if (!handle) {
     host.innerHTML = `
       <div class="card-header">${moment || 'Link your glasses'}<span class="badge">Free: Enki</span></div>
       <div class="card-body">
-        <p class="account-lede">Enki talks with you free, one reply a day. Link your enkiRIDION account to keep your conversations, and start <strong>${PLAN.trialDays} days free</strong> to open all 18 philosophers.</p>
+        <p class="account-lede">Enki talks with you free, one reply a day. Link your enkiRIDION account to keep your conversations, and start <strong>${PLAN.trialDays} days free</strong> to open all ${TOTAL_PHILOSOPHERS} philosophers.</p>
         <button class="btn btn-primary btn-block" id="account-link-btn">Link my glasses</button>
       </div>`;
     $('account-link-btn')?.addEventListener('click', openOnboarding);
@@ -3031,9 +3039,9 @@ async function renderAccountCard(): Promise<void> {
   }
   if (!sage) {
     host.innerHTML = `
-      <div class="card-header">${moment || 'Open every philosopher'}<span class="badge">@${escapeHtml(handle)} · Free</span></div>
+      <div class="card-header">${moment || 'Open every philosopher'}</div>
       <div class="card-body">
-        <p class="account-lede">Sage opens all 18 philosophers, ${PLAN.sageRepliesPerDay} replies a day, here and on your glasses. <strong>${PLAN.trialDays} days free</strong>, then ${PRICE_LINE}.</p>
+        <p class="account-lede">Sage opens all ${TOTAL_PHILOSOPHERS} philosophers, ${PLAN.sageRepliesPerDay} replies a day, here and on your glasses. <strong>${PLAN.trialDays} days free</strong>, then ${PRICE_LINE}.</p>
         <p class="muted account-step">Open this in your phone’s browser to start:</p>
         <div class="howto-link"><span class="howto-url">enkiridion.com/start</span><button class="copy-btn" data-copy="${escapeAttr(TRIAL_URL)}">Copy</button></div>
         <p class="muted account-step">Your glasses pick up the upgrade by themselves, usually within a minute. <button class="link-btn" id="account-recheck">Check now</button></p>
@@ -3047,11 +3055,17 @@ async function renderAccountCard(): Promise<void> {
     });
     return;
   }
-  host.innerHTML = `
-    <div class="card-header">On your glasses<span class="badge sage">@${escapeHtml(handle)} · ◈ Sage</span></div>
-    <div class="card-body">
-      <p class="account-lede">Choose <strong>Talk to Enki</strong>, or <strong>Philosophers</strong> and pick anyone. Tap to speak, tap again to send. ${PLAN.sageRepliesPerDay} replies a day.</p>
-    </div>`;
+  host.innerHTML = '';
+}
+
+/** The AI planning tools (weekly plan, themes, actions) are Sage-only on
+ *  the server. Say so on the button, and send a free tap to the trial
+ *  instead of to a refusal. */
+function markSageOnly(sage: boolean): void {
+  $$('[data-sage-only]').forEach(el => el.classList.toggle('needs-sage', !sage));
+}
+function sageOr(run: () => unknown): () => void {
+  return () => { if (!isSageCached()) { openAccountStep(); return; } run(); };
 }
 
 /** Copy buttons: clipboard where the webview allows it, the legacy path
