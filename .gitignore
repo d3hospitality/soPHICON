@@ -14,3 +14,4 @@ sophicon-g2-for-review.zip
 # PR01: server-owned persona prompts — never commit (public repo)
 sophicon-api/api/_personas.js
 harness/shots/
+__pycache__/
