@@ -1082,6 +1082,8 @@ export function buildSpeakConversationPage(
   // the emotion at its own z-depth between the far ghost and the text —
   // three image planes at three depths. events.ts pushes the pixels via
   // pushSpritesSplit / pushSpriteSingle with the same preset's styles.
+  // The desktop simulator can't layer (zOrderIndex is stripped there),
+  // so the ghost would paint over the reply and erase it. Phones only.
   const preset = ghostPreset();
   const ghostTop = new ImageContainerProperty({
     xPosition: 250, yPosition: 44, width: 200, height: 100,
@@ -1093,7 +1095,7 @@ export function buildSpeakConversationPage(
     containerID: 22, containerName: "ghost-bottom",
     zOrderIndex: 2,
   });
-  const echo = preset.echo
+  const echo = preset.echo && hostSupports214
     ? new ImageContainerProperty({
         xPosition: preset.echo.x, yPosition: preset.echo.y,
         width: preset.echo.size, height: preset.echo.size,
@@ -1153,12 +1155,14 @@ export function buildSpeakConversationPage(
 
   return new RebuildPageContainer({
     ...menuOf(convoMenu()),
-    containerTotalNum: echo ? 7 : 6,
+    containerTotalNum: !hostSupports214 ? 4 : echo ? 7 : 6,
     listObject: [],
     textObject: [responseBox, philName, philSchool],
-    imageObject: echo
-      ? [portrait, ghostTop, ghostBottom, echo] // 4 = image-container max
-      : [portrait, ghostTop, ghostBottom],
+    imageObject: !hostSupports214
+      ? [portrait]
+      : echo
+        ? [portrait, ghostTop, ghostBottom, echo] // 4 = image-container max
+        : [portrait, ghostTop, ghostBottom],
   });
 }
 

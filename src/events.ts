@@ -55,6 +55,7 @@ import {
 } from './pages';
 import { MINDFUL_LATCH_KEY, SUPPORT_LATCH_KEY } from './support';
 import { pushLogoToGlasses, pushSpritesSplit, pushSpriteSingle, pushSpriteFromUrl, ghostPreset } from './image-utils';
+import { hostSupports214 } from './host';
 import { isFavorite, toggleFavorite, isFavoriteText, getFavoriteEntries, onFavoritesChange } from './favorites';
 import { onWisdomLogChange } from './wisdomlog';
 import { addWisdomEntry } from './wisdomlog';
@@ -849,6 +850,7 @@ async function pushEmotionPortrait(
   const sprite = emotionToSprite(philId, emotion);
   const preset = ghostPreset();
   await pushSpriteSingle(bridge, baseUrl, sprite, 1, "portrait", 100, 100);
+  if (!hostSupports214) return; // simulator page has no ghost layer (pages.ts)
   await pushSpritesSplit(bridge, baseUrl, sprite, 21, "ghost-top", 22, "ghost-bottom", preset.style);
   if (preset.echo) {
     // Third depth plane (?ghost=jumble) — serial after the ghost halves.
