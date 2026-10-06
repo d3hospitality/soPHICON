@@ -277,7 +277,8 @@ function applyGlassState(s: GlassesState): void {
   const dot = $('glasses-live-dot');
   const sprite = $('glasses-sprite');
 
-  if (badge) badge.textContent = 'live';
+  if (badge) badge.textContent = 'Live';
+  $('glass-card')?.classList.add('live');
   if (name) name.textContent = pageLabel(s.page);
   if (sub) sub.textContent = pageSubtext(s) || '—';
   if (dot) dot.style.display = 'inline-block';
@@ -2331,7 +2332,7 @@ async function renderHeaderAccount(): Promise<void> {
   const tier = ((await linkedTier()) || 'seeker').toLowerCase();
   const isSage = tier === 'sage';
   host.style.display = '';
-  host.innerHTML = `@${escapeHtml(handle)} <span class="tier-chip ${isSage ? 'sage' : ''}">${isSage ? '◈ Sage' : 'Free'}</span>`;
+  host.innerHTML = `<span class="ha-handle">@${escapeHtml(handle)}</span> <span class="tier-chip ${isSage ? 'sage' : ''}">${isSage ? '◈ Sage' : 'Free'}</span>`;
 }
 
 // ─── APHORICA — the commons (read + vote; compose is a HANDOFF) ────
@@ -3035,7 +3036,11 @@ function renderPathCard(): void {
   const goals = activeGoals();
   const open = openMoves();
   const done = recentDone(7);
-  if (badge) badge.textContent = done.length ? `${done.length} done this week` : '';
+  if (badge) {
+    const n = Math.min(done.length, 7);
+    badge.hidden = !(goals.length || done.length);
+    badge.innerHTML = `<span class="path-dots" aria-hidden="true">${'<i class="on"></i>'.repeat(n)}${'<i></i>'.repeat(7 - n)}</span><span>${done.length} done this week</span>`;
+  }
   const addRow = (shown: boolean) => `
     <div class="path-add" ${shown ? '' : 'hidden'}>
       <input id="path-goal-input" type="text" maxlength="80" placeholder="e.g. Open my own restaurant" />
@@ -3051,6 +3056,7 @@ function renderPathCard(): void {
     return `<div class="path-goal" data-goal="${escapeAttr(g.id)}">
       <div class="path-goal-head">
         <span class="path-goal-title">${escapeHtml(g.title)}</span>
+        <span class="path-goal-meta">${mine.length} open · since ${new Date(g.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
         <span class="path-goal-acts"><button class="link-btn" data-act="reached">Reached</button><button class="link-btn" data-act="drop">Drop</button></span>
       </div>
       ${mine.length ? `<ul class="path-moves">${mine.map(pathMoveRow).join('')}</ul>` : '<p class="muted path-none">No open move. Your next talk will suggest one.</p>'}
@@ -3171,24 +3177,42 @@ async function renderAccountCard(): Promise<void> {
 
   if (!handle) {
     host.innerHTML = `
-      <div class="card-header">${moment || 'Link your glasses'}<span class="badge">Free: Enki</span></div>
-      <div class="card-body">
-        <p class="account-lede">Enki talks with you free, one reply a day. Link your enkiRIDION account to keep your conversations, and start <strong>${PLAN.trialDays} days free</strong> to open all ${TOTAL_PHILOSOPHERS} philosophers.</p>
-        <button class="btn btn-primary btn-block" id="account-link-btn">Link my glasses</button>
+      <div class="strip">
+        <span class="strip-mark" aria-hidden="true">◈</span>
+        <div class="strip-text">
+          <div class="strip-title">${moment || 'Link your glasses'}</div>
+          <div class="strip-sub">Enki is free, one reply a day. Linking keeps your talks and your path.</div>
+        </div>
+        <button class="btn btn-primary strip-go" id="account-link-btn">Link</button>
       </div>`;
     $('account-link-btn')?.addEventListener('click', openOnboarding);
     return;
   }
   if (!sage) {
     host.innerHTML = `
-      <div class="card-header">${moment || 'Open every philosopher'}</div>
-      <div class="card-body">
-        <p class="account-lede">Sage opens all ${TOTAL_PHILOSOPHERS} philosophers, ${PLAN.sageRepliesPerDay} replies a day, here and on your glasses. <strong>${PLAN.trialDays} days free</strong>, then ${PRICE_LINE}.</p>
+      <div class="strip">
+        <span class="strip-mark" aria-hidden="true">◈</span>
+        <div class="strip-text">
+          <div class="strip-title">${moment || `Open all ${TOTAL_PHILOSOPHERS} philosophers`}</div>
+          <div class="strip-sub">${PLAN.trialDays} days free, then ${PLAN.monthly} a month</div>
+        </div>
+        <button class="btn btn-primary strip-go" id="account-more" aria-expanded="false" aria-controls="account-more-body">Start</button>
+      </div>
+      <div class="strip-more" id="account-more-body" hidden>
+        <p class="account-step">Sage: every philosopher, ${PLAN.sageRepliesPerDay} replies a day, here and on your glasses. ${PRICE_LINE} after the free week.</p>
         <p class="muted account-step">Open this in your phone’s browser to start:</p>
         <div class="howto-link"><span class="howto-url">enkiridion.com/start</span><button class="copy-btn" data-copy="${escapeAttr(TRIAL_URL)}">Copy</button></div>
         <p class="muted account-step">Your glasses pick up the upgrade by themselves, usually within a minute. <button class="link-btn" id="account-recheck">Check now</button></p>
       </div>`;
     wireCopyButtons(host);
+    $('account-more')?.addEventListener('click', (ev) => {
+      const b = ev.currentTarget as HTMLButtonElement;
+      const more = $('account-more-body');
+      if (!more) return;
+      more.hidden = !more.hidden;
+      b.setAttribute('aria-expanded', String(!more.hidden));
+      b.textContent = more.hidden ? 'Start' : 'Hide';
+    });
     $('account-recheck')?.addEventListener('click', async (ev) => {
       const b = ev.currentTarget as HTMLButtonElement;
       b.textContent = 'Checking…';

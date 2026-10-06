@@ -59,7 +59,7 @@
       <!-- Your path: goals you named and the moves kept at the end of
            talks (src/path.ts) — renderPathCard() in dashboard.ts. -->
       <div class="card path-card" id="path-card">
-        <div class="card-header">Your path <span class="badge" id="path-count"></span></div>
+        <div class="path-head"><h2 class="path-title">Your path</h2><div class="path-week" id="path-count" hidden></div></div>
         <div class="card-body" id="path-body"></div>
       </div>
 
@@ -79,11 +79,11 @@
 
       <!-- On your glasses: the live mirror, the philosopher picker mirror
            (only while choosing), and today's conversations, in one card. -->
-      <div class="card glass-card">
+      <div class="card glass-card" id="glass-card">
         <div class="card-header">
           <span class="glasses-live-dot" id="glasses-live-dot" style="display:none"></span>
           On your glasses
-          <span class="badge" id="glasses-page-badge">—</span>
+          <span class="badge presence-pill" id="glasses-page-badge">Off</span>
         </div>
         <div class="card-body">
           <div class="glasses-row">
