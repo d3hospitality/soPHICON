@@ -2011,3 +2011,21 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
 .tab-panel.active { animation: none; }
 .tab-panel.active.entering { animation: fadeIn .2s ease-out; }
 @media (prefers-reduced-motion: reduce) { .tab-panel.active.entering { animation: none; } }
+
+/* ── Coming soon: waitlist (src/waitlist.ts) ───────────────────────── */
+.soon-card { border-color: rgba(212,175,55,0.28); }
+.soon-list { display: flex; flex-direction: column; gap: 14px; }
+.soon-item + .soon-item { border-top: 1px solid var(--border); padding-top: 14px; }
+.soon-title { font-family: 'Crimson Text', Georgia, serif; font-size: 19px; color: var(--gold); line-height: 1.2; }
+.soon-body { color: var(--dim); font-size: 13px; line-height: 1.5; margin: 4px 0 10px; }
+.soon-ask {
+  width: 100%; margin-bottom: 10px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--ink); font-family: inherit; font-size: 13px;
+  padding: 9px 12px; border-radius: 7px; outline: none;
+}
+.soon-ask:focus { border-color: var(--gold); }
+.soon-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.soon-note { color: var(--dimmer); font-size: 12px; }
+.soon-msg { color: var(--ink); font-size: 12.5px; margin-top: 8px; }
+.soon-join:disabled { opacity: .85; cursor: default; }
