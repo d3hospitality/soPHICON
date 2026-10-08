@@ -18,6 +18,7 @@
 // bridge exists before that.
 // ═══════════════════════════════════════════════════════════════════
 
+import { spriteImgUrl, spriteLocalFallback } from './spriteSource';
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 import {
   PHILOSOPHERS, TRADITIONS, TOTAL_QUOTES, TOTAL_PHILOSOPHERS, TOTAL_TRADITIONS,
@@ -183,9 +184,24 @@ function showQuotesView(view: string): void {
 // helper so every img src uses the same resolution rule and we have
 // one place to tweak if the base ever changes.
 function spriteUrl(path: string): string {
-  const base = import.meta.env.BASE_URL || '/';
-  const trimmed = path.replace(/^\/+/, '');
-  return `${base}sprites/${trimmed}`;
+  // Backend first; installSpriteImgFallback() swaps in the bundled copy
+  // (or the philosopher's bundled neutral) if the backend can't serve it.
+  return spriteImgUrl(path);
+}
+
+/** One capture-phase handler for every sprite <img> on the phone: on a
+ *  backend miss, retry once with the bundled file before the element's
+ *  own onerror (which hides it) ever runs. */
+function installSpriteImgFallback(): void {
+  document.addEventListener('error', (e) => {
+    const img = e.target as HTMLImageElement | null;
+    if (!img || img.tagName !== 'IMG' || img.dataset.spriteFallback) return;
+    const local = spriteLocalFallback(img.currentSrc || img.src);
+    if (!local) return;
+    e.stopImmediatePropagation();
+    img.dataset.spriteFallback = '1';
+    img.src = local;
+  }, true);
 }
 
 // Fallback SVG shown in .glasses-sprite.placeholder when nothing is loaded
@@ -2141,7 +2157,7 @@ function renderHabitRow(h: Habit): string {
   return `
     <li class="habit-row tone-${sh.tone}" data-hid="${escapeAttr(h.id)}">
       <div class="habit-sprite">
-        ${sprite ? `<img src="./sprites/${sprite}" alt="${escapeAttr(h.philName)}" loading="lazy" onerror="this.style.display='none'"/>` : `<span class="habit-sprite-fallback">${escapeHtml(h.philName.charAt(0) || '·')}</span>`}
+        ${sprite ? `<img src="${spriteUrl(sprite)}" alt="${escapeAttr(h.philName)}" loading="lazy" onerror="this.style.display='none'"/>` : `<span class="habit-sprite-fallback">${escapeHtml(h.philName.charAt(0) || '·')}</span>`}
       </div>
       <div class="habit-info">
         <div class="habit-title">${escapeHtml(h.title)}</div>
@@ -2175,7 +2191,7 @@ function showCheckInModal(pending: PendingCheckIn[]): void {
     return `
       <li class="checkin-row" data-hid="${escapeAttr(p.habit.id)}" data-date="${p.forDate}">
         <div class="checkin-sprite">
-          ${sprite ? `<img src="./sprites/${sprite}" alt="${escapeAttr(p.habit.philName)}" onerror="this.style.display='none'"/>` : `<span class="habit-sprite-fallback">${escapeHtml(p.habit.philName.charAt(0))}</span>`}
+          ${sprite ? `<img src="${spriteUrl(sprite)}" alt="${escapeAttr(p.habit.philName)}" onerror="this.style.display='none'"/>` : `<span class="habit-sprite-fallback">${escapeHtml(p.habit.philName.charAt(0))}</span>`}
         </div>
         <div class="checkin-body">
           <div class="checkin-q">${escapeHtml(p.habit.philName)} asks: did you <strong>${escapeHtml(p.habit.title)}</strong> yesterday?</div>
@@ -2580,6 +2596,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   setChecklistBridge(b);
   setSyncBridge(b);
 
+  installSpriteImgFallback();
   initTabs();
   // The account card is the first thing on Home — paint it before the
   // slower panels below, so it is never an empty box while they load.

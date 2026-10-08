@@ -17,6 +17,7 @@
 
 import { EvenAppBridge, ImageRawDataUpdate } from '@evenrealities/even_hub_sdk';
 import { encodeGrayscalePng } from './pngEncoder';
+import { fetchAsset } from './spriteSource';
 
 // ═══ Image wire format (SDK 0.0.12 regression fix, 2026-07-14) ═══
 // SDK 0.0.12 stamps `compressMode: 2` on every updateImageRawData payload
@@ -280,7 +281,8 @@ async function fetchAsGrayscalePng(source: string, w: number, h: number, ghost?:
   const hit = spriteCache.get(key);
   if (hit) return hit;
 
-  const resp = await fetch(source);
+  // Sprites: backend first, bundled fallback (see spriteSource.ts).
+  const resp = await fetchAsset(source);
   if (!resp.ok) throw new Error(`Fetch ${resp.status}: ${source}`);
   const blob = await resp.blob();
   const bmp = await createImageBitmap(blob);
@@ -408,7 +410,7 @@ export async function pushSpritesSplit(
 ): Promise<void> {
   const url = assetUrl(`sprites/${spritePath}`);
   try {
-    const resp = await fetch(url);
+    const resp = await fetchAsset(url);
     if (!resp.ok) throw new Error(`${resp.status}`);
     const blob = await resp.blob();
     const bmp = await createImageBitmap(blob);

@@ -15,3 +15,6 @@ sophicon-g2-for-review.zip
 sophicon-api/api/_personas.js
 harness/shots/
 __pycache__/
+
+# EHPK staging (scripts/pack-ehpk.sh)
+.ehpk-stage/
