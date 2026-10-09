@@ -2038,17 +2038,12 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
 @media (prefers-reduced-motion: reduce) { .pg-slot, .pg-word { transition: none; } }
 .polygot-card.is-live { border-color: #8fe3ac; box-shadow: 0 0 0 1px rgba(143,227,172,.35), 0 0 28px -8px rgba(143,227,172,.45); }
 .pg-live { color: #8fe3ac; font: 600 12px/1.4 var(--mono); letter-spacing: .02em; margin-bottom: 10px; }
-/* "Curious? Click me." drifts slowly from one side of its lane to the
-   other and back; the text itself stays still. --lane is the travel
-   distance, measured in polygot.ts; hover or focus holds it still. */
-.curious-lane { position: relative; margin: 0 0 12px; height: 40px; }
-.curious-pill { position: absolute; left: 0; top: 2px; display: inline-flex; align-items: center; padding: 7px 15px; border-radius: 999px;
-  border: 1px solid rgba(143,227,172,.45); background: rgba(143,227,172,.10); color: #8fe3ac; cursor: pointer;
-  font: 500 13px var(--sans, inherit); white-space: nowrap;
-  box-shadow: 0 0 18px -6px rgba(143,227,172,.45);
-  animation: curious-drift 11s cubic-bezier(.45,.05,.55,.95) infinite alternate; }
-.curious-pill em { font: italic 600 16px 'Crimson Text', Georgia, serif; }
-.curious-pill:hover, .curious-pill:focus-visible { background: rgba(143,227,172,.18); animation-play-state: paused; }
-@keyframes curious-drift { from { transform: translateX(0); } to { transform: translateX(var(--lane, 0px)); } }
-@media (prefers-reduced-motion: reduce) { .curious-pill { animation: none; } }
+/* The wide "Want to learn a new [language]?" pill at the top of Today.
+   It stays put; only the word for "language" drifts (polygot.ts). */
+.curious-pill { position: relative; display: block; width: 100%; padding: 12px 16px; border-radius: 999px; text-align: center;
+  border: 1px solid rgba(143,227,172,.45); background: rgba(143,227,172,.08); color: var(--ink); cursor: pointer;
+  font: 600 19px/1.25 'Crimson Text', Georgia, serif; box-shadow: 0 0 18px -8px rgba(143,227,172,.45); }
+.curious-pill:hover, .curious-pill:focus-visible { background: rgba(143,227,172,.15); }
+.curious-line { white-space: nowrap; }
+.curious-sub { margin: 6px 0 14px; text-align: center; font-style: italic; font-size: 12.5px; color: var(--dim); }
 .polygot-card.is-flash { box-shadow: 0 0 0 1px rgba(143,227,172,.55), 0 0 32px -6px rgba(143,227,172,.55); transition: box-shadow .4s; }

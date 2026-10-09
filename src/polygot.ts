@@ -61,6 +61,8 @@ async function drift(root: HTMLElement): Promise<void> {
   const word = root.querySelector<HTMLElement>('.pg-word');
   const measure = root.querySelector<HTMLElement>('.pg-measure');
   if (!slot || !word || !measure) return;
+  // Measure in the real serif, not the fallback it starts in.
+  try { await document.fonts?.ready; } catch { /* measure anyway */ }
   const width = (text: string, lang: string) => { measure.textContent = text; measure.lang = lang; return Math.ceil(measure.getBoundingClientRect().width); };
   const home: [string, string] = ['en', 'language'];
   slot.style.width = `${width(home[1], home[0])}px`;
@@ -85,13 +87,9 @@ export function initPolyGotCard(): void {
   if (!root) return;
   render(root);
   void drift(root);
-  // The pill drifts across its lane: tell the CSS how far that is.
-  const lane = document.getElementById('curious-lane');
+  // The wide pill at the top of Today drifts its word too.
   const pill = document.getElementById('curious-pill');
-  const measureLane = () => { if (lane && pill) lane.style.setProperty('--lane', `${Math.max(0, lane.clientWidth - pill.offsetWidth)}px`); };
-  measureLane();
-  window.addEventListener('resize', measureLane);
-  if ('ResizeObserver' in window && lane) new ResizeObserver(measureLane).observe(lane);
+  if (pill) void drift(pill);
   pill?.addEventListener('click', () => {
     root.scrollIntoView({ behavior: 'smooth', block: 'start' });
     root.classList.add('is-flash');

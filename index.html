@@ -53,12 +53,13 @@
          live in Journal; the Commons has its own view under Quotes. -->
     <div class="tab-panel active" data-panel="home">
 
-      <!-- "Curious?" — a small pill that takes you down to PolyGot. -->
-      <div class="curious-lane" id="curious-lane">
-        <button class="curious-pill" id="curious-pill" type="button" aria-label="Curious? Click me to see PolyGot">
-          <em>Curious?</em>&nbsp;Click me
-        </button>
-      </div>
+      <!-- A wide pill: "Want to learn a new [language]?" — the word drifts
+           through languages like the PolyGot card's headline (polygot.ts).
+           Tapping it scrolls down to the PolyGot card. -->
+      <button class="curious-pill" id="curious-pill" type="button" aria-label="Want to learn a new language? Click to find out more">
+        <span class="curious-line" aria-hidden="true">Want to learn a new <span class="pg-slot"><span class="pg-word" data-phase="in" lang="en">language</span></span>?<span class="pg-measure"></span></span>
+      </button>
+      <p class="curious-sub" aria-hidden="true">click to find out more</p>
 
       <!-- Your next step: link / unlock — rendered by renderAccountCard(). -->
       <div class="card account-card" id="account-card"></div>
