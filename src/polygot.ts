@@ -85,7 +85,14 @@ export function initPolyGotCard(): void {
   if (!root) return;
   render(root);
   void drift(root);
-  document.getElementById('curious-pill')?.addEventListener('click', () => {
+  // The pill drifts across its lane: tell the CSS how far that is.
+  const lane = document.getElementById('curious-lane');
+  const pill = document.getElementById('curious-pill');
+  const measureLane = () => { if (lane && pill) lane.style.setProperty('--lane', `${Math.max(0, lane.clientWidth - pill.offsetWidth)}px`); };
+  measureLane();
+  window.addEventListener('resize', measureLane);
+  if ('ResizeObserver' in window && lane) new ResizeObserver(measureLane).observe(lane);
+  pill?.addEventListener('click', () => {
     root.scrollIntoView({ behavior: 'smooth', block: 'start' });
     root.classList.add('is-flash');
     setTimeout(() => root.classList.remove('is-flash'), 1600);

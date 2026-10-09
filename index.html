@@ -54,7 +54,11 @@
     <div class="tab-panel active" data-panel="home">
 
       <!-- "Curious?" — a small pill that takes you down to PolyGot. -->
-      <button class="curious-pill" id="curious-pill" type="button">Curious? <span aria-hidden="true">↓</span></button>
+      <div class="curious-lane" id="curious-lane">
+        <button class="curious-pill" id="curious-pill" type="button" aria-label="Curious? Click me to see PolyGot">
+          <span class="curious-bob"><em>Curious?</em> Click me <span class="curious-heart" aria-hidden="true">♡</span></span>
+        </button>
+      </div>
 
       <!-- Your next step: link / unlock — rendered by renderAccountCard(). -->
       <div class="card account-card" id="account-card"></div>
