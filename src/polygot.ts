@@ -44,7 +44,7 @@ function render(root: HTMLElement): void {
     </div>`;
 }
 
-async function copy(text: string): Promise<boolean> {
+export async function copy(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true; } catch { /* webview may refuse */ }
   try {
     const t = document.createElement('textarea');
@@ -55,7 +55,7 @@ async function copy(text: string): Promise<boolean> {
 }
 
 /** Only the word moves: blur out and up, the next arrives from the same blur. */
-async function drift(root: HTMLElement): Promise<void> {
+export async function drift(root: HTMLElement): Promise<void> {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const slot = root.querySelector<HTMLElement>('.pg-slot');
   const word = root.querySelector<HTMLElement>('.pg-word');
@@ -63,16 +63,22 @@ async function drift(root: HTMLElement): Promise<void> {
   if (!slot || !word || !measure) return;
   // Measure in the real serif, not the fallback it starts in.
   try { await document.fonts?.ready; } catch { /* measure anyway */ }
-  const width = (text: string, lang: string) => { measure.textContent = text; measure.lang = lang; return Math.ceil(measure.getBoundingClientRect().width); };
+  // A hidden root (the link overlay before it opens) measures 0: leave the
+  // slot's width alone then, so the word never collapses.
+  const setWidth = (text: string, lang: string) => {
+    measure.textContent = text; measure.lang = lang;
+    const w = Math.ceil(measure.getBoundingClientRect().width);
+    slot.style.width = w > 0 ? `${w}px` : '';
+  };
   const home: [string, string] = ['en', 'language'];
-  slot.style.width = `${width(home[1], home[0])}px`;
+  setWidth(home[1], home[0]);
   await sleep(3000);
   for (;;) {
     const set = [...WORDS].sort(() => Math.random() - 0.5).slice(0, 8);
     for (const [lang, text] of [...set, home]) {
       if (!root.isConnected) return;
       word.dataset.phase = 'out'; await sleep(700);
-      slot.style.width = `${width(text, lang)}px`;
+      setWidth(text, lang);
       word.textContent = text; word.lang = lang; word.dataset.phase = 'enter';
       await sleep(30);
       word.dataset.phase = 'in';
@@ -143,4 +149,49 @@ export function setPolyGotLive(s: { stop: number; total: number; name: string; s
     video?.play().catch(() => {});
   }
   return started;
+}
+
+// ── PolyGot inside the link-your-glasses overlay ─────────────────────
+const PARROT = ['neutral', 'blink', 'look-left', 'look-right', 'wave-up', 'wave-wide', 'wave-settle'];
+const frame = (name: string) => `./polygot/parrot/${name}.webp`;
+
+/** The parrot, alive while the overlay is open: waves hello, then blinks
+ *  and glances now and then. Same key poses as polygot.live's hero bird. */
+async function animateParrot(bird: HTMLImageElement, overlay: HTMLElement): Promise<void> {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  await Promise.all(PARROT.map(async (n) => { const i = new Image(); i.src = frame(n); try { await i.decode(); } catch { /* skip */ } }));
+  const between = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
+  const show = async (n: string, ms: number) => { bird.src = frame(n); await sleep(ms); };
+  const visible = () => !overlay.hidden && !document.hidden;
+  let waved = false;
+  for (;;) {
+    while (!visible()) { waved = false; await sleep(600); }
+    if (!waved) {
+      waved = true;
+      await sleep(700);
+      for (const [n, ms] of [['wave-up', 150], ['wave-wide', 190], ['wave-up', 140], ['wave-wide', 190], ['wave-settle', 260]] as const) await show(n, ms);
+      await show('neutral', 0);
+    }
+    await sleep(between(2400, 4800));
+    if (!visible()) continue;
+    if (Math.random() < 0.25) { await show(Math.random() < 0.5 ? 'look-left' : 'look-right', between(700, 1100)); await show('neutral', 0); }
+    else { await show('blink', between(90, 130)); await show('neutral', 0); }
+  }
+}
+
+export function initPolyGotOverlay(): void {
+  const overlay = document.getElementById('onboard');
+  const pill = document.getElementById('ob-pg-pill');
+  const sub = document.getElementById('ob-pg-sub');
+  const bird = document.getElementById('ob-pg-bird') as HTMLImageElement | null;
+  if (!overlay || !pill || !sub) return;
+  void drift(pill);
+  if (bird) void animateParrot(bird, overlay);
+  const idle = sub.textContent || '';
+  pill.addEventListener('click', async () => {
+    const ok = await copy(HUB);
+    sub.textContent = ok ? 'Copied. Paste it in your browser to get PolyGot on Even Hub.' : 'Search for PolyGot in Even Hub.';
+    pill.classList.add('is-copied');
+    setTimeout(() => { sub.textContent = idle; pill.classList.remove('is-copied'); }, 3200);
+  });
 }

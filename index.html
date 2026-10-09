@@ -695,6 +695,17 @@
 
       <p class="onboard-fine">Just want a free account? Use <span class="onboard-url-inline">enkiridion.com/settings</span> <button class="copy-btn copy-inline" data-copy="https://enkiridion.com/settings">Copy</button> for step 1.</p>
       <button class="onboard-ghost" id="onboard-free">Not now, talk to Enki free</button>
+
+      <!-- PolyGot, D3's language app for the same glasses (src/polygot.ts):
+           the drifting "language" pill, the parrot, and one tap to copy its
+           Even Hub link — the webview can't open links itself. -->
+      <div class="ob-polygot">
+        <button class="ob-pg-pill" id="ob-pg-pill" type="button" aria-label="Want to learn a new language? Copy the link to PolyGot">
+          <img class="ob-pg-bird" id="ob-pg-bird" src="./polygot/parrot/neutral.webp" width="48" height="48" alt="" />
+          <span class="curious-line" aria-hidden="true">Want to learn a new <span class="pg-slot"><span class="pg-word" data-phase="in" lang="en">language</span></span>?<span class="pg-measure"></span></span>
+        </button>
+        <p class="ob-pg-sub" id="ob-pg-sub" role="status">click here to copy paste the start of your journey</p>
+      </div>
     </div>
   </div>
 
