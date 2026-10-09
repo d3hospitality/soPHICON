@@ -2039,7 +2039,7 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
 .polygot-card.is-live { border-color: #8fe3ac; box-shadow: 0 0 0 1px rgba(143,227,172,.35), 0 0 28px -8px rgba(143,227,172,.45); }
 .pg-live { color: #8fe3ac; font: 600 12px/1.4 var(--mono); letter-spacing: .02em; margin-bottom: 10px; }
 /* "Curious? Click me." drifts slowly from one side of its lane to the
-   other and back, swaying a little as it goes. --lane is the travel
+   other and back; the text itself stays still. --lane is the travel
    distance, measured in polygot.ts; hover or focus holds it still. */
 .curious-lane { position: relative; margin: 0 0 12px; height: 40px; }
 .curious-pill { position: absolute; left: 0; top: 2px; display: inline-flex; align-items: center; padding: 7px 15px; border-radius: 999px;
@@ -2047,13 +2047,8 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
   font: 500 13px var(--sans, inherit); white-space: nowrap;
   box-shadow: 0 0 18px -6px rgba(143,227,172,.45);
   animation: curious-drift 11s cubic-bezier(.45,.05,.55,.95) infinite alternate; }
-.curious-pill em { font: italic 600 16px 'Crimson Text', Georgia, serif; margin-right: 4px; }
-.curious-bob { display: inline-flex; align-items: center; gap: 2px; animation: curious-sway 3.6s ease-in-out infinite; }
-.curious-heart { margin-left: 5px; font-size: 13px; animation: curious-beat 1.8s ease-in-out infinite; }
+.curious-pill em { font: italic 600 16px 'Crimson Text', Georgia, serif; }
 .curious-pill:hover, .curious-pill:focus-visible { background: rgba(143,227,172,.18); animation-play-state: paused; }
-.curious-pill:hover .curious-bob, .curious-pill:focus-visible .curious-bob { animation-play-state: paused; }
 @keyframes curious-drift { from { transform: translateX(0); } to { transform: translateX(var(--lane, 0px)); } }
-@keyframes curious-sway { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-3px) rotate(2deg); } }
-@keyframes curious-beat { 0%,100% { transform: scale(1); opacity: .75; } 50% { transform: scale(1.25); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .curious-pill, .curious-bob, .curious-heart { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .curious-pill { animation: none; } }
 .polygot-card.is-flash { box-shadow: 0 0 0 1px rgba(143,227,172,.55), 0 0 32px -6px rgba(143,227,172,.55); transition: box-shadow .4s; }
