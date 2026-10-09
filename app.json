@@ -2,7 +2,7 @@
   "package_id": "com.d3hospitality.sophicon",
   "edition": "202601",
   "name": "enkiRIDION",
-  "version": "1.14.3",
+  "version": "1.14.4",
   "description": "Philosophy on Glass — talk with Enki free, or all 18 philosophers with Sage. Collect wisdom and think deeper.",
   "author": "D3 Hospitality",
   "entrypoint": "index.html",
@@ -22,6 +22,7 @@
       "whitelist": [
         "https://sophicon-api.vercel.app",
         "https://enkiridion.com",
+        "https://polygot.live",
         "https://afdrjzhcfltsngyxaqhb.supabase.co",
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com"

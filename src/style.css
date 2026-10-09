@@ -2029,3 +2029,28 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
 .soon-note { color: var(--dimmer); font-size: 12px; }
 .soon-msg { color: var(--ink); font-size: 12.5px; margin-top: 8px; }
 .soon-join:disabled { opacity: .85; cursor: default; }
+
+/* ── PolyGot card (src/polygot.ts) ──────────────────────────────────── */
+.polygot-card { border-color: rgba(143,227,172,0.28); }
+.pg-kicker { color: #8fe3ac; }
+.pg-title { position: relative; font-family: 'Crimson Text', Georgia, serif; font-weight: 600; font-size: 24px; line-height: 1.2; color: var(--ink); margin-bottom: 8px; }
+.pg-slot { display: inline-block; vertical-align: bottom; white-space: nowrap; transition: width 700ms cubic-bezier(.22,.61,.36,1); }
+.pg-word { display: inline-block; font-style: italic; font-weight: 400; color: var(--gold);
+  transition: opacity 700ms cubic-bezier(.22,.61,.36,1), filter 700ms cubic-bezier(.22,.61,.36,1), transform 700ms cubic-bezier(.22,.61,.36,1), letter-spacing 700ms cubic-bezier(.22,.61,.36,1); }
+.pg-word[data-phase="out"] { opacity: 0; filter: blur(6px); transform: translateY(-6px); }
+.pg-word[data-phase="enter"] { opacity: 0; filter: blur(6px); letter-spacing: .08em; transition: none; }
+.pg-word[data-phase="in"] { opacity: 1; filter: none; transform: none; letter-spacing: 0; }
+.pg-measure { position: absolute; left: 0; top: 0; visibility: hidden; white-space: nowrap; font-style: italic; font-weight: 400; pointer-events: none; }
+.pg-body { color: var(--dim); font-size: 13px; line-height: 1.5; margin-bottom: 14px; }
+.pg-reel { position: relative; width: 100%; max-width: 240px; margin: 0 auto; aspect-ratio: 9/16; border-radius: 20px; overflow: hidden; border: 1px solid var(--border); background: #000; }
+.pg-reel video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pg-sound { position: absolute; left: 10px; bottom: 10px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.34); background: rgba(4,14,9,.55); color: #eafaf0; font: 500 12px var(--sans, inherit); }
+.pg-sound[aria-pressed="true"] { border-color: #8fe3ac; background: rgba(143,227,172,.18); }
+.pg-cap { text-align: center; color: var(--dimmer); font-size: 11.5px; margin: 8px 0 14px; }
+.pg-copy { width: 100%; }
+.pg-msg { color: #8fe3ac; font-size: 12.5px; margin-top: 8px; word-break: break-all; }
+.pg-steps { margin: 14px 0 0; padding: 12px 0 0 18px; border-top: 1px solid var(--border); color: var(--dim); font-size: 13px; line-height: 1.55; }
+.pg-steps b { color: var(--ink); font-weight: 600; }
+.pg-steps li + li { margin-top: 4px; }
+.pg-note { color: var(--dimmer); font-size: 11.5px; margin-top: 10px; }
+@media (prefers-reduced-motion: reduce) { .pg-slot, .pg-word { transition: none; } }
