@@ -2054,3 +2054,5 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
 .pg-steps li + li { margin-top: 4px; }
 .pg-note { color: var(--dimmer); font-size: 11.5px; margin-top: 10px; }
 @media (prefers-reduced-motion: reduce) { .pg-slot, .pg-word { transition: none; } }
+.polygot-card.is-live { border-color: #8fe3ac; box-shadow: 0 0 0 1px rgba(143,227,172,.35), 0 0 28px -8px rgba(143,227,172,.45); }
+.pg-live { color: #8fe3ac; font: 600 12px/1.4 var(--mono); letter-spacing: .02em; margin-bottom: 10px; }

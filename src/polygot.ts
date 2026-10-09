@@ -21,6 +21,7 @@ function render(root: HTMLElement): void {
   root.innerHTML = `
     <div class="card-header pg-kicker">Also for your G2 · PolyGot</div>
     <div class="card-body">
+      <p class="pg-live" role="status" hidden></p>
       <h2 class="pg-title" aria-label="Want to learn a new language?">
         <span aria-hidden="true">Want to learn a new </span><span class="pg-slot" aria-hidden="true"><span class="pg-word" data-phase="in" lang="en">language</span></span><span aria-hidden="true">?</span>
         <span class="pg-measure" aria-hidden="true"></span>
@@ -108,4 +109,27 @@ export function initPolyGotCard(): void {
       if (ok) setTimeout(() => { msg.hidden = true; }, 4000);
     }
   });
+}
+
+/** The glasses run "Try PolyGot": bring this card up and say what's showing.
+ *  Pass null when the tour ends. Returns true on the edge where it starts. */
+let liveWas = false;
+export function setPolyGotLive(s: { stop: number; total: number; name: string } | null): boolean {
+  const root = document.getElementById('polygot-card');
+  const line = root?.querySelector<HTMLElement>('.pg-live');
+  if (!root || !line) return false;
+  const started = !!s && !liveWas;
+  liveWas = !!s;
+  root.classList.toggle('is-live', !!s);
+  if (!s) { line.hidden = true; return false; }
+  const moments = s.total - 1;
+  line.textContent = s.stop < moments
+    ? `● On your glasses now · ${s.stop + 1}/${moments} · ${s.name}`
+    : '● On your glasses now · That was PolyGot. Copy the link below to get it.';
+  line.hidden = false;
+  if (started) {
+    const video = root.querySelector<HTMLVideoElement>('video');
+    video?.play().catch(() => {});
+  }
+  return started;
 }

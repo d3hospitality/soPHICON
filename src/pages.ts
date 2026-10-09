@@ -84,6 +84,9 @@ export function homeListItems(): string[] {
     tGlass('g.speak'),
     tGlass('g.philosophies'),
     tGlass('g.aphorica'),
+    // PolyGot, D3's language app for the same glasses: a short tour on
+    // this lens (src/polygotTour.ts). A brand name, so not translated.
+    'Try PolyGot',
     ...(supportEnabled() ? [`● ${tGlass('g.support')}`] : []),
   ];
 }
@@ -91,9 +94,10 @@ export const TALK_ENKI_INDEX = 0;
 export const SPEAK_INDEX = 1;
 export const PHILOSOPHIES_INDEX = 2;
 export const APHORICA_INDEX = 3;
+export const POLYGOT_INDEX = 4;
 /** Home index of the Support row, or -1 when the surface is gated off —
  *  -1 never matches a real click index, so callers need no extra guard. */
-export const SUPPORT_INDEX = supportEnabled() ? 4 : -1;
+export const SUPPORT_INDEX = supportEnabled() ? 5 : -1;
 
 /** Traditions on the Philosophers (talk) list. Primordial is Enki alone,
  *  and Enki has his own row on home, so it is not a list entry here. */
@@ -467,7 +471,9 @@ function homeContainers() {
   // (200x200, its native square) instead of being squeezed into a
   // letterboxed sliver above the menu. The menu is four rows now, so it
   // is centred vertically in its column rather than top-anchored.
-  const LIST_W = 265, LIST_H = 4 * 40;              // 40px firmware row pitch
+  // Up to five rows show at once (they end at y 244, just above the glance
+  // line at 246); a sixth, when Support is on, scrolls.
+  const LIST_W = 265, LIST_H = Math.min(homeItems.length, 5) * 40;   // 40px firmware row pitch
   const LIST_X = 62;
   const LIST_Y = Math.round((288 - LIST_H) / 2);    // 64
   // Vertically centred: (288 - 200) / 2 = 44. Horizontally centred in the

@@ -74,7 +74,7 @@ import { CATEGORY_HUE } from './weekly';
 import { INTRO_COUNT, STORY_SECTIONS } from './story';
 import { log } from './ui';
 import { initWaitlist } from './waitlist';
-import { initPolyGotCard } from './polygot';
+import { initPolyGotCard, setPolyGotLive } from './polygot';
 import {
   SUPPORT_URL, SUPPORT_LATCH_KEY, PILL_LINE_1, PILL_LINE_2,
   supportEnabled, activeCrypto, MINDFUL_LATCH_KEY,
@@ -105,6 +105,7 @@ function pageLabel(page: string): string {
     case 'speak-conversation':  return 'Conversation';
     case 'traditions':          return 'Quotes';
     case 'support':             return 'Support the dev';
+    case 'polygot':             return 'Try PolyGot';
     default:                    return page;
   }
 }
@@ -2686,6 +2687,11 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   let lastGlassPage = '';
   onGlassesStateChange((s) => {
     applyGlassState(s);
+    // "Try PolyGot" on the glasses: bring its card up on the phone, live.
+    if (setPolyGotLive(s.polygot ?? null)) {
+      switchTab('home');
+      setTimeout(() => document.getElementById('polygot-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    }
     // The glasses hit an upsell moment (or left it): put the way to
     // unlock at the top of Home, named.
     const nextUpsell = s.upsell ?? null;

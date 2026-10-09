@@ -20,19 +20,20 @@
 //     release the mic so we don't leak state between app sessions.
 // ═══════════════════════════════════════════════════════════════════
 
-import { EvenAppBridge, EvenHubEvent, OsEventTypeList, RebuildPageContainer } from '@evenrealities/even_hub_sdk';
+import { EvenAppBridge, EvenHubEvent, OsEventTypeList, RebuildPageContainer, TextContainerUpgrade } from '@evenrealities/even_hub_sdk';
 import {
   TRADITIONS, Tradition, Philosopher, Quote, PHILOSOPHERS,
   getPhilosophersByTradition, getQuotePhilosophersByTradition, getAllQuotes,
   getQuotesByEmotion, getQuotesByTag, capitalize, formatTag,
 } from './constants';
+import { buildTourPage, tourMain, tourStop, TOUR_LEN, TOUR_REGIONS } from './polygotTour';
 import {
   rebuildHomePage, loadGlanceLine, buildPhilosopherSelectPage,
   buildMindstatePage, getMindstateSelections, MINDSTATE_START,
   buildQuoteViewPage,
   homeListItems, BROWSABLE_TRADITIONS, SPEAK_INDEX, TALK_ENKI_INDEX, SPEAK_TRADITIONS,
   buildSageGatePage, buildDailyCardPage, rarityLine, speakStatusLine,
-  APHORICA_INDEX, PHILOSOPHIES_INDEX, buildTraditionsPage,
+  APHORICA_INDEX, PHILOSOPHIES_INDEX, POLYGOT_INDEX, buildTraditionsPage,
   buildAphoricaPage, buildAphoricaReadPage,
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
   buildSpeakConversationPage,
@@ -106,7 +107,7 @@ type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
   | "favorites" | "calendar" | "calendar-day"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
   | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read"
-  | "support" | "language" | "sage-gate" | "card" | "move";
+  | "support" | "language" | "sage-gate" | "card" | "move" | "polygot";
 
 let currentPage: Page = "home";
 
@@ -120,6 +121,10 @@ let gatePhil: Philosopher | null = null;
 // Reading-pace reveal + mic timer. Each reveal / mic session takes a new
 // sequence number; anything still running with an older number stops.
 let revealSeq = 0;
+// PolyGot tour (src/polygotTour.ts): the moment showing, and a sequence
+// number so a moment's line-by-line reveal stops when another starts.
+let polyStop = 0;
+let polySeq = 0;
 let revealing = false;
 let micTimer: ReturnType<typeof setInterval> | null = null;
 let micStartedAt = 0;
@@ -520,6 +525,9 @@ export interface GlassesState {
    *  philosopher picked by a free wearer, or today's free reply used) so
    *  the phone can put the way to unlock right where the wearer looks. */
   upsell?: { kind: 'locked' | 'limit_free'; philName?: string } | null;
+  /** While the PolyGot tour runs on the glasses: which moment is showing,
+   *  so the phone can bring up the PolyGot card beside it. */
+  polygot?: { stop: number; total: number; name: string } | null;
 }
 type GlassesStateListener = (s: GlassesState) => void;
 let glassesStateListeners: GlassesStateListener[] = [];
@@ -731,6 +739,7 @@ function publishState(extra: Partial<GlassesState> = {}): void {
     // An upsell moment stays published while the wearer is still on the
     // page that raised it; leaving the page clears it.
     upsell: lastPublishedState?.page === currentPage ? (lastPublishedState?.upsell ?? null) : null,
+    polygot: currentPage === "polygot" ? { stop: polyStop, total: TOUR_LEN, name: tourStop(polyStop).name } : null,
     ...extra,
   };
   // If caller didn't override and we just left a select page, ensure cleared
@@ -1027,7 +1036,11 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   navigating = true;
   revealSeq++; revealing = false;   // stop any reveal / draw in progress
   try {
-    if (currentPage === "language" || currentPage === "card") {
+    if (currentPage === "polygot") {
+      polySeq++;                       // stop the reveal
+      await goHome(bridge, baseUrl);
+    }
+    else if (currentPage === "language" || currentPage === "card") {
       // Language had no way back (every tap but a language did nothing);
       // the card is a top-level page off home.
       await goHome(bridge, baseUrl);
@@ -1683,6 +1696,33 @@ async function commitLanguage(bridge: EvenAppBridge, baseUrl: string, idx: numbe
   publishState();
 }
 
+// ═══ POLYGOT TOUR ═══
+/** "Try PolyGot" on home: five moments of D3's language app, then where
+ *  to get it. The phone brings up its PolyGot card while this runs. */
+async function openPolyGotTour(bridge: EvenAppBridge): Promise<void> {
+  await showPolyStop(bridge, 0);
+}
+
+/** Show one moment: its frame at once, then its lines one by one. */
+async function showPolyStop(bridge: EvenAppBridge, i: number): Promise<void> {
+  const seq = ++polySeq;
+  polyStop = Math.max(0, Math.min(i, TOUR_LEN - 1));
+  const lines = tourStop(polyStop).main.length;
+  await safeRebuild(bridge, buildTourPage(polyStop, 1), "buildTourPage");
+  currentPage = "polygot";
+  publishState();
+  for (let shown = 2; shown <= lines; shown++) {
+    await new Promise((r) => setTimeout(r, 900));
+    if (seq !== polySeq || currentPage !== "polygot") return;
+    try {
+      await bridge.textContainerUpgrade(new TextContainerUpgrade({
+        containerID: TOUR_REGIONS.main.id, containerName: TOUR_REGIONS.main.name,
+        content: tourMain(polyStop, shown),
+      }));
+    } catch { return; }
+  }
+}
+
 async function openSupport(bridge: EvenAppBridge): Promise<void> {
   supportPageIndex = 0;
   await safeRebuild(bridge, buildSupportPage(supportPageIndex), "buildSupportPage");
@@ -1716,6 +1756,10 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         lastNavigationTime = Date.now();
         await pushLogoToGlasses(bridge, baseUrl);
         log("> Philosophers", "success");
+      } else if (idx === POLYGOT_INDEX) {
+        await openPolyGotTour(bridge);
+        lastNavigationTime = Date.now();
+        log("> Try PolyGot", "success");
       } else if (idx === APHORICA_INDEX) {
         await openAphorica(bridge);
         lastNavigationTime = Date.now();
@@ -2434,6 +2478,11 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       if (up)   { await setMindstateSelectedIndex(mindstateSelectedIndex - 1); return; }
       if (down) { await setMindstateSelectedIndex(mindstateSelectedIndex + 1); return; }
     }
+    // PolyGot tour: swipe steps back / forward through the moments.
+    if (currentPage === "polygot") {
+      if (up)   { if (polyStop > 0) await showPolyStop(bridge, polyStop - 1); return; }
+      if (down) { if (polyStop < TOUR_LEN - 1) await showPolyStop(bridge, polyStop + 1); return; }
+    }
     // Public Aphorica: swipe scrolls the member list.
     if (currentPage === "aphorica") {
       const n = aphAuthors.length;
@@ -2515,6 +2564,12 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
 
     // Single click (eventType 0, which arrives as undefined → ?? 0)
     if (type === OsEventTypeList.CLICK_EVENT) { // 0
+      if (currentPage === "polygot") {
+        if (navigating) return;
+        if (polyStop >= TOUR_LEN - 1) { navigating = true; try { await goHome(bridge, baseUrl); } finally { navigating = false; publishState(); } return; }
+        await showPolyStop(bridge, polyStop + 1);
+        return;
+      }
       if (currentPage === "support") {
         supportPageIndex += 1;                       // buildSupportPage wraps
         await safeRebuild(bridge, buildSupportPage(supportPageIndex), "buildSupportPage");
