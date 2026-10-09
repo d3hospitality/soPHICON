@@ -26,7 +26,8 @@ import {
   getPhilosophersByTradition, getQuotePhilosophersByTradition, getAllQuotes,
   getQuotesByEmotion, getQuotesByTag, capitalize, formatTag,
 } from './constants';
-import { buildTourPage, tourMain, tourStop, TOUR_LEN, TOUR_REGIONS } from './polygotTour';
+import { buildTourPage, tourMain, tourStop, sayLine, TOUR_LEN, TOUR_REGIONS } from './polygotTour';
+import { openDemoMic, closeDemoMic, demoMicChunk, gradeSay, isDemoMicOpen, SAY_LISTEN_MS } from './polygotSay';
 import {
   rebuildHomePage, loadGlanceLine, buildPhilosopherSelectPage,
   buildMindstatePage, getMindstateSelections, MINDSTATE_START,
@@ -125,6 +126,10 @@ let revealSeq = 0;
 // number so a moment's line-by-line reveal stops when another starts.
 let polyStop = 0;
 let polySeq = 0;
+// Say-it state: 'idle' (lines still arriving), 'listen' (mic open),
+// 'check' (scoring), 'done' (graded; a swipe tries again).
+let polySay: 'idle' | 'listen' | 'check' | 'done' = 'idle';
+let polyStopListening: (() => void) | null = null;
 let revealing = false;
 let micTimer: ReturnType<typeof setInterval> | null = null;
 let micStartedAt = 0;
@@ -527,7 +532,7 @@ export interface GlassesState {
   upsell?: { kind: 'locked' | 'limit_free'; philName?: string } | null;
   /** While the PolyGot tour runs on the glasses: which moment is showing,
    *  so the phone can bring up the PolyGot card beside it. */
-  polygot?: { stop: number; total: number; name: string } | null;
+  polygot?: { stop: number; total: number; name: string; said?: string; listening?: boolean } | null;
 }
 type GlassesStateListener = (s: GlassesState) => void;
 let glassesStateListeners: GlassesStateListener[] = [];
@@ -739,7 +744,7 @@ function publishState(extra: Partial<GlassesState> = {}): void {
     // An upsell moment stays published while the wearer is still on the
     // page that raised it; leaving the page clears it.
     upsell: lastPublishedState?.page === currentPage ? (lastPublishedState?.upsell ?? null) : null,
-    polygot: currentPage === "polygot" ? { stop: polyStop, total: TOUR_LEN, name: tourStop(polyStop).name } : null,
+    polygot: currentPage === "polygot" ? { stop: polyStop, total: TOUR_LEN, name: tourStop(polyStop).name, listening: polySay === 'listen' } : null,
     ...extra,
   };
   // If caller didn't override and we just left a select page, ensure cleared
@@ -1037,7 +1042,9 @@ async function goBack(bridge: EvenAppBridge, baseUrl: string): Promise<void> {
   revealSeq++; revealing = false;   // stop any reveal / draw in progress
   try {
     if (currentPage === "polygot") {
-      polySeq++;                       // stop the reveal
+      polySeq++;                       // stop the reveal / say-it
+      polySay = 'idle'; polyStopListening = null;
+      await closeDemoMic(bridge);
       await goHome(bridge, baseUrl);
     }
     else if (currentPage === "language" || currentPage === "card") {
@@ -1703,9 +1710,12 @@ async function openPolyGotTour(bridge: EvenAppBridge): Promise<void> {
   await showPolyStop(bridge, 0);
 }
 
-/** Show one moment: its frame at once, then its lines one by one. */
+/** Show one moment: its frame at once, then its lines one by one, then
+ *  (if it has one) the wearer's turn to say the line out loud. */
 async function showPolyStop(bridge: EvenAppBridge, i: number): Promise<void> {
   const seq = ++polySeq;
+  polySay = 'idle'; polyStopListening = null;
+  await closeDemoMic(bridge);
   polyStop = Math.max(0, Math.min(i, TOUR_LEN - 1));
   const lines = tourStop(polyStop).main.length;
   await safeRebuild(bridge, buildTourPage(polyStop, 1), "buildTourPage");
@@ -1714,13 +1724,51 @@ async function showPolyStop(bridge: EvenAppBridge, i: number): Promise<void> {
   for (let shown = 2; shown <= lines; shown++) {
     await new Promise((r) => setTimeout(r, 900));
     if (seq !== polySeq || currentPage !== "polygot") return;
-    try {
-      await bridge.textContainerUpgrade(new TextContainerUpgrade({
-        containerID: TOUR_REGIONS.main.id, containerName: TOUR_REGIONS.main.name,
-        content: tourMain(polyStop, shown),
-      }));
-    } catch { return; }
+    if (!(await setPolyMain(bridge, tourMain(polyStop, shown)))) return;
   }
+  if (tourStop(polyStop).say) {
+    await new Promise((r) => setTimeout(r, 700));
+    if (seq === polySeq && currentPage === "polygot") await runPolySay(bridge, seq);
+  }
+}
+
+async function setPolyMain(bridge: EvenAppBridge, content: string): Promise<boolean> {
+  try {
+    await bridge.textContainerUpgrade(new TextContainerUpgrade({
+      containerID: TOUR_REGIONS.main.id, containerName: TOUR_REGIONS.main.name, content,
+    }));
+    return true;
+  } catch { return false; }
+}
+
+/** Open the glasses mic for one try, then let PolyGot's demo endpoint score it. */
+async function runPolySay(bridge: EvenAppBridge, seq: number): Promise<void> {
+  const say = tourStop(polyStop).say;
+  if (!say) return;
+  const stop = polyStop;
+  const lines = tourStop(stop).main.length;
+  const alive = () => seq === polySeq && currentPage === "polygot" && polyStop === stop;
+  const show = (status: string) => setPolyMain(bridge, tourMain(stop, lines, status));
+
+  if (!(await openDemoMic(bridge))) { polySay = 'done'; await show(sayLine('nomic', say.show)); return; }
+  polySay = 'listen';
+  publishState();
+  await show(sayLine('listen', say.show));
+  await new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, SAY_LISTEN_MS);
+    polyStopListening = () => { clearTimeout(t); resolve(); };
+  });
+  polyStopListening = null;
+  const pcm = await closeDemoMic(bridge);
+  if (!alive()) return;
+  polySay = 'check';
+  await show(sayLine('check', say.show));
+  const grade = await gradeSay(say.lang, say.word, pcm);
+  if (!alive()) return;
+  polySay = 'done';
+  log(`[POLYGOT] say ${say.lang}: ${grade.result}`, grade.result === "hit" ? "success" : undefined);
+  await show(sayLine(grade.result, say.show, grade.heard));
+  publishState({ polygot: { stop, total: TOUR_LEN, name: tourStop(stop).name, said: grade.result } });
 }
 
 async function openSupport(bridge: EvenAppBridge): Promise<void> {
@@ -2409,6 +2457,12 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
     return;
   }
 
+  // ── AUDIO: the PolyGot tour's say-it moment ──
+  if (event.audioEvent && currentPage === "polygot") {
+    const pcm = event.audioEvent.audioPcm;
+    if (pcm && isDemoMicOpen()) demoMicChunk(new Uint8Array(pcm));
+    return;
+  }
   // ── AUDIO (only during speak recording) ──
   if (event.audioEvent && currentPage === "speak-conversation") {
     const pcm = event.audioEvent.audioPcm;
@@ -2479,9 +2533,10 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
       if (down) { await setMindstateSelectedIndex(mindstateSelectedIndex + 1); return; }
     }
     // PolyGot tour: swipe steps back / forward through the moments.
+    // PolyGot tour: swipe = say it again (once the last try was scored).
     if (currentPage === "polygot") {
-      if (up)   { if (polyStop > 0) await showPolyStop(bridge, polyStop - 1); return; }
-      if (down) { if (polyStop < TOUR_LEN - 1) await showPolyStop(bridge, polyStop + 1); return; }
+      if ((up || down) && polySay === 'done' && tourStop(polyStop).say) await runPolySay(bridge, polySeq);
+      return;
     }
     // Public Aphorica: swipe scrolls the member list.
     if (currentPage === "aphorica") {
@@ -2566,6 +2621,8 @@ async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: 
     if (type === OsEventTypeList.CLICK_EVENT) { // 0
       if (currentPage === "polygot") {
         if (navigating) return;
+        if (polySay === 'listen' && polyStopListening) { polyStopListening(); return; }   // tap = done talking
+        if (polySay === 'check') return;
         if (polyStop >= TOUR_LEN - 1) { navigating = true; try { await goHome(bridge, baseUrl); } finally { navigating = false; publishState(); } return; }
         await showPolyStop(bridge, polyStop + 1);
         return;

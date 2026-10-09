@@ -73,7 +73,6 @@ import {
 import { CATEGORY_HUE } from './weekly';
 import { INTRO_COUNT, STORY_SECTIONS } from './story';
 import { log } from './ui';
-import { initWaitlist } from './waitlist';
 import { initPolyGotCard, setPolyGotLive } from './polygot';
 import {
   SUPPORT_URL, SUPPORT_LATCH_KEY, PILL_LINE_1, PILL_LINE_2,
@@ -2604,7 +2603,6 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
   // The account card is the first thing on Home — paint it before the
   // slower panels below, so it is never an empty box while they load.
   renderAccountCard().catch(() => {});
-  initWaitlist(openOnboarding);
   initPolyGotCard();
   initPathCard();
   initHomeStats();

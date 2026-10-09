@@ -2012,24 +2012,6 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
 .tab-panel.active.entering { animation: fadeIn .2s ease-out; }
 @media (prefers-reduced-motion: reduce) { .tab-panel.active.entering { animation: none; } }
 
-/* ── Coming soon: waitlist (src/waitlist.ts) ───────────────────────── */
-.soon-card { border-color: rgba(212,175,55,0.28); }
-.soon-list { display: flex; flex-direction: column; gap: 14px; }
-.soon-item + .soon-item { border-top: 1px solid var(--border); padding-top: 14px; }
-.soon-title { font-family: 'Crimson Text', Georgia, serif; font-size: 19px; color: var(--gold); line-height: 1.2; }
-.soon-body { color: var(--dim); font-size: 13px; line-height: 1.5; margin: 4px 0 10px; }
-.soon-ask {
-  width: 100%; margin-bottom: 10px;
-  background: var(--surface-2); border: 1px solid var(--border);
-  color: var(--ink); font-family: inherit; font-size: 13px;
-  padding: 9px 12px; border-radius: 7px; outline: none;
-}
-.soon-ask:focus { border-color: var(--gold); }
-.soon-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.soon-note { color: var(--dimmer); font-size: 12px; }
-.soon-msg { color: var(--ink); font-size: 12.5px; margin-top: 8px; }
-.soon-join:disabled { opacity: .85; cursor: default; }
-
 /* ── PolyGot card (src/polygot.ts) ──────────────────────────────────── */
 .polygot-card { border-color: rgba(143,227,172,0.28); }
 .pg-kicker { color: #8fe3ac; }
@@ -2056,3 +2038,9 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
 @media (prefers-reduced-motion: reduce) { .pg-slot, .pg-word { transition: none; } }
 .polygot-card.is-live { border-color: #8fe3ac; box-shadow: 0 0 0 1px rgba(143,227,172,.35), 0 0 28px -8px rgba(143,227,172,.45); }
 .pg-live { color: #8fe3ac; font: 600 12px/1.4 var(--mono); letter-spacing: .02em; margin-bottom: 10px; }
+.curious-pill { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 12px; padding: 7px 14px; border-radius: 999px;
+  border: 1px solid rgba(143,227,172,.45); background: rgba(143,227,172,.10); color: #8fe3ac;
+  font: italic 600 15px 'Crimson Text', Georgia, serif; letter-spacing: .01em; cursor: pointer; }
+.curious-pill span { font-style: normal; font-size: 12px; }
+.curious-pill:hover { background: rgba(143,227,172,.18); }
+.polygot-card.is-flash { box-shadow: 0 0 0 1px rgba(143,227,172,.55), 0 0 32px -6px rgba(143,227,172,.55); transition: box-shadow .4s; }

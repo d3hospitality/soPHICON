@@ -85,6 +85,11 @@ export function initPolyGotCard(): void {
   if (!root) return;
   render(root);
   void drift(root);
+  document.getElementById('curious-pill')?.addEventListener('click', () => {
+    root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    root.classList.add('is-flash');
+    setTimeout(() => root.classList.remove('is-flash'), 1600);
+  });
 
   const video = root.querySelector<HTMLVideoElement>('video');
   const sound = root.querySelector<HTMLButtonElement>('.pg-sound');
@@ -114,7 +119,7 @@ export function initPolyGotCard(): void {
 /** The glasses run "Try PolyGot": bring this card up and say what's showing.
  *  Pass null when the tour ends. Returns true on the edge where it starts. */
 let liveWas = false;
-export function setPolyGotLive(s: { stop: number; total: number; name: string } | null): boolean {
+export function setPolyGotLive(s: { stop: number; total: number; name: string; said?: string; listening?: boolean } | null): boolean {
   const root = document.getElementById('polygot-card');
   const line = root?.querySelector<HTMLElement>('.pg-live');
   if (!root || !line) return false;
@@ -123,8 +128,9 @@ export function setPolyGotLive(s: { stop: number; total: number; name: string } 
   root.classList.toggle('is-live', !!s);
   if (!s) { line.hidden = true; return false; }
   const moments = s.total - 1;
+  const said = ({ hit: ' · ★ Hit!', close: ' · Close!', miss: ' · try again', silent: ' · didn’t hear you' } as Record<string, string>)[s.said || ''] || '';
   line.textContent = s.stop < moments
-    ? `● On your glasses now · ${s.stop + 1}/${moments} · ${s.name}`
+    ? `● On your glasses now · ${s.stop + 1}/${moments} · ${s.name}${s.listening ? ' · listening…' : said}`
     : '● On your glasses now · That was PolyGot. Copy the link below to get it.';
   line.hidden = false;
   if (started) {

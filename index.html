@@ -53,6 +53,9 @@
          live in Journal; the Commons has its own view under Quotes. -->
     <div class="tab-panel active" data-panel="home">
 
+      <!-- "Curious?" — a small pill that takes you down to PolyGot. -->
+      <button class="curious-pill" id="curious-pill" type="button">Curious? <span aria-hidden="true">↓</span></button>
+
       <!-- Your next step: link / unlock — rendered by renderAccountCard(). -->
       <div class="card account-card" id="account-card"></div>
 
@@ -132,9 +135,6 @@
           <li class="muted" style="padding:8px 2px;">Loading the Commons…</li>
         </ul>
       </div>
-
-      <!-- Coming soon: waitlist demand test (src/waitlist.ts). -->
-      <div class="card soon-card" id="soon-card"></div>
 
       <!-- PolyGot, D3's language app for the same glasses (src/polygot.ts). -->
       <div class="card polygot-card" id="polygot-card"></div>

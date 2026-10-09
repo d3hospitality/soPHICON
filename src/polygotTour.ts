@@ -17,8 +17,12 @@
 import { RebuildPageContainer, TextContainerProperty } from '@evenrealities/even_hub_sdk';
 import { hostSupports214 } from './host';
 
-export interface TourStop { name: string; lang: string; main: string[]; caption: string }
+export interface TourSay { lang: string; word: string; show: string }
+export interface TourStop { name: string; lang: string; main: string[]; caption: string; say?: TourSay }
 
+// Each moment ends with a line the wearer says out loud; PolyGot's demo
+// endpoint scores it (src/polygotSay.ts). `word` must match the endpoint's
+// list exactly (lingua-franca-api/lib/demo-phrases.js).
 export const TOUR: TourStop[] = [
   {
     name: 'Live Conversation', lang: 'French',
@@ -26,32 +30,32 @@ export const TOUR: TourStop[] = [
       '● They:  D’où venez-vous ?',
       '      = Where are you from?',
       '○ You:   Je viens de Londres.',
-      '● They:  Vous restez combien de temps ?',
-      '      = How long are you staying?',
+      '      = I’m from London.',
     ],
-    caption: 'They speak French. You read it in yours, and know what to say back.',
+    caption: 'They speak French, you read it in yours. Now answer them out loud.',
+    say: { lang: 'fr', word: 'Je viens de Londres', show: 'Je viens de Londres' },
   },
   {
     name: 'Translate', lang: 'Japanese',
     main: [
       'You ask:  How much is this?',
       '▶  これはいくらですか？',
-      '    kore wa ikura desu ka?',
       '    koh·reh wah ee·koo·rah des·kah',
       '★ Saved to your Library',
     ],
-    caption: 'Ask in your language. Get it in Japanese, and how to say it.',
+    caption: 'Ask in your language, get it in Japanese. Try saying it.',
+    say: { lang: 'ja', word: 'これはいくらですか', show: 'これはいくらですか' },
   },
   {
     name: 'Parrot Turret', lang: 'Italian',
     main: [
       '        grazie',
       '        graht·see·eh  ·  thank you',
+      '',
       'PolyGot says it first…',
-      'Your turn: say it out loud.',
-      '★ Hit! Spot on.',
     ],
     caption: 'A word game you play out loud. PolyGot scores every try.',
+    say: { lang: 'it', word: 'grazie', show: 'grazie' },
   },
   {
     name: 'Seasons', lang: 'Spanish',
@@ -59,10 +63,10 @@ export const TOUR: TourStop[] = [
       'Season 1 · card 3 of 3',
       '',
       '        por favor',
-      '        pohr fah·bohr',
-      '        = please',
+      '        pohr fah·bohr  ·  please',
     ],
     caption: 'A step-by-step course: one big word at a time.',
+    say: { lang: 'es', word: 'por favor', show: 'por favor' },
   },
   {
     name: 'Talk to PolyGot', lang: 'German',
@@ -70,10 +74,10 @@ export const TOUR: TourStop[] = [
       'PolyGot:  Hallo! Was möchtest du trinken?',
       '       = Hi! What would you like to drink?',
       'You:      Einen Kaffee, bitte.',
-      'PolyGot:  Kommt sofort!',
-      '       = Coming right up!',
+      '       = A coffee, please.',
     ],
     caption: 'Practise a real scene out loud, one line at a time.',
+    say: { lang: 'de', word: 'Einen Kaffee, bitte', show: 'Einen Kaffee, bitte' },
   },
 ];
 
@@ -105,11 +109,28 @@ export function tourHud(i: number): string {
   return i < TOUR.length ? `POLYGOT DEMO  ${i + 1}/${TOUR.length}  ·  ${s.name}  ·  ${s.lang}` : `POLYGOT DEMO  ·  ${s.name}`;
 }
 export function tourKeys(i: number): string {
-  return i < TOUR.length ? 'Tap = next  ·  Swipe = back/next  ·  2-tap = Home' : 'Tap = back to enkiRIDION';
+  return i < TOUR.length ? 'Tap = next  ·  Swipe = say it again  ·  2-tap = Home' : 'Tap = back to enkiRIDION';
 }
-/** The first `shown` lines of a moment (the rest arrive one by one). */
-export function tourMain(i: number, shown: number): string {
-  return tourStop(i).main.slice(0, Math.max(0, shown)).join('\n');
+/** The first `shown` lines of a moment (the rest arrive one by one),
+ *  plus the say-it status line once it is the wearer's turn. */
+export function tourMain(i: number, shown: number, status = ''): string {
+  const lines = tourStop(i).main.slice(0, Math.max(0, shown));
+  if (status) lines.push(status);
+  return lines.join('\n');
+}
+
+/** The say-it status line, in each state. */
+export function sayLine(state: 'listen' | 'check' | 'hit' | 'close' | 'miss' | 'silent' | 'offline' | 'nomic', show: string, heard = ''): string {
+  switch (state) {
+    case 'listen':  return show ? '● Your turn: say it now' : '● Listening…';
+    case 'check':   return '…  Checking';
+    case 'hit':     return '★ Hit! Spot on.';
+    case 'close':   return `Close!  I heard: ${heard || '…'}`;
+    case 'miss':    return `I heard: ${heard || '…'}  ·  swipe to try again`;
+    case 'silent':  return 'I could not hear you  ·  swipe to try again';
+    case 'nomic':   return 'The mic did not open  ·  tap for next';
+    default:        return 'Can’t score right now  ·  tap for next';
+  }
 }
 
 export function buildTourPage(i: number, shown: number): RebuildPageContainer {
