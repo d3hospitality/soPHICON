@@ -24,3 +24,7 @@ export const PRICE_LINE = `${PLAN.monthly} a month or ${PLAN.yearly} a year`;
 export const TRIAL_URL = 'https://enkiridion.com/start?plan=sage_monthly&next=%2Fsettings';
 /** Free account only: sign in and get a pairing code. */
 export const SETTINGS_URL = 'https://enkiridion.com/settings';
+
+export const DEMO_PHILOSOPHER_IDS = ['marcus_aurelius', 'socrates', 'laozi'];
+export const DEMO_URL = 'https://enkiridion.com/demo?view=glasses';
+export const SUMMON_URL = 'https://enkiridion.com/summon';

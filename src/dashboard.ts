@@ -2589,6 +2589,14 @@ function initSyncPanel(): void {
 
 // ─── PUBLIC ENTRY ─────────────────────────────────────────────────
 export async function initDashboard(b: EvenAppBridge, base: string): Promise<void> {
+  if (!document.getElementById('philosopher-sample-entry')) {
+    const card = document.createElement('div');
+    card.id = 'philosopher-sample-entry';
+    card.className = 'account-step';
+    card.innerHTML = '<p><strong>Meet a different mind.</strong> Try Marcus, Socrates or Lao Tzu on your glasses: up to three free AI replies.</p><p><a href="https://enkiridion.com/demo?view=glasses" target="_blank" rel="noopener">Preview a conversation</a> · <a href="https://enkiridion.com/summon" target="_blank" rel="noopener">Request a philosopher — $20 concept</a></p>';
+    const host = document.querySelector('[data-panel="home"]');
+    if (host) host.prepend(card);
+  }
   bridge = b;
   baseUrl = base;
   setWeeklyBridge(b);

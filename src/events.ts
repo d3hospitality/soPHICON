@@ -1,3 +1,4 @@
+import { canSamplePhilosopher, isSampleConversation } from './speak';
 // ═══════════════════════════════════════════════════════════════════
 // soΦcon — Event router (src/events.ts) — v10
 //
@@ -1349,7 +1350,7 @@ async function openConversation(bridge: EvenAppBridge, baseUrl: string, phil: Ph
     if (idx >= 0) speakSelectedIndex = idx;
   }
   speakTradition = phil.tradition as Tradition;
-  if (isLockedForViewer(phil.philId)) { await showSageGate(bridge, baseUrl, phil, from); return; }
+  if (isLockedForViewer(phil.philId) && !canSamplePhilosopher(phil.philId)) { await showSageGate(bridge, baseUrl, phil, from); return; }
 
   speakFrom = from;
   speakPhilosopher = phil;
@@ -1358,7 +1359,7 @@ async function openConversation(bridge: EvenAppBridge, baseUrl: string, phil: Ph
   speakPageIndex = 0;
   speakIsInitialized = false;
   lastPushedEmotion = "";
-  const { opening, emotion } = await startConversation(speakPhilId);
+  const { opening, emotion } = await startConversation(speakPhilId, isLockedForViewer(speakPhilId) && canSamplePhilosopher(speakPhilId));
   lastResponseText = opening;
   currentPage = "speak-conversation";
   publishState({ upsell: null });
@@ -1474,7 +1475,7 @@ async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> 
   revealSeq++;
 
   // Safety net: openConversation shows the Sage page before this point.
-  if (!isCurrentlyRecording() && isLockedForViewer(speakPhilosopher.philId)) {
+  if (!isCurrentlyRecording() && isLockedForViewer(speakPhilosopher.philId) && !isSampleConversation()) {
     await showSageGate(bridge, baseUrl, speakPhilosopher, speakFrom);
     return;
   }
