@@ -728,9 +728,9 @@ async function initSpeakCompose(): Promise<void> {
           // The notice text is written for the glasses ("double-tap…");
           // the phone says the same thing in its own terms.
           const phoneText = result.notice === 'locked'
-            ? `${philName} talks with Sage members. Sage opens all ${TOTAL_PHILOSOPHERS} philosophers, ${PLAN.sageRepliesPerDay} replies a day: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
+            ? `Keep talking with ${philName}. Sage gives you ${PLAN.sageRepliesPerDay} replies a day: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
             : result.notice === 'limit_free'
-              ? `That was today’s free reply. Enki will be here tomorrow. Sage opens all ${TOTAL_PHILOSOPHERS} philosophers: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
+              ? `You’ve used today’s 3 free chats across all philosophers. Come back tomorrow. Sage gives you ${PLAN.sageRepliesPerDay} replies a day: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
               : result.text.replace(/ Double-tap to go back\.$/, '');
           thread.insertAdjacentHTML('beforeend', `
             <div class="speak-turn user"><div class="speak-turn-head"><span class="speak-turn-who">YOU</span></div><div class="speak-turn-body">${escapeHtml(text)}</div></div>
@@ -829,8 +829,8 @@ async function initSettings(): Promise<void> {
     const tier = await linkedTier();
     if (linkHint) {
       linkHint.innerHTML = handle
-        ? `Linked as @${escapeHtml(handle)} · ${tier === 'sage' ? 'Sage' : 'Free'}. Your plan follows your enkiridion.com account, so an upgrade there shows up here by itself. ${tier === 'sage' ? `Every philosopher, ${PLAN.sageRepliesPerDay} replies a day.` : `Free: one reply a day from Enki. Sage is ${PRICE_LINE} after ${PLAN.trialDays} free days.`}`
-        : `Not linked. Get a 6-character code at enkiridion.com/settings (G2 Glasses → Generate pairing code) and type it here. A free account works; Sage opens every philosopher.`;
+        ? `Linked as @${escapeHtml(handle)} · ${tier === 'sage' ? 'Sage' : 'Free'}. Your plan follows your enkiridion.com account, so an upgrade there shows up here by itself. ${tier === 'sage' ? `Every philosopher, ${PLAN.sageRepliesPerDay} replies a day.` : `Free: 3 chats a day total across all 18 philosophers. Sage is ${PRICE_LINE} after ${PLAN.trialDays} free days.`}`
+        : `Not linked. Get a 6-character code at enkiridion.com/settings (G2 Glasses → Generate pairing code) and type it here. A free account works: all 18 philosophers, three chats per day total.`;
     }
     if (btnUnlink) btnUnlink.style.display = handle ? '' : 'none';
     if (btnLink) btnLink.style.display = handle ? 'none' : '';
@@ -2593,7 +2593,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
     const card = document.createElement('div');
     card.id = 'philosopher-sample-entry';
     card.className = 'account-step';
-    card.innerHTML = '<p><strong>Meet a different mind.</strong> Try Marcus, Socrates or Lao Tzu on your glasses: up to three free AI replies.</p><p><a href="https://enkiridion.com/demo?view=glasses" target="_blank" rel="noopener">Preview a conversation</a> · <a href="https://enkiridion.com/summon" target="_blank" rel="noopener">Request a philosopher — $20 concept</a></p>';
+    card.innerHTML = '<p><strong>Meet a different mind.</strong> Choose any of the 18 philosophers on your glasses. Three free chats per day total, shared across them.</p><p><a href="https://enkiridion.com/demo?view=glasses" target="_blank" rel="noopener">Preview a conversation</a> · <a href="https://enkiridion.com/summon" target="_blank" rel="noopener">Request a philosopher — $20 concept</a></p>';
     const host = document.querySelector('[data-panel="home"]');
     if (host) host.prepend(card);
   }
@@ -3037,7 +3037,7 @@ async function linkFromInput(input: HTMLInputElement | null, btn: HTMLButtonElem
     const sage = result.tier === 'sage';
     show(sage
       ? 'Linked. Every philosopher is open on your glasses.'
-      : 'Linked. Enki is yours on the glasses; start the free trial to open everyone.', 'ok');
+      : 'Linked. All 18 philosophers are ready. Your 3 daily chats are shared across them.', 'ok');
     if (result.saved === false) log('[ACCOUNT] linked, but the glasses store refused the write (kept in the webview mirror)', 'error');
     // First sync right away so the cockpit fills in from the account,
     // and pull any conversations saved on other devices into the journal.
@@ -3221,7 +3221,7 @@ async function renderAccountCard(): Promise<void> {
         <span class="strip-mark" aria-hidden="true">◈</span>
         <div class="strip-text">
           <div class="strip-title">${moment || 'Link your glasses'}</div>
-          <div class="strip-sub">Enki is free, one reply a day. Linking keeps your talks and your path.</div>
+          <div class="strip-sub">All 18 philosophers, 3 free chats a day total. Linking keeps your talks and your path.</div>
         </div>
         <button class="btn btn-primary strip-go" id="account-link-btn">Link</button>
       </div>`;

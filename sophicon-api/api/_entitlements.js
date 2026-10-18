@@ -40,7 +40,8 @@ const ANON = { userId: null, tier: 'seeker', scope: 'user' };
  * @param {{ persona?: string }} [opts] - server-resolved persona id for speak
  */
 export async function requireEntitlement(req, res, feature, opts = {}) {
-  const m = mode();
+  // The published chat allowance is enforced in every rollout mode.
+  const m = feature === 'speak' ? 'hard' : mode();
 
   let id = null;
   try { id = await identify(req); } catch { id = null; }
@@ -49,6 +50,7 @@ export async function requireEntitlement(req, res, feature, opts = {}) {
 
   const isAnon = !id?.userId;
   let violation = null;
+  let remaining;
 
   const decision = evaluate(feature, { tier: id?.tier, isAnon, persona: opts.persona });
   if (!decision.allow) {
@@ -57,18 +59,19 @@ export async function requireEntitlement(req, res, feature, opts = {}) {
     const who = isAnon ? `ip:${clientIp(req.headers)}` : `u:${id.userId}`;
     const day = new Date().toISOString().slice(0, 10);
     const q = await consume(quotaKey(feature, who, day), decision.rule.perDay);
-    if (q === 'unavailable') {
+    remaining = Math.max(0, decision.rule.perDay - (q.count || 0));
+    if (q.status === 'unavailable') {
       violation = { status: 503, error: 'quota_unavailable', retryable: true };
-    } else if (q === 'over') {
+    } else if (q.status === 'over') {
       violation = { status: 429, error: 'daily_limit', limit: decision.rule.perDay };
     } else if (isAnon && ANON_GLOBAL_PER_DAY[feature]) {
       const g = await consume(quotaKey(feature, 'anon-global', day), ANON_GLOBAL_PER_DAY[feature]);
-      if (g === 'unavailable') violation = { status: 503, error: 'quota_unavailable', retryable: true };
-      else if (g === 'over') violation = { status: 429, error: 'demo_busy', signin: true };
+      if (g.status === 'unavailable') violation = { status: 503, error: 'quota_unavailable', retryable: true };
+      else if (g.status === 'over') violation = { status: 429, error: 'demo_busy', signin: true };
     }
   }
 
-  if (!violation) return id || ANON;
+  if (!violation) return { ...(id || ANON), remaining };
 
   if (m === 'warn' || (m === 'anon' && !isAnon)) {
     console.warn(`[entitlements] would block: ${JSON.stringify({ ...violation, feature, anon: isAnon, tier: id?.tier || 'seeker' })}`);
@@ -79,19 +82,20 @@ export async function requireEntitlement(req, res, feature, opts = {}) {
     error: violation.error,
     feature: violation.feature || feature,
     limit: violation.limit,
+    remaining: violation.error === 'daily_limit' ? 0 : undefined,
     retryable: violation.retryable || undefined,
     upgrade: violation.status === 403 || violation.status === 429 ? 'https://enkiridion.com/pricing' : undefined,
   });
   return null;
 }
 
-/** Atomically count one use. 'ok' | 'over' | 'unavailable'. */
+/** Atomically reserve one use before calling the model. */
 async function consume(key, limit) {
   try {
     const n = await kv.incr(key);
     if (n === 1) await kv.expire(key, 86400);
-    return n > limit ? 'over' : 'ok';
+    return { status: n > limit ? 'over' : 'ok', count: n };
   } catch {
-    return 'unavailable';
+    return { status: 'unavailable' };
   }
 }

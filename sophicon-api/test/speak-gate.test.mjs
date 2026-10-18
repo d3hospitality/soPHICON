@@ -29,9 +29,9 @@ function call({ persona, ip = '1.2.3.4', deviceId, body = {} }) {
 
 beforeEach(() => { store.clear(); kvDown = false; currentId = null; providerCalls = 0; });
 
-test('anonymous caller asking for Socrates: 403 and zero provider calls', async () => {
+test('anonymous caller can talk with Socrates', async () => {
   const r = await call({ persona: { name: 'Socrates' } });
-  assert.equal(r.status, 403); assert.equal(providerCalls, 0);
+  assert.equal(r.status, 200); assert.equal(providerCalls, 1);
 });
 
 test('anonymous caller relabelling a custom prompt as "Enki" still gets server Enki only', async () => {
@@ -44,6 +44,8 @@ test('anonymous caller relabelling a custom prompt as "Enki" still gets server E
 
 test('rotating X-Device-Id does not reset the anonymous daily quota', async () => {
   await call({ persona: { name: 'Enki' }, deviceId: 'a' });
+  await call({ persona: { name: 'Socrates' }, deviceId: 'b' });
+  await call({ persona: { name: 'Lao Tzu' }, deviceId: 'c' });
   const calls = providerCalls;
   const r = await call({ persona: { name: 'Enki' }, deviceId: 'b' });
   assert.equal(r.status, 429); assert.equal(providerCalls, calls);
@@ -71,15 +73,17 @@ test('verified sage can speak with any philosopher', async () => {
   assert.equal(r.status, 200); assert.equal(providerCalls, 1);
 });
 
-test('anon mode: anonymous callers are blocked, signed-in callers only warned', async () => {
-  process.env.ENFORCE_ENTITLEMENTS = 'anon';
-  try {
-    const anon = await call({ persona: { name: 'Socrates' } });
-    assert.equal(anon.status, 403); assert.equal(providerCalls, 0);
+test('all rollout modes enforce the three-chat limit for signed-in free accounts', async () => {
+  for (const mode of ['off', 'warn', 'anon', 'hard']) {
+    process.env.ENFORCE_ENTITLEMENTS = mode; store.clear(); providerCalls = 0;
     currentId = { userId: 'u2', tier: 'seeker', scope: 'user' };
-    const signedIn = await call({ persona: { name: 'Socrates' } });
-    assert.equal(signedIn.status, 200); // warn only — legacy clients keep working
-  } finally { process.env.ENFORCE_ENTITLEMENTS = 'hard'; }
+    for (const persona of ['Socrates', 'Marcus Aurelius', 'Enki']) {
+      assert.equal((await call({ persona, ip: persona })).status, 200);
+    }
+    assert.equal((await call({ persona: 'Plato', ip: 'different-device' })).status, 429);
+    assert.equal(providerCalls, 3);
+  }
+  process.env.ENFORCE_ENTITLEMENTS = 'hard';
 });
 
 test('anonymous unknown persona is refused even outside hard mode', async () => {

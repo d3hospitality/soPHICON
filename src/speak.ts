@@ -1,4 +1,4 @@
-import { DEMO_PHILOSOPHER_IDS } from './plans';
+import { PLAN } from './plans';
 // ═══════════════════════════════════════════════════════════════════
 // soΦcon — Speak module (src/speak.ts) — v3
 //
@@ -509,7 +509,7 @@ async function loadHistory(philId: string): Promise<SpeakMessage[]> {
 }
 
 async function saveHistory(philId: string): Promise<void> {
-  if (!bridgeRef || !philId || sampleConversation) return;
+  if (!bridgeRef || !philId) return;
   // Seeker/anon conversations are ephemeral — never persisted (upgrading
   // to Sage is what unlocks saved, resumable, cross-device conversations).
   if (!(await isEntitled())) return;
@@ -534,22 +534,18 @@ export function sessionExchanges(): { role: 'user' | 'assistant'; content: strin
     .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 }
 
-let sampleConversation = false;
-export function isSampleConversation(): boolean { return sampleConversation; }
-export function canSamplePhilosopher(id: string): boolean { return DEMO_PHILOSOPHER_IDS.includes(id); }
 
-export async function startConversation(philId: string, sample = false): Promise<{ opening: string; emotion: string }> {
+export async function startConversation(philId: string): Promise<{ opening: string; emotion: string }> {
   const p = personas[philId];
   if (!p) return { opening: "...", emotion: "contemplative" };
 
-  sampleConversation = sample;
   currentPersona = p;
   currentPhilId = philId;
   isRecording = false;
   currentSessionCheckpointed = false;   // fresh conversation, can be journaled once
 
   // Restore prior history (if any)
-  conversationHistory = sample ? [] : await loadHistory(philId);
+  conversationHistory = await loadHistory(philId);
 
   // Build a cross-philosopher context preamble from the last 14 days of
   // journal — the philosopher will receive this in their system prompt
@@ -567,7 +563,7 @@ export async function startConversation(philId: string, sample = false): Promise
     if (last.role === "assistant" && p.openings.includes(last.content)) conversationHistory.pop();
     else break;
   }
-  const opening = sample ? 'Free AI sample: up to 3 replies across Marcus, Socrates and Lao Tzu. Tap to ask a question. Then continue with Sage on your phone.' : p.openings[Math.floor(Math.random() * p.openings.length)];
+  const opening = p.openings[Math.floor(Math.random() * p.openings.length)];
   conversationHistory.push({ role: "assistant", content: opening });
   sessionStartIndex = conversationHistory.length - 1;
   await saveHistory(philId);
@@ -743,7 +739,6 @@ export async function stopRecordingAndSend(onHeard?: (text: string) => void): Pr
     const body = await resp.json().catch(() => ({} as any));
     log(`[SPEAK] Transcribe ${resp.status} ${body?.error || ''}`, "error");
     // Transcription is metered too: a limit here is the same limit.
-    if (resp.status === 429 && body?.error !== 'demo_busy' && sampleConversation) return noticeResult('locked', { name: currentPersona?.name || 'This philosopher' });
     if (resp.status === 429) return limitNotice(body);
     if (resp.status === 413) return noticeResult('too_long');
     if (resp.status === 401) { await handleUnauthorized(); return noticeResult('expired'); }
@@ -768,11 +763,11 @@ export async function stopRecordingAndSend(onHeard?: (text: string) => void): Pr
   return { ...result, heard: userText };
 }
 
-/** 429 → which limit: the free one-a-day, or a Sage's daily replies. */
+/** 429 → which limit: the free three-a-day, or a Sage's daily replies. */
 function limitNotice(body: any): SpeakResult {
   if (body?.error === 'demo_busy') return noticeResult('busy');
-  const limit = Number(body?.limit) || 1;
-  return limit <= 1 ? noticeResult('limit_free') : noticeResult('limit_sage', { n: limit });
+  const limit = Number(body?.limit) || PLAN.freeRepliesPerDay;
+  return limit <= PLAN.freeRepliesPerDay ? noticeResult('limit_free') : noticeResult('limit_sage', { n: limit });
 }
 
 // ═══ SEND MESSAGE TO PHILOSOPHER ═══
@@ -802,10 +797,10 @@ export async function sendMessage(userText: string): Promise<SpeakResult> {
     });
     log(`[SPEAK] Body size: ${body.length} chars`);
 
-    const resp = await fetch(sampleConversation ? SPEAK_API_URL.replace(/\/speak$/, "/demo") : SPEAK_API_URL, {
+    const resp = await fetch(SPEAK_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(sampleConversation ? {} : await authHeaders()) },
-      body: sampleConversation ? JSON.stringify({ philosopher: currentPhilId, message: userText, history: conversationHistory.slice(0, -1) }) : body,
+      headers: { "Content-Type": "application/json", ...await authHeaders() },
+      body,
     });
 
     log(`[SPEAK] API status: ${resp.status}`);
@@ -820,8 +815,7 @@ export async function sendMessage(userText: string): Promise<SpeakResult> {
       await dropDanglingUserTurn();
       if (resp.status === 401) { await handleUnauthorized(); return noticeResult('expired'); }
       if (resp.status === 403) return noticeResult('locked', { name: currentPersona.name });
-      if (resp.status === 429 && body?.error !== 'demo_busy' && sampleConversation) return noticeResult('locked', { name: currentPersona?.name || 'This philosopher' });
-      if (resp.status === 429) return limitNotice(body);
+        if (resp.status === 429) return limitNotice(body);
       return noticeResult('error', { name: currentPersona.name });
     }
 

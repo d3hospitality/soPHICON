@@ -1,4 +1,3 @@
-import { DEMO_PHILOSOPHER_IDS } from './plans';
 // ═══════════════════════════════════════════════════════════════════
 // soΦcon — Page Builders v11 (two-file split + glass chrome)
 //
@@ -784,7 +783,7 @@ export function mindstateItemLabels(philosopher: Philosopher): string[] {
   // reader got Chinese quotes and then an English emotion picker.
   const name = tMeta(philosopher.name, true);
   return [
-    isLockedForViewer(philosopher.philId) ? (DEMO_PHILOSOPHER_IDS.includes(philosopher.philId) ? `Try ${name} · Free sample` : tGlass('g.talkToSage', { name })) : tGlass('g.talkTo', { name }),
+    tGlass('g.talkTo', { name }),
     `${tGlass('g.shuffleAll')} (${philosopher.quotes.length})`,
     ...emotions.map(e => {
       const count = philosopher.quotes.filter(q => q.emotion === e).length;
@@ -976,9 +975,9 @@ export function buildSpeakTraditionPage(): RebuildPageContainer {
 // Display-only tier hint for Speak (server still enforces every call).
 let viewerSage = false;
 export function setViewerSage(v: boolean): void { viewerSage = v; }
-/** Seekers speak with Enki; every other philosopher is a Sage conversation. */
-export function isLockedForViewer(philId: string): boolean {
-  return !viewerSage && philId !== 'enki';
+/** Every philosopher is open; the API enforces one shared daily allowance. */
+export function isLockedForViewer(_philId: string): boolean {
+  return false;
 }
 
 export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 0): RebuildPageContainer {
@@ -1010,8 +1009,7 @@ export function buildSpeakPhilosopherPage(tradition: Tradition, index: number = 
   // only found out after the greeting, when every tap was refused.
   const selected = philosophers[idx];
   const status = !selected ? ''
-    : isLockedForViewer(selected.philId) ? (DEMO_PHILOSOPHER_IDS.includes(selected.philId) ? 'Free sample · 3 replies' : tGlass('g.lockedRow'))
-    : selected.philId === 'enki' && !viewerSage ? tGlass('g.freeRow')
+    : !viewerSage ? tGlass('g.freeRow')
     : '';
   const header = new TextContainerProperty({
     ...geo(layout, "header"),

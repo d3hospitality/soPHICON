@@ -11,11 +11,9 @@
 //   • null for a tier = that tier may not call the feature at all.
 // ═══════════════════════════════════════════════════════════════════
 
-const ENKI_ONLY = ['enki'];
-
 export const POLICY = {
-  // Speak: seekers and the public demo get Enki only.
-  speak:               { anon: { perDay: 1, personas: ENKI_ONLY }, seeker: { perDay: 1, personas: ENKI_ONLY }, sage: { perDay: 20 } },   // Sage = 20 replies a day, as sold on enkiridion.com
+  // Speak: all 18 philosophers share one daily allowance, across clients.
+  speak:               { anon: { perDay: 3 }, seeker: { perDay: 3 }, sage: { perDay: 20 } },   // Sage = 20 replies a day, as sold on enkiridion.com
   // A voice turn = transcribe + speak. Speak is the unit that counts;
   // these caps only stop transcribe being used as a free Whisper proxy.
   transcribe:          { anon: { perDay: 3 },  seeker: { perDay: 5 },  sage: { perDay: 120 } },
@@ -78,7 +76,7 @@ export function quotaKey(feature, who, day) {
 
 /** Client IP from Vercel's forwarded header (first hop). */
 export function clientIp(headers) {
-  const fwd = headers['x-forwarded-for'];
+  const fwd = headers['x-vercel-forwarded-for'] || headers['x-forwarded-for'];
   const first = (Array.isArray(fwd) ? fwd[0] : fwd || '').split(',')[0].trim();
   return first || headers['x-real-ip'] || 'unknown';
 }

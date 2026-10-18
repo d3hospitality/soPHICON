@@ -110,7 +110,7 @@ export const EN = {
 
   'story.s3.t': "What remains free",
   'story.s3.p01': "The free version is not a trap or a disguised trial. All 2,801 quotes are browsable without paying and they do not expire. I am not going to wait until you build a habit around them and then move them behind a paywall.",
-  'story.s3.p02': "You also get one reply a day from Enki. If that is all you ever use, that is a completely valid way to use this. The point is to help you reflect, not to irritate you until paying is the easiest way to make the irritation stop.",
+  'story.s3.p02': "You also get 3 chats a day total across all 18 philosophers. If that is all you ever use, that is a completely valid way to use this. The point is to help you reflect, not to irritate you until paying is the easiest way to make the irritation stop.",
 
   'story.s4.t': "Why it is called enkiRIDION",
   'story.s4.p01': "Epictetus never wrote a book. He taught, and his student Arrian wrote down what he heard. That became the *Enchiridion*, usually translated \"handbook,\" though it means something closer to *held in the hand*. Enki was the Sumerian god of wisdom, water, and craft. Put them together and you get enkiRIDION: a handbook that talks back.",
@@ -156,11 +156,11 @@ export const EN = {
   'g.sageGateBody': 'Every philosopher, 20 replies a day.\n7 days free, then $5.99 a month.\nStart on your phone: enkiridion.com',
   'g.sageGateHint': 'Click: talk to Enki instead  ·  Double-tap: back',
   'g.lockedRow': 'Sage · 7 days free',
-  'g.freeRow': 'Free every day',
+  'g.freeRow': '3 free chats/day total',
   'g.youSaid': 'You: {text}',
   'g.listeningFor': 'Listening {t} · tap to send',
   'g.noticeLocked': '{name} talks with Sage members. Try 7 days free at enkiridion.com. Double-tap to go back.',
-  'g.noticeLimitFree': 'That was today’s free reply. Enki will be here tomorrow. For every philosopher and 20 replies a day, start 7 days free at enkiridion.com.',
+  'g.noticeLimitFree': 'You’ve used today’s 3 free chats across all philosophers. Come back tomorrow. For 20 replies a day, start 7 days free at enkiridion.com.',
   'g.noticeLimitSage': 'That’s today’s {n} replies. They come back tomorrow.',
   'g.noticeBusy': 'Enki is with many travellers right now. Link your glasses on your phone to keep talking.',
   'g.noticeExpired': 'Your glasses link expired. Link them again on your phone.',

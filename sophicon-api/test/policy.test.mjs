@@ -15,16 +15,22 @@ test('every route feature name has a policy', () => {
     'community-submit','become-philosopher','sprite']) assert.ok(POLICY[f], f);
 });
 
-test('anonymous: Enki only, and previously-open routes now need auth', () => {
+test('anonymous: every philosopher shares three chats; other routes keep their policies', () => {
   assert.equal(evaluate('speak', { isAnon: true, persona: 'enki' }).allow, true);
-  assert.equal(evaluate('speak', { isAnon: true, persona: 'socrates' }).status, 403);
+  for (const persona of PERSONA_IDS) {
+    const r = evaluate('speak', { isAnon: true, persona });
+    assert.equal(r.allow, true); assert.equal(r.rule.perDay, 3);
+  }
   assert.equal(evaluate('tts', { isAnon: true }).status, 401);
   assert.equal(evaluate('day-insight', { isAnon: true }).status, 401);
   assert.equal(evaluate('symposium', { isAnon: true }).status, 401);
 });
 
 test('seeker vs sage', () => {
-  assert.equal(evaluate('speak', { tier: 'seeker', isAnon: false, persona: 'marcus_aurelius' }).error, 'sage_required');
+  for (const persona of PERSONA_IDS) {
+    const r = evaluate('speak', { tier: 'seeker', isAnon: false, persona });
+    assert.equal(r.allow, true); assert.equal(r.rule.perDay, 3);
+  }
   assert.equal(evaluate('symposium', { tier: 'seeker', isAnon: false }).error, 'sage_required');
   assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'marcus_aurelius' }).allow, true);
   assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'enki' }).rule.perDay, 20);

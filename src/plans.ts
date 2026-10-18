@@ -12,7 +12,7 @@ export const PLAN = {
   yearly: '$49.99',
   trialDays: 7,
   sageRepliesPerDay: 20,
-  freeRepliesPerDay: 1,
+  freeRepliesPerDay: 3,
 } as const;
 
 /** "$5.99 a month or $49.99 a year" */
@@ -25,6 +25,5 @@ export const TRIAL_URL = 'https://enkiridion.com/start?plan=sage_monthly&next=%2
 /** Free account only: sign in and get a pairing code. */
 export const SETTINGS_URL = 'https://enkiridion.com/settings';
 
-export const DEMO_PHILOSOPHER_IDS = ['marcus_aurelius', 'socrates', 'laozi'];
 export const DEMO_URL = 'https://enkiridion.com/demo?view=glasses';
 export const SUMMON_URL = 'https://enkiridion.com/summon';
