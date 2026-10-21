@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { kv } from '@vercel/kv';
+import { kv } from './_store.js';
 import { requireEntitlement } from './_entitlements.js';
 import { getVoice, activeProvider } from './_voices.js';
 
@@ -24,13 +24,13 @@ import { getVoice, activeProvider } from './_voices.js';
  * All keys live in Vercel env ONLY — never in any bundle (the G2
  * webview blocks direct API calls anyway; everything proxies here).
  *
- * Caching: Vercel KV (same store as entitlements), keyed on
+ * Caching: Supabase KV (same store as entitlements), keyed on
  * sha256(text + voice + style) per provider, base64 MP3, 7-day TTL.
  * Re-speaking the same reply in the same emotion costs zero.
  *
  * Rate limiting: deliberately does NOT burn a 'speak' unit — a voice
  * turn already burned one in /api/speak, and TTS of that reply is the
- * same turn. Instead a private tts:rl counter caps runaway direct use.
+ * same turn. The shared entitlement policy applies a short-term throttle.
  *
  * @description Synthesize philosopher speech audio
  * @method POST
@@ -42,7 +42,6 @@ import { getVoice, activeProvider } from './_voices.js';
  */
 
 const MAX_TEXT_CHARS = 2000;
-const TTS_PER_DAY = 80;            // 2× the sage speak cap — replays are legit
 const CACHE_TTL_SECONDS = 7 * 86400;
 const CACHE_MAX_B64 = 900_000;     // stay under KV value-size limits
 
@@ -70,9 +69,8 @@ export default async function handler(req, res) {
     }
     const input = text.trim().slice(0, MAX_TEXT_CHARS);
 
-    // Identity + policy hook. 'tts' is not a gated feature, so this
-    // never blocks and never increments the speak counter — it resolves
-    // who is asking so the private rate limit below has a stable key.
+    // Free for everyone, with a separate short-term abuse throttle.
+    // This never spends a conversation unit or opens checkout.
     const gate = await requireEntitlement(req, res, 'tts');
     if (!gate) return;
     stage('gate');
@@ -104,15 +102,8 @@ export default async function handler(req, res) {
       .createHash('sha256')
       .update(`${input}|${v.voiceId}|${v.style}`)
       .digest('hex')}`;
-    // Rate-limit check and cache lookup ride the same KV; overlap them.
-    const [overLimit, cached] = await Promise.all([
-      overTtsDailyLimit(req, gate),
-      kvFast(() => kv.get(cacheKey), null),
-    ]);
-    stage('ratelimit+cache-read');
-    if (overLimit) {
-      return res.status(429).json({ error: 'daily_limit', feature: 'tts', limit: TTS_PER_DAY });
-    }
+    const cached = await kvFast(() => kv.get(cacheKey), null);
+    stage('cache-read');
     if (cached) {
       return sendAudio(res, Buffer.from(cached, 'base64'), provider, v.voiceId, 'hit');
     }
@@ -256,29 +247,4 @@ function kvFast(op, fallback) {
     Promise.resolve().then(op).catch(() => fallback),
     new Promise((resolve) => setTimeout(() => resolve(fallback), KV_BUDGET_MS)),
   ]);
-}
-
-/**
- * Private daily cap — same kv.incr pattern as _entitlements.js
- * overDailyLimit, own key prefix so it never collides with speak's
- * counter. Fails open: a KV outage must never silence the voices.
- */
-async function overTtsDailyLimit(req, gate) {
-  const who = gate.userId
-    || req.headers['x-device-id']
-    || (String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown');
-  const day = new Date().toISOString().slice(0, 10);
-  const key = `tts:rl:${who}:${day}`;
-  // Second counter keyed on IP: X-Device-Id is client-controlled, so rotating
-  // it must not mint fresh budgets. The IP cap is looser (NAT'd offices).
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
-  const ipKey = `tts:rl:ip:${ip}:${day}`;
-  const [n, ipN] = await Promise.all([
-    kvFast(() => kv.incr(key), null),
-    kvFast(() => kv.incr(ipKey), null),
-  ]);
-  if (n === 1) await kvFast(() => kv.expire(key, 86400), null);
-  if (ipN === 1) await kvFast(() => kv.expire(ipKey, 86400), null);
-  return (typeof n === 'number' && n > TTS_PER_DAY)
-    || (typeof ipN === 'number' && ipN > TTS_PER_DAY * 4);
 }

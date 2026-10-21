@@ -11,8 +11,8 @@ export const PLAN = {
   monthly: '$5.99',
   yearly: '$49.99',
   trialDays: 7,
-  sageRepliesPerDay: 20,
-  freeRepliesPerDay: 3,
+  sageRepliesPerDay: Infinity,
+  freeRepliesPerDay: Infinity,
 } as const;
 
 /** "$5.99 a month or $49.99 a year" */

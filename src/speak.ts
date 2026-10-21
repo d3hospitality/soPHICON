@@ -1,4 +1,3 @@
-import { PLAN } from './plans';
 // ═══════════════════════════════════════════════════════════════════
 // soΦcon — Speak module (src/speak.ts) — v3
 //
@@ -763,11 +762,10 @@ export async function stopRecordingAndSend(onHeard?: (text: string) => void): Pr
   return { ...result, heard: userText };
 }
 
-/** 429 → which limit: the free three-a-day, or a Sage's daily replies. */
+/** Temporary service throttles never open a paid upgrade. */
 function limitNotice(body: any): SpeakResult {
   if (body?.error === 'demo_busy') return noticeResult('busy');
-  const limit = Number(body?.limit) || PLAN.freeRepliesPerDay;
-  return limit <= PLAN.freeRepliesPerDay ? noticeResult('limit_free') : noticeResult('limit_sage', { n: limit });
+  return noticeResult('limit_free');
 }
 
 // ═══ SEND MESSAGE TO PHILOSOPHER ═══

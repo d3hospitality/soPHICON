@@ -41,7 +41,7 @@ const ANON = { userId: null, tier: 'seeker', scope: 'user' };
  */
 export async function requireEntitlement(req, res, feature, opts = {}) {
   // The published chat allowance is enforced in every rollout mode.
-  const m = feature === 'speak' ? 'hard' : mode();
+  const m = ['speak', 'transcribe', 'tts'].includes(feature) ? 'hard' : mode();
 
   let id = null;
   try { id = await identify(req); } catch { id = null; }
@@ -58,12 +58,15 @@ export async function requireEntitlement(req, res, feature, opts = {}) {
   } else {
     const who = isAnon ? `ip:${clientIp(req.headers)}` : `u:${id.userId}`;
     const day = new Date().toISOString().slice(0, 10);
-    const q = await consume(quotaKey(feature, who, day), decision.rule.perDay);
-    remaining = Math.max(0, decision.rule.perDay - (q.count || 0));
+    const shortTerm = Boolean(decision.rule.perMinute);
+    const limit = shortTerm ? decision.rule.perMinute : decision.rule.perDay;
+    const key = shortTerm ? `pace:${feature}:${who}:${Math.floor(Date.now()/60000)}` : quotaKey(feature, who, day);
+    const q = await consume(key, limit, shortTerm ? 120 : 86400);
+    remaining = shortTerm ? undefined : Math.max(0, limit - (q.count || 0));
     if (q.status === 'unavailable') {
       violation = { status: 503, error: 'quota_unavailable', retryable: true };
     } else if (q.status === 'over') {
-      violation = { status: 429, error: 'daily_limit', limit: decision.rule.perDay };
+      violation = shortTerm ? { status: 429, error: 'rate_limit', retryAfterSeconds: 60 } : { status: 429, error: 'daily_limit', limit };
     } else if (isAnon && ANON_GLOBAL_PER_DAY[feature]) {
       const g = await consume(quotaKey(feature, 'anon-global', day), ANON_GLOBAL_PER_DAY[feature]);
       if (g.status === 'unavailable') violation = { status: 503, error: 'quota_unavailable', retryable: true };
@@ -84,16 +87,17 @@ export async function requireEntitlement(req, res, feature, opts = {}) {
     limit: violation.limit,
     remaining: violation.error === 'daily_limit' ? 0 : undefined,
     retryable: violation.retryable || undefined,
-    upgrade: violation.status === 403 || violation.status === 429 ? 'https://enkiridion.com/pricing' : undefined,
+    retryAfterSeconds: violation.retryAfterSeconds,
+    upgrade: violation.status === 403 ? 'https://enkiridion.com/pricing' : undefined,
   });
   return null;
 }
 
 /** Atomically reserve one use before calling the model. */
-async function consume(key, limit) {
+async function consume(key, limit, ttl = 86400) {
   try {
     const n = await kv.incr(key);
-    if (n === 1) await kv.expire(key, 86400);
+    if (n === 1) await kv.expire(key, ttl);
     return { status: n > limit ? 'over' : 'ok', count: n };
   } catch {
     return { status: 'unavailable' };

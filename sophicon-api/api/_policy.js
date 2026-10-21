@@ -12,12 +12,10 @@
 // ═══════════════════════════════════════════════════════════════════
 
 export const POLICY = {
-  // Speak: all 18 philosophers share one daily allowance, across clients.
-  speak:               { anon: { perDay: 3 }, seeker: { perDay: 3 }, sage: { perDay: 20 } },   // Sage = 20 replies a day, as sold on enkiridion.com
-  // A voice turn = transcribe + speak. Speak is the unit that counts;
-  // these caps only stop transcribe being used as a free Whisper proxy.
-  transcribe:          { anon: { perDay: 3 },  seeker: { perDay: 5 },  sage: { perDay: 120 } },
-  tts:                 { anon: null,           seeker: { perDay: 3 },  sage: { perDay: 60 } },
+  // Conversations are free. Short-term throttles protect the shared service.
+  speak: { anon: { perMinute: 6 }, seeker: { perMinute: 10 }, sage: { perMinute: 10 } },
+  transcribe: { anon: { perMinute: 6 }, seeker: { perMinute: 10 }, sage: { perMinute: 10 } },
+  tts: { anon: { perMinute: 6 }, seeker: { perMinute: 10 }, sage: { perMinute: 10 } },
   'day-insight':       { anon: null,           seeker: { perDay: 1 },  sage: { perDay: 20 } },
   // One next step at the end of a talk (gpt-4o-mini, ~200 tokens). Free
   // talks with Enki get a move too: the path is the reason to come back.

@@ -19,6 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
+import { checkHabit } from './daily-practice.js';
 import { PHILOSOPHERS } from './constants';
 
 const HABITS_KEY = 'habits';
@@ -224,34 +225,7 @@ export async function recordCheckIn(habitId: string, status: HabitStatus, forDat
   const h = all.find(h => h.id === habitId);
   if (!h) return;
 
-  // Append history (idempotent for same date)
-  const idx = h.history.findIndex(c => c.date === forDate);
-  const checkIn: HabitCheckIn = { date: forDate, status, ts: now.getTime() };
-  if (idx >= 0) h.history[idx] = checkIn;
-  else h.history.push(checkIn);
-  h.history.sort((a, b) => a.date.localeCompare(b.date));
-
-  h.lastCheckInDate = forDate;
-
-  // Streak math
-  if (status === 'done') {
-    // If we'd previously done it on yesterday-of-forDate, extend; else reset to 1
-    const prevDay = (() => {
-      const d = new Date(forDate + 'T00:00:00');
-      d.setDate(d.getDate() - 1);
-      return todayKey(d);
-    })();
-    if (h.lastDoneDate === prevDay) {
-      h.streak += 1;
-    } else {
-      h.streak = 1;
-    }
-    h.lastDoneDate = forDate;
-    if (h.streak > h.bestStreak) h.bestStreak = h.streak;
-  } else if (status === 'missed') {
-    h.streak = 0;
-  }
-  // 'skipped' leaves streak alone (you intentionally took the day off)
+  Object.assign(h, checkHabit(h, status, forDate, now.getTime()));
 
   await write(all);
 }

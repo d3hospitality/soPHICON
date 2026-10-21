@@ -648,7 +648,7 @@ async function maybeShowOnboarding(): Promise<void> {
 async function refreshSpeakTrialCta(): Promise<void> {
   const entitled = (await linkedTier()) === 'sage';
   const cta = $('speak-trial-cta');
-  if (cta) cta.hidden = entitled;
+  if (cta) cta.hidden = true; // Speaking has no trial gate.
 }
 
 async function initSpeakCompose(): Promise<void> {
@@ -728,13 +728,13 @@ async function initSpeakCompose(): Promise<void> {
           // The notice text is written for the glasses ("double-tap…");
           // the phone says the same thing in its own terms.
           const phoneText = result.notice === 'locked'
-            ? `Keep talking with ${philName}. Sage gives you ${PLAN.sageRepliesPerDay} replies a day: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
+            ? `Keep talking with ${philName}. Sage gives you saved conversations: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
             : result.notice === 'limit_free'
-              ? `You’ve used today’s 3 free chats across all philosophers. Come back tomorrow. Sage gives you ${PLAN.sageRepliesPerDay} replies a day: ${PLAN.trialDays} days free, then ${PRICE_LINE}.`
+              ? `Please pause for a minute, then try again. Speaking is free.`
               : result.text.replace(/ Double-tap to go back\.$/, '');
           thread.insertAdjacentHTML('beforeend', `
             <div class="speak-turn user"><div class="speak-turn-head"><span class="speak-turn-who">YOU</span></div><div class="speak-turn-body">${escapeHtml(text)}</div></div>
-            <div class="speak-notice">${escapeHtml(phoneText)}${result.notice === 'locked' || result.notice === 'limit_free' ? ' <button class="link-btn" data-open-account>Start 7 days free</button>' : ''}</div>`);
+            <div class="speak-notice">${escapeHtml(phoneText)}</div>`);
           thread.querySelector('[data-open-account]')?.addEventListener('click', () => openAccountStep());
         } else {
           thread.insertAdjacentHTML('beforeend', `
@@ -829,8 +829,8 @@ async function initSettings(): Promise<void> {
     const tier = await linkedTier();
     if (linkHint) {
       linkHint.innerHTML = handle
-        ? `Linked as @${escapeHtml(handle)} · ${tier === 'sage' ? 'Sage' : 'Free'}. Your plan follows your enkiridion.com account, so an upgrade there shows up here by itself. ${tier === 'sage' ? `Every philosopher, ${PLAN.sageRepliesPerDay} replies a day.` : `Free: 3 chats a day total across all 18 philosophers. Sage is ${PRICE_LINE} after ${PLAN.trialDays} free days.`}`
-        : `Not linked. Get a 6-character code at enkiridion.com/settings (G2 Glasses → Generate pairing code) and type it here. A free account works: all 18 philosophers, three chats per day total.`;
+        ? `Linked as @${escapeHtml(handle)} · ${tier === 'sage' ? 'Sage' : 'Free'}. Your plan follows your enkiridion.com account, so an upgrade there shows up here by itself. ${tier === 'sage' ? `Every philosopher, saved conversations.` : `Free conversations with all 18 philosophers, plus goals, daily steps and habits.`}`
+        : `Not linked. Get a 6-character code at enkiridion.com/settings (G2 Glasses → Generate pairing code) and type it here. A free account works: all 18 philosophers and My day are free.`;
     }
     if (btnUnlink) btnUnlink.style.display = handle ? '' : 'none';
     if (btnLink) btnLink.style.display = handle ? 'none' : '';
@@ -2593,7 +2593,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
     const card = document.createElement('div');
     card.id = 'philosopher-sample-entry';
     card.className = 'account-step';
-    card.innerHTML = '<p><strong>Meet a different mind.</strong> Choose any of the 18 philosophers on your glasses. Three free chats per day total, shared across them.</p><p><a href="https://enkiridion.com/demo?view=glasses" target="_blank" rel="noopener">Preview a conversation</a> · <a href="https://enkiridion.com/summon" target="_blank" rel="noopener">Request a philosopher — $20 concept</a></p>';
+    card.innerHTML = '<p><a href="https://enkiridion.com/day" target="_blank" rel="noopener"><strong>My day: goals, next steps and daily marks →</strong></a></p><p><strong>Meet a different mind.</strong> Choose any of the 18 philosophers on your glasses. Voice and text conversations are free. Open My day for concrete goals and daily marks.</p><p><a href="https://enkiridion.com/demo?view=glasses" target="_blank" rel="noopener">Preview a conversation</a> · <a href="https://enkiridion.com/summon" target="_blank" rel="noopener">Request a philosopher — $20 concept</a></p>';
     const host = document.querySelector('[data-panel="home"]');
     if (host) host.prepend(card);
   }
@@ -3109,7 +3109,7 @@ function renderPathCard(): void {
     : '';
   const more = goals.length < goalLimit()
     ? '<button class="link-btn" id="path-add-toggle">Add a goal</button>'
-    : (!isSageCached() ? '<button class="link-btn" id="path-sage">Sage holds up to 3 goals</button>' : '');
+    : '';
   body.innerHTML = sections.join('') + doneHtml + (more ? `<div class="path-foot">${more}</div>` : '') + addRow(false);
 }
 
@@ -3119,7 +3119,7 @@ async function submitGoal(): Promise<void> {
   const r = await addGoal(input?.value || '');
   if (r.ok || !msg) return;
   msg.hidden = false;
-  msg.textContent = r.reason === 'limit' ? 'Free holds one goal. Sage holds up to 3.'
+  msg.textContent = r.reason === 'limit' ? 'Keep up to 3 active goals. Complete one to make room.'
     : r.reason === 'duplicate' ? 'You already have that goal.' : 'Name the goal first.';
 }
 
@@ -3195,7 +3195,7 @@ async function askForMove(): Promise<void> {
 // ─── ACCOUNT CARD (top of Home) ────────────────────────────────────
 // One card, one next step, chosen by the account state:
 //   unlinked → link your glasses (Enki is free meanwhile)
-//   free     → unlock all 17 (trial link to copy)
+//   free     → free features, with an optional saved-talks membership
 //   Sage     → hidden; the glasses card on Today says what to do
 // When the glasses are showing an upsell moment (a Sage philosopher
 // picked, today's free reply used) the card names it.
@@ -3209,7 +3209,7 @@ async function renderAccountCard(): Promise<void> {
   const moment = glassUpsell && !sage
     ? (glassUpsell.kind === 'locked' && glassUpsell.philName
         ? `${escapeHtml(glassUpsell.philName)} is waiting on your glasses`
-        : 'That was today’s free reply')
+        : 'Please pause briefly, then keep talking')
     : '';
   host.classList.toggle('glow', !!moment);
   host.hidden = sage;
@@ -3221,7 +3221,7 @@ async function renderAccountCard(): Promise<void> {
         <span class="strip-mark" aria-hidden="true">◈</span>
         <div class="strip-text">
           <div class="strip-title">${moment || 'Link your glasses'}</div>
-          <div class="strip-sub">All 18 philosophers, 3 free chats a day total. Linking keeps your talks and your path.</div>
+          <div class="strip-sub">Every philosopher and My day are free. Linking syncs your goals, steps and habit marks.</div>
         </div>
         <button class="btn btn-primary strip-go" id="account-link-btn">Link</button>
       </div>`;
@@ -3233,13 +3233,13 @@ async function renderAccountCard(): Promise<void> {
       <div class="strip">
         <span class="strip-mark" aria-hidden="true">◈</span>
         <div class="strip-text">
-          <div class="strip-title">${moment || `Open all ${TOTAL_PHILOSOPHERS} philosophers`}</div>
-          <div class="strip-sub">${PLAN.trialDays} days free, then ${PLAN.monthly} a month</div>
+          <div class="strip-title">${moment || 'All 18 philosophers and My day are free'}</div>
+          <div class="strip-sub">Sage is optional: save conversations across devices.</div>
         </div>
-        <button class="btn btn-primary strip-go" id="account-more" aria-expanded="false" aria-controls="account-more-body">Start</button>
+        <button class="btn btn-primary strip-go" id="account-more" aria-expanded="false" aria-controls="account-more-body">Saved talks</button>
       </div>
       <div class="strip-more" id="account-more-body" hidden>
-        <p class="account-step">Sage: every philosopher, ${PLAN.sageRepliesPerDay} replies a day, here and on your glasses. ${PRICE_LINE} after the free week.</p>
+        <p class="account-step">Sage saves conversations here and on your glasses. Speaking and My day stay free. ${PRICE_LINE} after the free week.</p>
         <p class="muted account-step">Open this in your phone’s browser to start:</p>
         <div class="howto-link"><span class="howto-url">enkiridion.com/start</span><button class="copy-btn" data-copy="${escapeAttr(TRIAL_URL)}">Copy</button></div>
         <p class="muted account-step">Your glasses pick up the upgrade by themselves, usually within a minute. <button class="link-btn" id="account-recheck">Check now</button></p>
@@ -3251,7 +3251,7 @@ async function renderAccountCard(): Promise<void> {
       if (!more) return;
       more.hidden = !more.hidden;
       b.setAttribute('aria-expanded', String(!more.hidden));
-      b.textContent = more.hidden ? 'Start' : 'Hide';
+      b.textContent = more.hidden ? 'Saved talks' : 'Hide';
     });
     $('account-recheck')?.addEventListener('click', async (ev) => {
       const b = ev.currentTarget as HTMLButtonElement;

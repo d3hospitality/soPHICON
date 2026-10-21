@@ -1,3 +1,4 @@
+import { PracticeGlass } from './practiceGlass';
 // ═══════════════════════════════════════════════════════════════════
 // soΦcon — Event router (src/events.ts) — v10
 //
@@ -34,7 +35,7 @@ import {
   buildQuoteViewPage,
   homeListItems, BROWSABLE_TRADITIONS, SPEAK_INDEX, TALK_ENKI_INDEX, SPEAK_TRADITIONS,
   buildSageGatePage, buildDailyCardPage, rarityLine, speakStatusLine,
-  APHORICA_INDEX, PHILOSOPHIES_INDEX, POLYGOT_INDEX, buildTraditionsPage,
+  APHORICA_INDEX, PHILOSOPHIES_INDEX, POLYGOT_INDEX, PRACTICE_INDEX, buildTraditionsPage,
   buildAphoricaPage, buildAphoricaReadPage,
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
   buildSpeakConversationPage,
@@ -108,9 +109,10 @@ type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
   | "favorites" | "calendar" | "calendar-day"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
   | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read"
-  | "support" | "language" | "sage-gate" | "card" | "move" | "polygot";
+  | "support" | "language" | "sage-gate" | "card" | "move" | "polygot" | "practice";
 
 let currentPage: Page = "home";
+let practiceGlass: PracticeGlass | null = null;
 
 // Where a conversation (or the Sage page) was opened from, so double-tap
 // goes back there: Talk to Enki on home → home; a philosopher on the
@@ -1804,6 +1806,11 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         lastNavigationTime = Date.now();
         await pushLogoToGlasses(bridge, baseUrl);
         log("> Philosophers", "success");
+      } else if (idx === PRACTICE_INDEX) {
+        currentPage = "practice";
+        practiceGlass = new PracticeGlass(bridge, () => goHome(bridge, baseUrl));
+        await practiceGlass.open();
+        lastNavigationTime = Date.now();
       } else if (idx === POLYGOT_INDEX) {
         await openPolyGotTour(bridge);
         lastNavigationTime = Date.now();
@@ -2449,6 +2456,7 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
 }
 
 async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: string): Promise<void> {
+  if (currentPage === "practice" && practiceGlass && await practiceGlass.handle(event)) return;
 
   // ── CONTEXTUAL MENU (action item selected on the glasses) ──
   if (event.menuItemClickEvent) {

@@ -19,9 +19,9 @@ test('anonymous: every philosopher shares three chats; other routes keep their p
   assert.equal(evaluate('speak', { isAnon: true, persona: 'enki' }).allow, true);
   for (const persona of PERSONA_IDS) {
     const r = evaluate('speak', { isAnon: true, persona });
-    assert.equal(r.allow, true); assert.equal(r.rule.perDay, 3);
+    assert.equal(r.allow, true); assert.equal(r.rule.perMinute, 6);
   }
-  assert.equal(evaluate('tts', { isAnon: true }).status, 401);
+  assert.equal(evaluate('tts', { isAnon: true }).allow, true);
   assert.equal(evaluate('day-insight', { isAnon: true }).status, 401);
   assert.equal(evaluate('symposium', { isAnon: true }).status, 401);
 });
@@ -29,11 +29,11 @@ test('anonymous: every philosopher shares three chats; other routes keep their p
 test('seeker vs sage', () => {
   for (const persona of PERSONA_IDS) {
     const r = evaluate('speak', { tier: 'seeker', isAnon: false, persona });
-    assert.equal(r.allow, true); assert.equal(r.rule.perDay, 3);
+    assert.equal(r.allow, true); assert.equal(r.rule.perMinute, 10);
   }
   assert.equal(evaluate('symposium', { tier: 'seeker', isAnon: false }).error, 'sage_required');
   assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'marcus_aurelius' }).allow, true);
-  assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'enki' }).rule.perDay, 20);
+  assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'enki' }).rule.perMinute, 10);
 });
 
 test('forged tier strings do not grant sage', () => {

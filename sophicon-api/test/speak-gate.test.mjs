@@ -46,6 +46,7 @@ test('rotating X-Device-Id does not reset the anonymous daily quota', async () =
   await call({ persona: { name: 'Enki' }, deviceId: 'a' });
   await call({ persona: { name: 'Socrates' }, deviceId: 'b' });
   await call({ persona: { name: 'Lao Tzu' }, deviceId: 'c' });
+  for(let i=0;i<3;i++)await call({persona:'Plato',deviceId:'extra'+i});
   const calls = providerCalls;
   const r = await call({ persona: { name: 'Enki' }, deviceId: 'b' });
   assert.equal(r.status, 429); assert.equal(providerCalls, calls);
@@ -73,15 +74,16 @@ test('verified sage can speak with any philosopher', async () => {
   assert.equal(r.status, 200); assert.equal(providerCalls, 1);
 });
 
-test('all rollout modes enforce the three-chat limit for signed-in free accounts', async () => {
+test('all rollout modes enforce the short-term pacing for signed-in free accounts', async () => {
   for (const mode of ['off', 'warn', 'anon', 'hard']) {
     process.env.ENFORCE_ENTITLEMENTS = mode; store.clear(); providerCalls = 0;
     currentId = { userId: 'u2', tier: 'seeker', scope: 'user' };
     for (const persona of ['Socrates', 'Marcus Aurelius', 'Enki']) {
       assert.equal((await call({ persona, ip: persona })).status, 200);
     }
+    for(let i=0;i<7;i++)assert.equal((await call({persona:'Plato',ip:'other'})).status,200);
     assert.equal((await call({ persona: 'Plato', ip: 'different-device' })).status, 429);
-    assert.equal(providerCalls, 3);
+    assert.equal(providerCalls, 10);
   }
   process.env.ENFORCE_ENTITLEMENTS = 'hard';
 });

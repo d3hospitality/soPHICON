@@ -5,7 +5,7 @@
 // One store for both surfaces (glass + phone), the same way favorites
 // work: bridge storage, mirrored to the webview's own localStorage.
 //
-//   • Goals: Free holds 1 active goal, Sage holds 3.
+//   • Goals: Everyone can keep 3 active goals.
 //   • Moves: one concrete next step, proposed by /api/next-move when a
 //     talk ends, kept with a tap; open → done | skipped.
 //   • Philosophers see it: pathContext() rides every /api/speak call.
@@ -15,12 +15,15 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
-import { authHeaders, isLinked, isSageCached, onAccountChange, setAccountBridge } from './enkiAccount';
+import { authHeaders, isLinked, onAccountChange, setAccountBridge } from './enkiAccount';
 import { log } from './ui';
 
 export interface Goal {
   id: string;
   title: string;
+  baseline?: string;
+  targetDate?: string | null;
+  minutesPerDay?: number;
   status: 'active' | 'done' | 'dropped';
   createdAt: number;
   updatedAt: number;
@@ -33,6 +36,10 @@ export interface Move {
   status: 'open' | 'done' | 'skipped';
   createdAt: number;
   updatedAt: number;
+  quadrant?: string;
+  minutes?: number;
+  date?: string;
+  reason?: string;
   philId?: string;
   philName?: string;
 }
@@ -109,7 +116,7 @@ async function save(changed: string[] = []): Promise<void> {
 }
 
 // ─── reads ──────────────────────────────────────────────────────────
-export const goalLimit = (): number => (isSageCached() ? 3 : 1);
+export const goalLimit = (): number => 3;
 export const activeGoals = (): Goal[] => store.goals.filter(g => g.status === 'active').sort((a, b) => a.createdAt - b.createdAt);
 export const openMoves = (): Move[] => store.moves.filter(m => m.status === 'open').sort((a, b) => b.createdAt - a.createdAt);
 export const goalById = (id: string | null): Goal | undefined => (id ? store.goals.find(g => g.id === id) : undefined);
@@ -159,6 +166,14 @@ export async function keepMove(p: MoveProposal): Promise<Move> {
   await save(changed);
   log(`[PATH] kept move "${move.text}"${goalId ? ` toward ${goalById(goalId)?.title}` : ''}`, 'success');
   return move;
+}
+
+/** Keep a reviewed daily suggestion; stable IDs make repeated taps idempotent. */
+export async function keepDailyMove(input: Partial<Move> & { id: string; goalId: string | null; text: string }): Promise<void> {
+  const existing = store.moves.find(m => m.id === input.id);
+  const next: Move = { createdAt: Date.now(), status: 'open', ...existing, ...input, updatedAt: Date.now() } as Move;
+  if (existing) Object.assign(existing, next); else store.moves.push(next);
+  await save([`${MOVE_TYPE}:${next.id}`]);
 }
 
 export async function setMoveStatus(id: string, status: Move['status']): Promise<void> {
