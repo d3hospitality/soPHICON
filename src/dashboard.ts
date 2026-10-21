@@ -19,6 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { spriteImgUrl, spriteLocalFallback } from './spriteSource';
+import { enableQuoteAudio, playQuoteAudio, stopQuoteAudio, onQuoteAudioStatus } from './quoteAudio';
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 import {
   PHILOSOPHERS, TRADITIONS, TOTAL_QUOTES, TOTAL_PHILOSOPHERS, TOTAL_TRADITIONS,
@@ -26,7 +27,7 @@ import {
   Rarity, getRarity, getRaritySymbol,
 } from './constants';
 import {
-  onGlassesStateChange, GlassesState,
+  onGlassesStateChange, GlassesState, getGlassesState,
   getPhilsForCurrentSelectPage, setHoveredPhilosopherFromDashboard,
   startMindfulness, stopMindfulness, loadMindfulConfig, getMindfulConfig,
 } from './events';
@@ -388,6 +389,9 @@ function renderQuoteCard(philId: string, philName: string, q: Quote): string {
       <div class="quote-text">“${escapeHtml(q.text)}”</div>
       <div class="quote-attribution">${escapeHtml(attribution)}</div>
       <div class="quote-emotion mono">${escapeHtml(String(q.emotion || '').replace(/_/g, ' '))}</div>
+      <button class="btn sm" data-quote-audio="${escapeAttr(philId)}" data-quote-text="${escapeAttr(q.text)}"
+        aria-label="Hear this quote in English, narrated as ${escapeAttr(philName)}">Hear English</button>
+      <span class="quote-audio-feedback muted" role="status"></span>
     </div>`;
 }
 
@@ -2589,6 +2593,28 @@ function initSyncPanel(): void {
 
 // ─── PUBLIC ENTRY ─────────────────────────────────────────────────
 export async function initDashboard(b: EvenAppBridge, base: string): Promise<void> {
+  let quoteAudioFeedback: Element | null = null;
+  $('quote-audio-enable')?.addEventListener('click', () => { void enableQuoteAudio(); });
+  $('quote-audio-stop')?.addEventListener('click', stopQuoteAudio);
+  onQuoteAudioStatus(message => {
+    const el = $('quote-audio-status'); if (el) el.textContent = message;
+    if (quoteAudioFeedback) quoteAudioFeedback.textContent = message;
+  });
+  $('phil-groups')?.addEventListener('click', event => {
+    const button = (event.target as HTMLElement).closest<HTMLElement>('[data-quote-audio]');
+    if (button?.dataset.quoteAudio && button.dataset.quoteText) {
+      if (quoteAudioFeedback) quoteAudioFeedback.textContent = '';
+      quoteAudioFeedback = button.parentElement?.querySelector('.quote-audio-feedback') ?? null;
+      const glass = getGlassesState();
+      if (glass?.speakListening || glass?.polygot?.listening) {
+        const message = 'Finish recording before playing a quote.';
+        if (quoteAudioFeedback) quoteAudioFeedback.textContent = message;
+        const status = $('quote-audio-status'); if (status) status.textContent = message;
+        return;
+      }
+      void playQuoteAudio(button.dataset.quoteAudio, button.dataset.quoteText, true);
+    }
+  });
   if (!document.getElementById('philosopher-sample-entry')) {
     const card = document.createElement('div');
     card.id = 'philosopher-sample-entry';

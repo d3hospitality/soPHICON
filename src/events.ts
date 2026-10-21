@@ -1,4 +1,5 @@
 import { PracticeGlass } from './practiceGlass';
+import { playQuoteAudio, stopQuoteAudio, isQuoteAudioActive } from './quoteAudio';
 // ═══════════════════════════════════════════════════════════════════
 // soΦcon — Event router (src/events.ts) — v10
 //
@@ -44,7 +45,7 @@ import {
   buildMindfulnessBlankPage,
   SUPPORT_INDEX, buildSupportPage,
   MENU_LANGUAGE, buildLanguagePage, MENU_MINDFUL_SETUP,
-  MENU_HOME, MENU_SURPRISE, MENU_FAVORITE, MENU_SPEAK_THIS,
+  MENU_HOME, MENU_SURPRISE, MENU_FAVORITE, MENU_SPEAK_THIS, MENU_HEAR_QUOTE,
   MENU_END_CONVO, MENU_REFRESH, MENU_DEV_STORY, MENU_NEW_MINDFUL,
   MENU_TIP_JAR, MENU_RESTART_STORY, mindfulMenu,
   MENU_SHOW_FAVORITES, MENU_SHOW_CALENDAR, MENU_LIKE_POST,
@@ -721,6 +722,9 @@ function publishState(extra: Partial<GlassesState> = {}): void {
   // anywhere else, force-clear it so the dashboard's mirror UI knows to
   // hide the live hover indicator.
   const onSelectPage = currentPage === "philosophers" || currentPage === "speak-philosophers";
+  const quotePick = currentPage === 'mindful-quote' ? lastMindfulPick
+    : currentPage === 'favorites' ? favView[favIndex] : null;
+  const displayedPhil = quotePick?.phil ?? currentPhilosopher;
   // Pick the *active* tradition based on which page we're on. Speak path
   // uses speakTradition; everything else uses currentTradition. Without
   // this, the dashboard's mirror-card tradition-change detection broke
@@ -735,12 +739,12 @@ function publishState(extra: Partial<GlassesState> = {}): void {
   const s: GlassesState = {
     page: currentPage,
     tradition: activeTradition,
-    philosopher: currentPhilosopher ? { name: currentPhilosopher.name, philId: currentPhilosopher.philId } : null,
+    philosopher: displayedPhil ? { name: displayedPhil.name, philId: displayedPhil.philId } : null,
     hoveredPhilosopher: onSelectPage ? (extra.hoveredPhilosopher ?? lastPublishedState?.hoveredPhilosopher ?? null) : null,
     filter: currentFilter,
     quoteIndex: currentQuoteIndex,
     quoteTotal: currentQuotes.length,
-    quoteText: currentQuotes[currentQuoteIndex]?.text,
+    quoteText: quotePick?.quote.text ?? currentQuotes[currentQuoteIndex]?.text,
     speakListening: isCurrentlyRecording(),
     speakPageIndex,
     // An upsell moment stays published while the wearer is still on the
@@ -751,6 +755,9 @@ function publishState(extra: Partial<GlassesState> = {}): void {
   };
   // If caller didn't override and we just left a select page, ensure cleared
   if (!onSelectPage && !('hoveredPhilosopher' in extra)) s.hoveredPhilosopher = null;
+  if (isQuoteAudioActive() && lastPublishedState &&
+      (s.page !== lastPublishedState.page || s.quoteText !== lastPublishedState.quoteText ||
+       s.philosopher?.philId !== lastPublishedState.philosopher?.philId)) stopQuoteAudio();
   lastPublishedState = s;
   for (const cb of glassesStateListeners) { try { cb(s); } catch (e) { console.error("[state cb]", e); } }
 }
@@ -1484,6 +1491,7 @@ async function toggleMic(bridge: EvenAppBridge, baseUrl: string): Promise<void> 
   if (!isCurrentlyRecording()) {
     // Phase 1: LISTENING — context-aware from prior-turn mood
     cancelPendingResponseSprite();
+    stopQuoteAudio();
     const ok = await startRecording();
     if (!ok) {
       await showSpeakNotice(bridge, tGlass('g.noticeMic'));
@@ -1752,6 +1760,7 @@ async function runPolySay(bridge: EvenAppBridge, seq: number): Promise<void> {
   const alive = () => seq === polySeq && currentPage === "polygot" && polyStop === stop;
   const show = (status: string) => setPolyMain(bridge, tourMain(stop, lines, status));
 
+  stopQuoteAudio();
   if (!(await openDemoMic(bridge))) { polySay = 'done'; await show(sayLine('nomic', say.show)); return; }
   polySay = 'listen';
   publishState();
@@ -1987,6 +1996,7 @@ async function handleQuoteScroll(bridge: EvenAppBridge, baseUrl: string, dir: "u
 // journal never sees it. checkpointSession is idempotent (guarded by
 // currentSessionCheckpointed) so calling it from multiple paths is safe.
 async function onAppBackgrounded(): Promise<void> {
+  stopQuoteAudio();
   cancelPendingResponseSprite();
   cancelMindfulTimers();
   if (speakPhilosopher && speakTradition) {
@@ -1998,6 +2008,7 @@ async function onAppBackgrounded(): Promise<void> {
 }
 
 async function onAppExiting(bridge: EvenAppBridge): Promise<void> {
+  stopQuoteAudio();
   cancelPendingResponseSprite();
   cancelMindfulTimers();
   try { if (isCurrentlyRecording()) await bridge.audioControl(false); } catch {}
@@ -2226,6 +2237,18 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
         if (currentPage === "card") { navigating = false; await openDailyCard(bridge, baseUrl); }
         else await showCurrentQuote(bridge, baseUrl);
         log(`[MENU] ${added ? "♥ saved" : "♥ removed"}`, "success");
+        return;
+      }
+
+      case MENU_HEAR_QUOTE: {
+        const pick = currentPage === 'mindful-quote' ? lastMindfulPick
+          : currentPage === 'favorites' ? favView[favIndex]
+          : (currentPage === 'quote' || currentPage === 'card') && currentPhilosopher && currentQuotes[currentQuoteIndex]
+            ? { phil: currentPhilosopher, quote: currentQuotes[currentQuoteIndex] } : null;
+        if (!pick) return;
+        stopAutoRotate();
+        if (currentPage === 'mindful-quote') cancelMindfulTimers();
+        void playQuoteAudio(pick.phil.philId, pick.quote.text);
         return;
       }
 

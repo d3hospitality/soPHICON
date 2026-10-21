@@ -328,6 +328,7 @@ export const MENU_CAL_PREV = 17;
 export const MENU_CAL_NEXT = 18;
 export const MENU_LANGUAGE = 19;
 export const MENU_MINDFUL_SETUP = 20;
+export const MENU_HEAR_QUOTE = 21;
 
 /** Truncate a menu label to the firmware's 32-UTF-8-byte cap.
  *
@@ -375,14 +376,14 @@ function menu(items: MenuSpec): MenuContainerProperty | undefined {
  *  function. Composition per docs/GLASS-PAGES.md. */
 function homeMenu()      { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuShowFavorites'), MENU_SHOW_FAVORITES], [tGlass('g.menuShowCalendar'), MENU_SHOW_CALENDAR], [tGlass('g.menuLanguage'), MENU_LANGUAGE], [tGlass('g.menuMindful'), MENU_MINDFUL_SETUP], [tGlass('g.menuDevStory'), MENU_DEV_STORY]]); }
 function browseMenu()    { return menu([[tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
-function quoteMenu()     { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
+function quoteMenu()     { return menu([['Hear English', MENU_HEAR_QUOTE], [tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuSurprise'), MENU_SURPRISE], [tGlass('g.menuHome'), MENU_HOME]]); }
 function transitMenu()   { return menu([[tGlass('g.menuHome'), MENU_HOME]]); }
 function langMenu()      { return menu([[tGlass('g.menuHome'), MENU_HOME]]); }
 function convoMenu()     { return menu([[tGlass('g.menuLogReply'), MENU_LOG_REPLY], [tGlass('g.menuEndConvo'), MENU_END_CONVO], [tGlass('g.menuHome'), MENU_HOME]]); }
-export function mindfulMenu()   { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuNewMindful'), MENU_NEW_MINDFUL], [tGlass('g.menuHome'), MENU_HOME]]); }
+export function mindfulMenu()   { return menu([['Hear English', MENU_HEAR_QUOTE], [tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuNewMindful'), MENU_NEW_MINDFUL], [tGlass('g.menuHome'), MENU_HOME]]); }
 function aphoricaMenu()  { return menu([[tGlass('g.menuRefresh'), MENU_REFRESH], [tGlass('g.menuHome'), MENU_HOME]]); }
 function aphoricaReadMenu() { return menu([[tGlass('g.menuLikePost'), MENU_LIKE_POST], [tGlass('g.menuRefresh'), MENU_REFRESH], [tGlass('g.menuHome'), MENU_HOME]]); }
-export function favMenu()   { return menu([[tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuUnfavorite'), MENU_UNFAVORITE], [tGlass('g.menuHome'), MENU_HOME]]); }
+export function favMenu()   { return menu([['Hear English', MENU_HEAR_QUOTE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuUnfavorite'), MENU_UNFAVORITE], [tGlass('g.menuHome'), MENU_HOME]]); }
 function calMenu()          { return menu([[tGlass('g.menuPrevMonth'), MENU_CAL_PREV], [tGlass('g.menuNextMonth'), MENU_CAL_NEXT], [tGlass('g.menuCalToday'), MENU_CAL_TODAY], [tGlass('g.menuHome'), MENU_HOME]]); }
 function supportMenu()   { return menu([...(supportEnabled() ? [[tGlass('g.menuTipJar'), MENU_TIP_JAR] as [string, number]] : []), [tGlass('g.menuRestartStory'), MENU_RESTART_STORY], [tGlass('g.menuHome'), MENU_HOME]]); }
 
@@ -1533,7 +1534,7 @@ export function buildMovePage(phil: { name: string; tradition: string }, view: M
 // TODAY'S CARD — one quote a day, drawn like a card
 // ══════════════════════════════════════════════════════════════════
 
-function cardMenu() { return menu([[tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuHome'), MENU_HOME]]); }
+function cardMenu() { return menu([['Hear English', MENU_HEAR_QUOTE], [tGlass('g.menuFavorite'), MENU_FAVORITE], [tGlass('g.menuSpeakThis'), MENU_SPEAK_THIS], [tGlass('g.menuHome'), MENU_HOME]]); }
 
 /** Same geometry as the quote view (sprite left, words right, strip
  *  below) so the card reads as a quote — but the strip leads with the

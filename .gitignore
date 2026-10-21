@@ -18,3 +18,6 @@ __pycache__/
 
 # EHPK staging (scripts/pack-ehpk.sh)
 .ehpk-stage/
+
+# Paid quote recordings and resumable generation receipts (never bundle).
+work/quote-audio/
