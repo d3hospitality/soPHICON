@@ -1,4 +1,5 @@
 import { initSocialCompanion } from './socialCompanion';
+import { initAphoricaPhone, refreshAphoricaPhone } from './aphoricaPhone';
 // ═══════════════════════════════════════════════════════════════════
 // soΦcon — Phone-side interactive dashboard (src/dashboard.ts)
 //
@@ -151,6 +152,7 @@ function initTabs(): void {
           p.addEventListener('animationend', () => p.classList.remove('entering'), { once: true });
         }
       });
+      if (tab === 'aphorica') { window.scrollTo({ top: 0 }); void refreshAphoricaPhone(); }
       // Refresh debug view whenever debug tab opened
       if (tab === 'debug') { refreshPushLog(); renderSyncStatus().catch(() => {}); }
       // Speak tab → refresh the trial CTA (shown to seeker/unlinked).
@@ -619,12 +621,10 @@ async function primeSpeakPhil(philId: string): Promise<void> {
 
 /** Programmatically activate a tab (used by the trial CTA → About/pairing). */
 function switchTab(name: string): void {
-  // Aphorica and Mindful were tabs before 1.12: the Commons is a view in
-  // Quotes now, and Mindful mode lives in Account.
-  const tab = name === 'aphorica' ? 'philosophers' : name === 'mindful' ? 'about' : name;
+  // Aphorica has its own destination. Mindful mode lives in Account.
+  const tab = name === 'mindful' ? 'about' : name;
   const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`) as HTMLElement | null;
   btn?.click();
-  if (name === 'aphorica') showQuotesView('commons');
   if (name === 'mindful') setTimeout(() => $('mindful-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
@@ -2481,22 +2481,21 @@ function renderAphList(): void {
   wireAphVotes(list);
 }
 
-/** Compact community preview on the Home tab — top posts with sprites + votes. */
+/** The Today preview opens the same Aphorica destination as the tab. */
 async function renderAphHome(): Promise<void> {
   const list = $('aph-home-list');
   if (!list) return;
   try {
-    if (aphPosts.length === 0) {
-      const resp = await fetch(`${APH_FEED_URL}?sort=hot&limit=8`, { headers: { ...(await authHeaders()) } });
-      if (resp.ok) { const data = await resp.json(); aphPosts = Array.isArray(data.posts) ? data.posts : []; }
-    }
-    const top = aphPosts.slice(0, 1);
-    list.innerHTML = top.length
-      ? top.map(aphPostHtml).join('')
-      : '<li class="muted" style="padding:8px 2px;">Nothing in the Commons yet. Post the first one on enkiridion.com.</li>';
-    wireAphVotes(list, () => { renderAphHome(); renderAphList(); });
+    const resp = await fetch('https://sophicon-api.vercel.app/api/social?limit=1', { headers: await authHeaders() });
+    if (!resp.ok) throw Error('Feed unavailable');
+    const { posts } = await resp.json();
+    const post = posts?.[0];
+    list.innerHTML = post
+      ? `<li style="padding:16px"><p class="muted">@${escapeHtml(post.username)}</p><h3>${escapeHtml(post.title)}</h3><p>${escapeHtml(post.body)}</p><button class="btn" id="aph-preview-open">Join the conversation →</button></li>`
+      : '<li style="padding:16px">A thought starts a conversation.<button class="btn" id="aph-preview-open">Open Aphorica →</button></li>';
+    $('aph-preview-open')?.addEventListener('click', () => switchTab('aphorica'));
   } catch {
-    list.innerHTML = '<li class="muted" style="font-size:12px;padding:8px 2px;">Couldn’t reach the Commons. Check your connection.</li>';
+    list.innerHTML = '<li class="muted" style="padding:16px">Could not load Aphorica. Open the tab to try again.</li>';
   }
 }
 
@@ -2619,6 +2618,7 @@ export async function initDashboard(b: EvenAppBridge, base: string): Promise<voi
       void playQuoteAudio(button.dataset.quoteAudio, button.dataset.quoteText, true);
     }
   });
+  initAphoricaPhone();
   if (!document.getElementById('philosopher-sample-entry')) {
     const card = document.createElement('div');
     card.id = 'philosopher-sample-entry';

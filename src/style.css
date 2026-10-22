@@ -2118,3 +2118,23 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
 .wonder-actions .btn { min-height: 44px; }
 .wonder-hint { margin-top: 12px; font-size: 11px; line-height: 1.6; color: var(--dim); }
 .wonder-message { margin-top: 10px; color: var(--gold); font-size: 12px; line-height: 1.5; }
+
+/* Aphorica is a full companion destination, sharing the web/glasses API. */
+.aph-phone { line-height: 1.55; }
+.aph-phone h1 { font-family: var(--serif); font-size: 38px; margin: 0; }
+.aph-phone h1 span, .aph-phone h3 { color: var(--gold); }
+.aph-phone h2 { margin: 22px 0 10px; font-size: 22px; }
+.aph-phone label { display: block; margin: 16px 0 6px; }
+.aph-phone input, .aph-phone textarea, .aph-phone select { display:block; width:100%; box-sizing:border-box; margin-top:6px; padding:12px; color:var(--ink); background:var(--surface); border:1px solid var(--border); border-radius:10px; font:inherit; }
+.aph-phone-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:14px 0; }
+.aph-phone .btn { min-height:44px; white-space:normal; color:var(--gold); }
+.aph-phone .btn[aria-pressed="true"] { background:var(--gold-dim); border-color:var(--gold); }
+.aph-phone-post { border-top:1px solid var(--border); padding:20px 0; }
+.aph-phone-body { white-space:pre-wrap; overflow-wrap:anywhere; }
+.aph-phone-compose, .aph-phone-reflection { padding:16px; border:1px solid var(--gold); border-radius:14px; margin:20px 0; }
+.aph-phone-error { color:var(--err); }
+.aph-phone-error:empty, .aph-phone [role="status"]:empty { display:none; }
+.aph-phone-globe { margin-top:28px; text-align:center; border-top:1px solid var(--border); padding-top:20px; }
+.aph-phone-globe img { max-width:100%; object-fit:contain; }
+.aph-phone-empty { padding:28px 0; color:var(--dim); }
+@media(max-width:380px) { .tab-btn { font-size:10px; } }
