@@ -1716,6 +1716,44 @@ button.trialpill[hidden] { display: none; }
 .account-card .badge.sage { color: var(--gold); border-color: rgba(212,175,55,0.5); }
 .account-lede { font-size: 14px; line-height: 1.55; color: var(--ink); margin-bottom: 12px; }
 .account-step { font-size: 12.5px; margin-top: 10px; }
+
+/* Today introduction: keep every link legible in the dark Even WebView. */
+#philosopher-sample-entry {
+  margin: 0 0 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: #bdbdc6;
+  font-size: 13px;
+  line-height: 1.6;
+}
+#philosopher-sample-entry p + p { margin-top: 12px; }
+#philosopher-sample-entry strong { color: var(--ink); }
+#philosopher-sample-entry a,
+#philosopher-sample-entry a:visited {
+  color: var(--gold);
+  text-decoration-color: rgba(212,175,55,0.45);
+  text-underline-offset: 4px;
+  overflow-wrap: anywhere;
+}
+#philosopher-sample-entry a:hover { color: #f4dda2; }
+#philosopher-sample-entry a:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+#philosopher-sample-entry p:first-child a {
+  display: block;
+  padding: 11px 12px;
+  border: 1px solid rgba(212,175,55,0.35);
+  border-radius: 8px;
+  background: var(--gold-dim);
+  text-decoration: none;
+  line-height: 1.45;
+}
+#philosopher-sample-entry p:first-child strong { color: inherit; }
+#philosopher-sample-entry p:last-child { font-size: 12px; line-height: 1.9; }
 .howto-url { font-family: var(--mono); font-size: 12.5px; color: var(--gold); word-break: break-all; }
 .btn-block { width: 100%; justify-content: center; }
 .link-btn { background: none; border: 0; padding: 0; color: var(--gold); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
