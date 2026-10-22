@@ -94,6 +94,8 @@ async function verifyToken(token) {
       return payload;
     } catch { /* invalid */ }
   }
+  // Auth server fallback also supports projects still signing with legacy HS256.
+  try { const {data,error}=await admin().auth.getUser(token); if(!error&&data.user)return {sub:data.user.id}; } catch {}
   return null;
 }
 

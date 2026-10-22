@@ -26,19 +26,20 @@ test('anonymous: every philosopher shares three chats; other routes keep their p
   assert.equal(evaluate('symposium', { isAnon: true }).status, 401);
 });
 
-test('seeker vs sage', () => {
+test('free accounts have the same feature access', () => {
   for (const persona of PERSONA_IDS) {
     const r = evaluate('speak', { tier: 'seeker', isAnon: false, persona });
     assert.equal(r.allow, true); assert.equal(r.rule.perMinute, 10);
   }
-  assert.equal(evaluate('symposium', { tier: 'seeker', isAnon: false }).error, 'sage_required');
+  assert.equal(evaluate('symposium', { tier: 'seeker', isAnon: false }).allow, true);
   assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'marcus_aurelius' }).allow, true);
   assert.equal(evaluate('speak', { tier: 'sage', isAnon: false, persona: 'enki' }).rule.perMinute, 10);
 });
 
-test('forged tier strings do not grant sage', () => {
-  for (const t of ['SAGE', 'trialing', 'active', 'past_due', 'admin'])
-    assert.equal(evaluate('symposium', { tier: t, isAnon: false }).allow, false, t);
+test('tier strings cannot change service throttles', () => {
+ for (const feature of Object.keys(POLICY)) for (const tier of ['seeker','sage','SAGE','admin']) {
+  const rule=evaluate(feature,{tier,isAnon:false});assert.equal(rule.allow,true);assert.deepEqual(rule.rule,POLICY[feature].seeker);assert.equal(rule.rule.perDay,undefined);
+ }
 });
 
 test('persona resolves by id, display name, and hyphenated key', () => {
@@ -59,7 +60,7 @@ test('a client cannot smuggle its own prompt under the name "Enki"', () => {
 
 test('Aphorica stays open to every signed-in member', () => {
   const post = evaluate('aphorica-post', { tier: 'seeker', isAnon: false });
-  assert.equal(post.allow, true); assert.equal(post.rule.perDay, 3);
+  assert.equal(post.allow, true); assert.equal(post.rule.perMinute, 10);
   assert.equal(evaluate('aphorica-classify', { tier: 'seeker', isAnon: false }).allow, true);
   assert.equal(evaluate('aphorica-post', { isAnon: true }).status, 401);
 });

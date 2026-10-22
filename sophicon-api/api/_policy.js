@@ -11,31 +11,12 @@
 //   • null for a tier = that tier may not call the feature at all.
 // ═══════════════════════════════════════════════════════════════════
 
-export const POLICY = {
-  // Conversations are free. Short-term throttles protect the shared service.
-  speak: { anon: { perMinute: 6 }, seeker: { perMinute: 10 }, sage: { perMinute: 10 } },
-  transcribe: { anon: { perMinute: 6 }, seeker: { perMinute: 10 }, sage: { perMinute: 10 } },
-  tts: { anon: { perMinute: 6 }, seeker: { perMinute: 10 }, sage: { perMinute: 10 } },
-  'day-insight':       { anon: null,           seeker: { perDay: 1 },  sage: { perDay: 20 } },
-  // One next step at the end of a talk (gpt-4o-mini, ~200 tokens). Free
-  // talks with Enki get a move too: the path is the reason to come back.
-  'next-move':         { anon: { perDay: 2 },  seeker: { perDay: 5 },  sage: { perDay: 60 } },
-  // Sage-only
-  symposium:           { anon: null, seeker: null, sage: { perDay: 10 } },
-  'photo-reflection':  { anon: null, seeker: null, sage: { perDay: 10 } },
-  'extract-memory':    { anon: null, seeker: null, sage: { perDay: 60 } },
-  'weekly-overview':   { anon: null, seeker: null, sage: { perDay: 10 } },
-  actions:             { anon: null, seeker: null, sage: { perDay: 30 } },
-  problems:            { anon: null, seeker: null, sage: { perDay: 30 } },
-  // Aphorica stays active: seekers get their one daily aphorism graded.
-  'aphorica-classify': { anon: null, seeker: { perDay: 3 }, sage: { perDay: 30 } },
-  // Posting stays open to every signed-in member; the cap only bounds the
-  // (cheap) server-side grading + moderation call each post triggers.
-  'aphorica-post':     { anon: null, seeker: { perDay: 3 }, sage: { perDay: 30 } },
-  'community-submit':  { anon: null, seeker: null, sage: { perDay: 20 } },
-  'become-philosopher':{ anon: null, seeker: null, sage: { perDay: 5 } },
-  sprite:              { anon: null, seeker: null, sage: { perDay: 5 } },
-};
+export const POLICY = Object.fromEntries([
+ 'speak','transcribe','tts','day-insight','next-move','symposium','photo-reflection','extract-memory','weekly-overview','actions','problems','aphorica-classify','aphorica-post','community-submit','become-philosopher','sprite'
+].map(feature=>[feature,{
+ anon:['speak','transcribe','tts','next-move'].includes(feature)?{perMinute:6}:null,
+ seeker:{perMinute:feature==='sprite'?2:10},sage:{perMinute:feature==='sprite'?2:10}
+}]));
 
 /** Global ceiling on ALL anonymous calls to a feature per UTC day (demo budget). */
 export const ANON_GLOBAL_PER_DAY = { speak: 300, transcribe: 300 };
