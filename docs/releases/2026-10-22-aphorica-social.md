@@ -73,3 +73,21 @@ Aphorica is now directly discoverable throughout the website and is a dedicated 
 **Mail setup left prepared at the user's request:** verified Resend domain `auth.polygot.live`; sending-only key creation and Supabase SMTP forms prepared. No new key created and no SMTP configuration saved. Public email confirmation/recovery delivery is still unverified.
 
 Follow-up: the existing Even store listing still contains obsolete Sage trial/$20 concept copy. It was inspected but not edited or published in this beta-only follow-up. Public store build and review state were left unchanged.
+
+
+## Follow-up: Sommni 3D thought globe — 1.18.2 Beta
+
+Replaced the static Aphorica globe with the original Sommni wineLENS orthographic dot-globe implementation, adapted for Enki. Source: `/Users/d3hospitality/Documents/Codex/2026-09-29/can-you-do-a-deep-audit/work/winelens-beta-20261018/src/atlas/` (`globe-model.ts`, `dot-atlas.ts`, `renderer.ts`). Country-ID mask and Natural Earth boundaries reused from that project's public atlas. Geography credits, pinned source URLs and hashes are retained under `public/aphorica/atlas/`. Wine points, counts and coverage rules are excluded.
+
+- Web and Even phone: automatic spin, pause, drag/tap, keyboard rotation, zoom, world reset, country/territory selection and state/province/region selection. 242 countries/territories and 4,490 administrative subdivisions. Region geometry loads by country. Offscreen/hidden globes stop animation; reduced-motion preference disables automatic spin.
+- Glasses: Home → Aphorica → Thought globe. Same geometry/camera rendered into two serialized 190×95 images, with Turn globe, country and state/region menus. Deliberate turns avoid a continuous BLE image stream. No claim of smooth automatic animation on physical G2.
+- Activity rings represent only real API-provided broad-region aggregates at illustrative centers. Existing five-author suppression is unchanged. Country/state selection explores geography; no new country/state post-location data, exact locations, GPS permission or fake activity introduced. API/database/auth unchanged. Mail remains prepared and unsaved per user instruction.
+- Corrected the phone activity text to read the API's `thoughts` field; kept globe controls usable during feed refresh and preserved camera state through companion redraws.
+
+Source commits: website `5a8cdc0`, isolated beta `e73b4e9`, development sync `85f47cc`. Website deployment `dpl_Dpqt2ZbSjAWjPfpSZsvgswJYBQ1X` (`https://enkispeaks-5l6lpa91s-ops-7287s-projects.vercel.app`) promoted to enkiridion.com after artifact comparison. Previous deployment `dpl_57HJ72YBG5EvG7r3j3LKhHjaW1bg` is the web rollback target.
+
+Even Hub visibly confirms **1.18.2 Beta** for the existing two-person group; public remains 1.16.0. Artifact `/Users/d3hospitality/Desktop/enkiRIDION-1.18.2/enkiridion.ehpk` (5.4 MB portal / 5.2 MiB disk); SHA-256 `7e8738d6c76a46d8c824a7fa07ec78e930438d09d65216f60b0f6f672b98f9ec`. Unfinished quote-audio work remains excluded.
+
+Validation: web production build, capability/access checks, TypeScript, four phone workflow tests, two glasses tests (now including turn → country → state → world), five Wonder tests, and two geometry/data tests pass. Projection tests cover the dateline/inverse mapping, real New York hit testing, California framing and all country data files. Browser verified live website and phone country/state selection, mobile 390×844 layout and advancing rotation. No physical G2 hardware test performed. Existing bundle/lint warnings remain; the public stylesheet is copied into the package and resolves at runtime.
+
+Proofs in the existing workspace artifact directory: `globe-web-live-1182.png`, `globe-phone-1182.png`, `globe-phone-state-1182.png`, `globe-beta-1182.png`.
