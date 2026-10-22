@@ -1,3 +1,4 @@
+import { AphoricaGlass } from './aphoricaGlass';
 import { PracticeGlass } from './practiceGlass';
 import { playQuoteAudio, stopQuoteAudio, isQuoteAudioActive } from './quoteAudio';
 // ═══════════════════════════════════════════════════════════════════
@@ -109,11 +110,12 @@ async function safeRebuild(bridge: EvenAppBridge, page: RebuildPageContainer, wh
 type Page = "home" | "traditions" | "philosophers" | "mindstate" | "quote"
   | "favorites" | "calendar" | "calendar-day"
   | "speak-traditions" | "speak-philosophers" | "speak-conversation"
-  | "mindful-blank" | "mindful-quote" | "aphorica" | "aphorica-read"
+  | "mindful-blank" | "mindful-quote" | "social" | "aphorica" | "aphorica-read"
   | "support" | "language" | "sage-gate" | "card" | "move" | "polygot" | "practice";
 
 let currentPage: Page = "home";
 let practiceGlass: PracticeGlass | null = null;
+let socialGlass: AphoricaGlass | null = null;
 
 // Where a conversation (or the Sage page) was opened from, so double-tap
 // goes back there: Talk to Enki on home → home; a philosopher on the
@@ -1825,7 +1827,9 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         lastNavigationTime = Date.now();
         log("> Try PolyGot", "success");
       } else if (idx === APHORICA_INDEX) {
-        await openAphorica(bridge);
+        currentPage = "social";
+        socialGlass = new AphoricaGlass(bridge, () => goHome(bridge, baseUrl));
+        await socialGlass.open();
         lastNavigationTime = Date.now();
         log("> Public Aphorica", "success");
       } else if (idx === PHILOSOPHIES_INDEX) {
@@ -2479,6 +2483,7 @@ async function handleMenuClick(bridge: EvenAppBridge, itemID: number, baseUrl: s
 }
 
 async function handleEvent(bridge: EvenAppBridge, event: EvenHubEvent, baseUrl: string): Promise<void> {
+  if (currentPage === "social" && socialGlass && await socialGlass.handle(event)) return;
   if (currentPage === "practice" && practiceGlass && await practiceGlass.handle(event)) return;
 
   // ── CONTEXTUAL MENU (action item selected on the glasses) ──

@@ -72,10 +72,9 @@ test('small talk: the model says null, the client gets null', async () => {
   assert.deepEqual(r.body, { move: null, goalId: null, suggestedGoal: null });
 });
 
-test('anonymous callers get two a day', async () => {
+test('anonymous calls have a short-term burst limit, not a daily paywall', async () => {
   modelReply = { move: 'Call the landlord' };
-  assert.equal((await call({ philName: 'Enki', exchanges: TALK })).status, 200);
-  assert.equal((await call({ philName: 'Enki', exchanges: TALK })).status, 200);
-  const third = await call({ philName: 'Enki', exchanges: TALK });
-  assert.equal(third.status, 429); assert.equal(providerCalls, 2);
+  for (let i = 0; i < 6; i++) assert.equal((await call({ philName: 'Enki', exchanges: TALK })).status, 200);
+  const seventh = await call({ philName: 'Enki', exchanges: TALK });
+  assert.equal(seventh.status, 429); assert.equal(providerCalls, 6);
 });

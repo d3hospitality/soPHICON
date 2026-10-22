@@ -1,21 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { identify } from './_auth.js';
+import { kv } from './_store.js';
 
-/**
- * POST /api/generate-sprite  — the $3 custom profile sprite render.
- *
- * Body: { refs: [url1, url2, url3, url4] }  (2–4 public reference image URLs,
- *        e.g. Supabase Storage public URLs the client uploaded first)
- * Auth: Bearer (Supabase JWT or glasses JWT) → resolves the user.
- *
- * Flow: consume one render credit (consume_sprite_gen RPC — each $3 grants 2,
- * an initial render + one free retry) → call gpt-image-1 /images/edits with
- * the enkiRIDION house style + the references → save the PRIOR sprite to
- * previous_sprite_path (a retry never destroys what you had) → upload the new
- * PNG to the `sprites` bucket → set profiles.sprite_path / status / source.
- *
- * Requires env: OPENAI_IMAGE_KEY (the gpt-image-1 key — separate from the
- * text key), SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+/** Free account portrait rendering, with per-minute abuse protection.
+ * References must be uploaded to the caller's own Supabase sprites path.
  */
 
 // The enkiRIDION portrait house style — ported verbatim-in-spirit from the
@@ -62,13 +50,15 @@ export default async function handler(req, res) {
   const refs = Array.isArray(req.body?.refs) ? req.body.refs.filter(u => typeof u === 'string') : [];
   if (refs.length < 2) return res.status(400).json({ error: 'need_references', min: 2, max: 4 });
 
-  // 1) Consume a render credit atomically. No credit → nothing generated.
-  const { data: ok, error: creditErr } = await admin().rpc('consume_sprite_gen', { p_user_id: id.userId });
-  if (creditErr) {
-    console.error('[generate-sprite] credit rpc', creditErr);
-    return res.status(500).json({ error: 'credit_check_failed' });
-  }
-  if (!ok) return res.status(402).json({ error: 'no_render_credits', buy: 'https://enkiridion.com/profile' });
+  if (refs.length > 4 || refs.some(value => {
+    try { const u = new URL(value); return u.origin !== new URL(process.env.SUPABASE_URL).origin || !u.pathname.startsWith(`/storage/v1/object/public/sprites/refs/${id.userId}/`) || u.username || u.password; }
+    catch { return true; }
+  })) return res.status(400).json({ error: 'Use 2–4 photos uploaded to your account.' });
+  try {
+    const key = `aph:sprite:${id.userId}:${Math.floor(Date.now()/60000)}`;
+    const n = await kv.incr(key); if (n === 1) await kv.expire(key, 120);
+    if (n > 2) return res.status(429).json({ error: 'Please wait a minute before rendering again.' });
+  } catch { return res.status(503).json({ error: 'Rendering is temporarily unavailable.' }); }
 
   try {
     // 2) Fetch the reference images and build the multipart edits request.
@@ -82,20 +72,17 @@ export default async function handler(req, res) {
     let attached = 0;
     for (const url of refs.slice(0, 4)) {
       try {
-        const r = await fetch(url);
+        const r = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15000) });
         if (!r.ok) continue;
         const type = r.headers.get('content-type') || 'image/png';
-        if (/gif/i.test(type)) continue; // edits endpoint: jpeg/png/webp only
+        if (!/^image\/(png|jpeg|webp)(;|$)/i.test(type)) continue;
         const buf = Buffer.from(await r.arrayBuffer());
+        if (buf.length > 8_000_000) continue;
         form.append('image[]', new Blob([buf], { type }), `ref${attached}.png`);
         attached++;
       } catch { /* skip a bad ref */ }
     }
     if (attached === 0) {
-      // Refund the credit we consumed — we never reached OpenAI.
-      await admin().from('profiles')
-        .update({ sprite_gens_remaining: (await currentGens(id.userId)) + 1 })
-        .eq('id', id.userId);
       return res.status(400).json({ error: 'refs_unreadable' });
     }
 
@@ -108,18 +95,11 @@ export default async function handler(req, res) {
     if (!oa.ok) {
       const body = await oa.text().catch(() => '');
       console.error('[generate-sprite] openai', oa.status, body.slice(0, 200));
-      // Give the credit back on an upstream failure.
-      await admin().from('profiles')
-        .update({ sprite_gens_remaining: (await currentGens(id.userId)) + 1 })
-        .eq('id', id.userId);
       return res.status(502).json({ error: 'generation_failed' });
     }
     const data = await oa.json();
     const b64 = data?.data?.[0]?.b64_json;
     if (!b64) {
-      await admin().from('profiles')
-        .update({ sprite_gens_remaining: (await currentGens(id.userId)) + 1 })
-        .eq('id', id.userId);
       return res.status(502).json({ error: 'no_image_returned' });
     }
 
@@ -151,18 +131,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ spritePath: spriteUrl, previous: prior });
   } catch (err) {
     console.error('[generate-sprite]', err);
-    // Best-effort credit refund on unexpected error.
-    try {
-      await admin().from('profiles')
-        .update({ sprite_gens_remaining: (await currentGens(id.userId)) + 1 })
-        .eq('id', id.userId);
-    } catch { /* noop */ }
     return res.status(500).json({ error: 'generation_error' });
   }
-}
-
-async function currentGens(userId) {
-  const { data } = await admin().from('profiles')
-    .select('sprite_gens_remaining').eq('id', userId).single();
-  return data?.sprite_gens_remaining || 0;
 }

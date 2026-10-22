@@ -39,34 +39,9 @@ const run = (h, { method = 'POST', body, query }) => new Promise((resolve) => {
 beforeEach(() => { inserted = null; modelDown = false; who = { userId: 'u1', tier: 'seeker', scope: 'user' };
   modelReply = { emotion: 'serenity', archetype: 'the_sage', blend: 'fierce_clarity', ratingScore: 6, tags: [], moderationFlag: null }; });
 
-test('client cannot self-grade: forged Legendary becomes the server grade', async () => {
-  const r = await run(create, { body: { text: 'What you tend, grows. What you avoid, waits.', rarity: 'legendary', ratingScore: 100 } });
-  assert.equal(r.status, 201);
-  assert.equal(inserted.rarity, 'uncommon'); assert.equal(inserted.rating_score, 6);
-  assert.equal(r.body.rarity, 'uncommon');
-});
-
-test('a genuinely great line earns Legendary from the server', async () => {
-  modelReply.ratingScore = 10;
-  const r = await run(create, { body: { text: 'The obstacle is the way.' } });
-  assert.equal(inserted.rarity, 'legendary');
-});
-
-test('hateful posts are rejected before they reach the feed', async () => {
-  modelReply.moderationFlag = 'hate'; modelReply.rejectReason = 'no';
-  const r = await run(create, { body: { text: 'something hateful' } });
-  assert.equal(r.status, 422); assert.equal(inserted, null);
-});
-
-test('grader down → nothing published, retryable', async () => {
-  modelDown = true;
-  const r = await run(create, { body: { text: 'A thought.' } });
-  assert.equal(r.status, 502); assert.equal(inserted, null);
-});
-
-test('geo posts are stored at ~110 m precision', async () => {
-  await run(create, { body: { text: 'Here I stood.', latitude: 51.513456, longitude: -0.131987 } });
-  assert.equal(inserted.latitude, 51.513); assert.equal(inserted.longitude, -0.132);
+test('legacy publication retires without accepting a forged grade or precise location', async () => {
+ const r=await run(create,{body:{text:'A thought',rarity:'legendary',ratingScore:100,latitude:51.513456,longitude:-.131987}});
+ assert.equal(r.status,410);assert.equal(inserted,null);assert.equal(r.body.url,'https://enkiridion.com/aphorica');
 });
 
 test('nearby never returns exact spot or exact time', async () => {

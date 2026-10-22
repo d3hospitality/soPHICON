@@ -31,7 +31,7 @@ let loaded = false;
 // They used to read it once at startup, so linking mid-session left the
 // glasses refusing a paying Sage until the app was restarted.
 const listeners: Array<() => void> = [];
-export function onAccountChange(cb: () => void): void { listeners.push(cb); }
+export function onAccountChange(cb: () => void): () => void { listeners.push(cb); return () => { const i = listeners.indexOf(cb); if (i >= 0) listeners.splice(i, 1); }; }
 function changed(): void { for (const cb of listeners) { try { cb(); } catch { /* one bad listener can't block the rest */ } } }
 
 export function setAccountBridge(b: EvenAppBridge): void { bridgeRef = b; }
@@ -97,7 +97,7 @@ export async function linkedTier(): Promise<string | null> {
 
 /** Sync, display-only: is the cached tier Sage? (Server still enforces.) */
 export function isSageCached(): boolean {
-  return !!cachedToken && cachedTier === 'sage';
+  return !!cachedToken; // All account features are free; legacy helper name retained.
 }
 
 /** Ask the server for the LIVE tier and cache it. The tier captured at
@@ -154,7 +154,9 @@ export function linkErrorText(error?: string): string {
 export async function linkWithCode(
   code: string,
 ): Promise<{ ok: boolean; handle?: string; tier?: string; error?: string; saved?: boolean }> {
-  const clean = code.replace(/[^a-z0-9]/gi, '').toUpperCase();
+  let raw = code.trim();
+  try { const url = new URL(raw); raw = url.searchParams.get('pair') || url.searchParams.get('code') || raw; } catch {}
+  const clean = raw.replace(/[\s-]/g, '').toUpperCase();
   if (!clean) return { ok: false, error: 'empty' };
   let resp: Response;
   try {
@@ -177,6 +179,12 @@ export async function linkWithCode(
   const saved = (await persist(TOKEN_KEY, data.token)) && (await persist(HANDLE_KEY, data.handle || '')) && (await persist(TIER_KEY, data.tier || ''));
   changed();
   return { ok: true, handle: data.handle, tier: data.tier, saved };
+}
+
+/** Accept only a token returned by our pairing endpoint, never a URL token. */
+export async function acceptPairing(data:{token:string;handle?:string;tier?:string}):Promise<void>{
+ cachedToken=data.token;cachedHandle=data.handle||'member';cachedTier='seeker';loaded=true;
+ await persist(TOKEN_KEY,cachedToken);await persist(HANDLE_KEY,cachedHandle);await persist(TIER_KEY,cachedTier);changed();
 }
 
 export async function unlink(): Promise<void> {

@@ -21,3 +21,6 @@ __pycache__/
 
 # Paid quote recordings and resumable generation receipts (never bundle).
 work/quote-audio/
+
+# Also ignore a local dependency symlink used by isolated releases.
+/node_modules

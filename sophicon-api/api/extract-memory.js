@@ -99,7 +99,7 @@ export default async function handler(req, res) {
     // Sage-only: Seeker conversations are ephemeral BY CONTRACT on every
     // surface — even in ENFORCE=warn mode (where the gate lets the call
     // through), a seeker's session must never be distilled into the bank.
-    const wantPersist = persist === true && !!gate.userId && gate.tier === 'sage'
+    const wantPersist = persist === true && !!gate.userId
       && !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
     let serverMemories = [];
     if (wantPersist) {
