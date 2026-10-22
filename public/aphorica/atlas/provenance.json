@@ -1,0 +1,13 @@
+{
+  "sources": {
+    "countries": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ca96624a56bd078437bca8184e78163e5039ad19/geojson/ne_50m_admin_0_countries.geojson",
+    "admin1": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ca96624a56bd078437bca8184e78163e5039ad19/geojson/ne_10m_admin_1_states_provinces.geojson"
+  },
+  "sha256": {
+    "countries": "3e458fc036ad0a66411f2c1e6cac49c5d7bfb81cb1123bc513b22511a2b7fdeb",
+    "admin1": "22d0e3ad85eb3e27f17cabf8ba2d50e554fbc27a87796ff891d958185da62fb5"
+  },
+  "geometry": "Natural Earth administrative boundaries, simplified for display. Not wine appellation boundaries.",
+  "italy": "Italian provinces dissolved by Natural Earth region_cod into 20 parent regions before simplification. English and Italian names shown where they differ.",
+  "counts": "Recorded winery coordinates assigned to original admin-1 polygons. Source groups may cross administrative borders."
+}
