@@ -29,6 +29,9 @@ const built = await build({
             "export const authHeaders=async()=>({});export const onAccountChange=()=>{};",
           loader: "js",
         }));
+        b.onLoad({ filter: /\/thoughtGlobe\.ts$/ }, () => ({
+          contents: `export const thoughtGlobeModule=async()=>({loadGeography:async()=>({countries:[{id:1,code:'USA',name:'United States'}],outlines:{USA:[]},regions:async()=>[{id:'NY',name:'New York',polygons:[]}]}),fitCamera:()=>({center:[-74,42],zoom:3}),wrapLongitude:n=>n,drawGlobe:()=>{}});`, loader:'js',
+        }));
         b.onLoad({ filter: /\/image-utils\.ts$/ }, () => ({
           contents: "export const pushThoughtGlobe=async()=>{};",
           loader: "js",
@@ -75,6 +78,7 @@ vm.runInNewContext(built.outputFiles[0].text, {
   exports: module.exports,
   require,
   console,
+  document: {createElement:()=>({})},
   TextEncoder,
   TextDecoder,
   URL,
@@ -139,5 +143,14 @@ test("glasses records and reviews both fields, and publishes only after explicit
   await glass.handle({ sysEvent: { eventType: 3 } });
   await choose("Thought globe");
   assert.equal(page.imageObject.length, 2);
+  await choose("Turn globe >");
+  assert.equal(page.imageObject.length, 2);
+  await choose("Choose country");
+  await choose("United States");
+  await choose("States / regions");
+  await choose("New York");
+  assert.ok(page.textObject[0].content.includes("New York"));
+  await choose("World view");
+  assert.ok(page.textObject[0].content.includes("World"));
   assert.equal(await glass.handle({ sysEvent: { eventType: 5 } }), false);
 });

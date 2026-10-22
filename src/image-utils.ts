@@ -500,11 +500,9 @@ export async function pushSpriteFromUrl(
   } catch (e) { console.warn(`[soΦcon] Member sprite FAILED: ${source}`, e); }
 }
 
-/** Sommni-derived static globe: reuse this app's device-specific image encoding. */
-export async function pushThoughtGlobe(bridge:EvenAppBridge,source:string):Promise<void>{
- const response=await fetch(assetUrl(source));if(!response.ok)return;
- const bmp=await createImageBitmap(await response.blob());
+/** Send a Sommni globe frame as two serialized 190×95 lens images. */
+export async function pushThoughtGlobe(bridge:EvenAppBridge,source:HTMLCanvasElement):Promise<void>{
  const canvas=document.createElement('canvas');canvas.width=190;canvas.height=190;
- const ctx=canvas.getContext('2d')!;ctx.fillStyle='#000';ctx.fillRect(0,0,190,190);ctx.drawImage(bmp,0,0,190,190);bmp.close();
+ const ctx=canvas.getContext('2d')!;ctx.fillStyle='#000';ctx.fillRect(0,0,190,190);ctx.drawImage(source,0,0,190,190);
  for(let half=0;half<2;half++){const pixels=ctx.getImageData(0,half*95,190,95).data;const gray=new Uint8Array(190*95);for(let i=0;i<gray.length;i++)gray[i]=.299*pixels[i*4]+.587*pixels[i*4+1]+.114*pixels[i*4+2];await pushImg(bridge,84+half,half?'aph-globe-b':'aph-globe-t',encodeWire(gray,190,95));}
 }

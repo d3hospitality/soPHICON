@@ -1,5 +1,8 @@
 import { authHeaders, onAccountChange } from './enkiAccount';
 import { AphoricaRecorder } from './aphoricaRecorder';
+import { thoughtGlobeModule } from './thoughtGlobe';
+let orbit: any = null;
+let orbitLoading = false;
 
 const API = 'https://sophicon-api.vercel.app/api/social';
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
@@ -31,7 +34,7 @@ async function run(fn: () => Promise<void>) {
   if (busy) return;
   busy = true; error = ''; notice = '';
   const version = epoch;
-  host?.querySelectorAll<HTMLInputElement>('button, input, textarea, select').forEach(b => b.disabled = true);
+  host?.querySelectorAll<HTMLInputElement>('button, input, textarea, select').forEach(b => { if (!b.closest('.thought-orbit')) b.disabled = true; });
   try { await fn(); } catch (e) { if (version === epoch) error = (e as Error).message; }
   finally { if (version === epoch) { busy = false; render(); } }
 }
@@ -55,6 +58,7 @@ function postCard(p: any, full = false) {
 }
 function render() {
   if (!host) return;
+  const existingOrbit = host.querySelector<HTMLElement>('#aph-phone-orbit');
   const topic = channels.find(c => c.id === channel);
   host.innerHTML = `<section class="card"><div class="card-body aph-phone">
     <p class="muted">A WORLD OF HUMAN THOUGHT</p><h1>Aphorica<span>.</span></h1><p>Say what stays with you.</p>
@@ -71,10 +75,19 @@ function render() {
     ${!detail ? `<section><h2>Find your people</h2><div class="aph-phone-actions">${button('all','All thoughts','',`aria-pressed="${!channel && !following}"`)}${button('following','Following','',`aria-pressed="${following}"`)}</div><label>Topics<select data-field="topic"><option value="">All topics</option>${channels.map(c => `<option value="${esc(c.id)}" ${c.id === channel ? 'selected' : ''}>${esc(c.name)} · ${c.followers} followers</option>`).join('')}</select></label>
       ${topic ? `<p>${esc(topic.description)}</p><div class="aph-phone-actions">${button('follow',topic.following ? 'Unfollow' : 'Follow')}${button('recommend',topic.vote === 1 ? 'Recommended ✓' : 'Recommend topic')}<span>${topic.score} recommendations</span></div>` : ''}
       <div>${posts.map(p => postCard(p)).join('') || '<p class="aph-phone-empty">A quiet corner, waiting for a thought. Start one above.</p>'}</div>${cursor ? button('more','More thoughts') : ''}</section>` : ''}
-    <section class="aph-phone-globe"><img src="aphorica/globe.png" alt="A shared world of thought" width="280" height="140"/><h2>Light the world with a thought.</h2><p>${Number(globe.total) || 0} thoughts shared in the last 24 hours.</p><p class="muted">${globe.regions.map((r: any) => `${esc(r.region.replace(/-/g,' '))}: ${r.count}`).join(' · ') || 'Regional lights appear when enough people choose to share a broad region.'}</p></section>
+    <section class="aph-phone-globe"><div id="aph-phone-orbit"></div><h2>Light the world with a thought.</h2><p>${Number(globe.total) || 0} thoughts shared in the last 24 hours.</p><p class="muted">${globe.regions.map((r: any) => `${esc(r.region.replace(/-/g,' '))}: ${r.thoughts}`).join(' · ') || 'Regional lights appear when enough people choose to share a broad region.'}</p></section>
     <p class="muted">On glasses: Home → Aphorica. Topics, voice thoughts, votes and these same private drafts.</p><a class="btn" href="https://enkiridion.com/aphorica" target="_blank" rel="noopener">Continue on the website ↗</a>
   </div></section>`;
-  if (recording || busy) host.querySelectorAll<HTMLInputElement>('button, input, textarea, select').forEach(b => b.disabled = b.dataset.action !== 'stop');
+  if (existingOrbit) host.querySelector('#aph-phone-orbit')?.replaceWith(existingOrbit);
+  if (orbit) orbit.update(globe.regions || []);
+  else if (!orbitLoading && typeof IntersectionObserver !== 'undefined') {
+    orbitLoading = true;
+    void thoughtGlobeModule().then(({mountGlobe}) => {
+      const target = host?.querySelector('#aph-phone-orbit');
+      if (target) orbit = mountGlobe(target, {activity:globe.regions || []});
+    }).catch(() => { const target = host?.querySelector('#aph-phone-orbit'); if (target) target.textContent = 'Globe unavailable. Refresh to retry.'; }).finally(() => {orbitLoading = false;});
+  }
+  if (recording || busy) host.querySelectorAll<HTMLInputElement>('button, input, textarea, select').forEach(b => { if (!b.closest('.thought-orbit')) b.disabled = b.dataset.action !== 'stop'; });
 }
 function voice(field: string) {
   return recording === field ? button('stop','Stop & transcribe') : button('record',`Record ${field}`,field);

@@ -1,4 +1,5 @@
 import { pushThoughtGlobe } from "./image-utils";
+import { thoughtGlobeModule } from "./thoughtGlobe";
 import {
   EvenAppBridge,
   EvenHubEvent,
@@ -574,80 +575,62 @@ export class AphoricaGlass {
       await this.compose();
     }
   }
+  private globeData: any = null;
+  private globeModel: any = null;
+  private geography: any = null;
+  private globeCamera = {center:[12,25],zoom:1};
+  private globeCountry: any = null;
+  private globeRegion: any = null;
+  private globeRegions: any[] = [];
   private async globe() {
-    const d = await this.api(undefined, "?view=globe");
+    const revision = this.revision;
+    await this.page("THOUGHT GLOBE", "Loading the shared world…", [["Back", () => this.menu()]]);
+    const [data, model] = await Promise.all([this.api(undefined, "?view=globe"), thoughtGlobeModule()]);
+    const geography = await model.loadGeography();
+    if (!this.active || revision !== this.revision) return;
+    this.globeData = data; this.globeModel = model; this.geography = geography;
+    this.globeCamera = {center:[12,25],zoom:1}; this.globeCountry = null; this.globeRegion = null; this.globeRegions = [];
+    await this.globeFrame();
+  }
+  private async globePlaces(states = false, offset = 0) {
+    const rows = [...(states ? this.globeRegions : this.geography.countries)].sort((a:any,b:any) => a.name.localeCompare(b.name));
+    const actions: Action[] = rows.slice(offset,offset+7).map((place:any):Action => [place.name.slice(0,60), async () => {
+      if (states) { this.globeRegion = place; this.globeCamera = this.globeModel.fitCamera(place.polygons); }
+      else {
+        const revision = this.revision;
+        const regions = await this.geography.regions(place.code);
+        if (!this.active || revision !== this.revision) return;
+        this.globeCountry = place; this.globeRegion = null; this.globeRegions = regions;
+        this.globeCamera = this.globeModel.fitCamera(this.geography.outlines[place.code] || []);
+      }
+      await this.globeFrame();
+    }]);
+    if(offset+7<rows.length)actions.push(["Next places >",()=>this.globePlaces(states,offset+7)]);
+    if(offset)actions.push(["< Previous places",()=>this.globePlaces(states,Math.max(0,offset-7))]);
+    actions.push(["Back to globe",()=>this.globeFrame()]);
+    await this.page(states ? "STATES / REGIONS" : "COUNTRIES", `${states ? this.globeCountry.name : 'World'} · ${rows.length} places
+Select to focus the globe.`,actions);
+  }
+  private async globeFrame() {
+    if(!this.active)return;
+    const country=this.globeCountry,region=this.globeRegion,d=this.globeData;
     this.actions = [
-      [
-        "Read regional activity",
-        () =>
-          this.page(
-            "THOUGHT GLOBE",
-            d.regions
-              .map((r: any) => `${r.region}: ${r.thoughts} thoughts`)
-              .join("\n") ||
-              "Lights appear after five people share in a broad region. No precise locations.",
-            [["Back", () => this.menu()]],
-          ),
-      ],
-      ["Back", () => this.menu()],
+      ["Turn globe >",async()=>{this.globeCamera.center[0]=this.globeModel.wrapLongitude(this.globeCamera.center[0]+20/this.globeCamera.zoom);await this.globeFrame();}],
+      ["Choose country",()=>this.globePlaces()],
+      ...(country && this.globeRegions.length ? [["States / regions",()=>this.globePlaces(true)] as Action] : []),
+      ["Regional activity",()=>this.page("THOUGHT ACTIVITY", d.regions.map((r:any)=>`${r.region}: ${r.thoughts} thoughts`).join("\n") || "Lights appear after five people share in a broad region. No precise locations.", [["Back to globe",()=>this.globeFrame()]])],
+      ["World view",async()=>{this.globeCamera={center:[12,25],zoom:1};this.globeCountry=null;this.globeRegion=null;this.globeRegions=[];await this.globeFrame();}],
+      ["Back to Aphorica",()=>this.menu()],
     ];
-    await this.bridge.rebuildPageContainer(
-      new RebuildPageContainer({
-        containerTotalNum: 4,
-        textObject: [
-          new TextContainerProperty({
-            containerID: 81,
-            containerName: "aph-title",
-            xPosition: 222,
-            yPosition: 30,
-            width: 334,
-            height: 100,
-            content: `THOUGHT GLOBE\n${d.total} thoughts / 24 hours\nReal voices. Shared world.`,
-            isEventCapture: 0,
-          }),
-        ],
-        listObject: [
-          new ListContainerProperty({
-            containerID: 83,
-            containerName: "aph-actions",
-            xPosition: 222,
-            yPosition: 145,
-            width: 334,
-            height: 100,
-            isEventCapture: 1,
-            itemContainer: new ListItemContainerProperty({
-              itemCount: 2,
-              itemWidth: 320,
-              isItemSelectBorderEn: 1,
-              itemName: this.actions.map((a) => a[0]),
-            }),
-          }),
-        ],
-        imageObject: [
-          new ImageContainerProperty({
-            containerID: 84,
-            containerName: "aph-globe-t",
-            xPosition: 18,
-            yPosition: 36,
-            width: 190,
-            height: 95,
-          }),
-          new ImageContainerProperty({
-            containerID: 85,
-            containerName: "aph-globe-b",
-            xPosition: 18,
-            yPosition: 131,
-            width: 190,
-            height: 95,
-          }),
-        ],
-      }),
-    );
-    try {
-      await pushThoughtGlobe(this.bridge, "aphorica/globe.png");
-    } catch {
-      /* text remains usable */
-    }
+    await this.bridge.rebuildPageContainer(new RebuildPageContainer({
+      containerTotalNum:4,
+      textObject:[new TextContainerProperty({containerID:81,containerName:"aph-title",xPosition:222,yPosition:15,width:334,height:85,content:`THOUGHT GLOBE\n${region?.name || country?.name || 'World'}\n${d.total} thoughts / 24h · broad regions`,isEventCapture:0})],
+      listObject:[new ListContainerProperty({containerID:83,containerName:"aph-actions",xPosition:222,yPosition:110,width:334,height:160,isEventCapture:1,itemContainer:new ListItemContainerProperty({itemCount:this.actions.length,itemWidth:320,isItemSelectBorderEn:1,itemName:this.actions.map(a=>a[0])})})],
+      imageObject:[new ImageContainerProperty({containerID:84,containerName:"aph-globe-t",xPosition:18,yPosition:36,width:190,height:95}),new ImageContainerProperty({containerID:85,containerName:"aph-globe-b",xPosition:18,yPosition:131,width:190,height:95})],
+    }));
+    const canvas=document.createElement('canvas');
+    this.globeModel.drawGlobe(canvas,this.geography,this.globeCamera,{country,region,regions:this.globeRegions,activity:d.regions});
+    await pushThoughtGlobe(this.bridge,canvas);
   }
   private async note(text: string) {
     await this.page("APHORICA", text, [["Back", () => this.menu()]]);

@@ -2,7 +2,7 @@
   "package_id": "com.d3hospitality.sophicon",
   "edition": "202601",
   "name": "enkiRIDION",
-  "version": "1.18.1",
+  "version": "1.18.2",
   "description": "Aphorica social beta \u2014 free accounts, topics, 800-character voice thoughts, review before publishing, community votes and Enki reflections.",
   "author": "D3 Hospitality",
   "entrypoint": "index.html",
