@@ -53,3 +53,5 @@ Aphorica now supports public topics, followed channels, reviewed voice/text thou
 7. Establish cost/error monitoring and moderation ownership before increasing enrollment. Keep the beta rollback non-destructive: revert clients or stop new writes, preserve published posts/private drafts, retain the free policy. Do not drop the new tables to roll back.
 
 Proofs: `/Users/d3hospitality/Documents/ObsidianVaults/.codex-artifacts/aphorica-social-20261022/` (`web-live.png`, `web-mobile.png`, `beta-1180.png`).
+
+Final production pairing check passed: browser email/password sign-in preserved the pairing destination, explicit confirmation claimed the request, and polling issued a scoped device token that read the correct completed account. Saved `pairing-live.png`. Disposable UI account, drafts, unlocks and pairing request were removed; test servers stopped.
