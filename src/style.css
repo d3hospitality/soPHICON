@@ -2099,3 +2099,22 @@ details.fold-inline > summary .badge { margin-left: auto; color: var(--dim); fon
 @keyframes ob-pg-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 .ob-pg-sub { margin: 7px 0 0; text-align: center; font-style: italic; font-size: 12.5px; color: #8fe3ac; opacity: .85; }
 @media (prefers-reduced-motion: reduce) { .ob-pg-bird { animation: none; } }
+
+/* A quiet daily invitation on the Even companion. */
+.wonder-card { padding: 20px; border-color: rgba(212,175,55,.35); }
+.wonder-eyebrow { color: var(--gold); font: 10px var(--mono); letter-spacing: .12em; }
+.wonder-eyebrow span { display: block; margin-top: 7px; color: var(--dim); letter-spacing: 0; }
+.wonder-date { margin: 14px 0 8px; color: var(--dim); font-size: 11px; }
+.wonder-card h2 { font-family: Georgia, serif; font-size: 23px; font-weight: 400; line-height: 1.3; }
+.wonder-card figure { margin: 20px 0; padding-left: 12px; border-left: 2px solid var(--gold); }
+.wonder-card blockquote { color: var(--ink); font-family: Georgia, serif; font-style: italic; font-size: 15px; line-height: 1.6; }
+.wonder-card figcaption { color: var(--gold); font-size: 10px; margin-top: 8px; line-height: 1.5; }
+.wonder-experiment { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+.wonder-experiment strong { color: var(--gold); font: 10px var(--mono); letter-spacing: .1em; }
+.wonder-experiment p { margin-top: 8px; font-size: 13px; line-height: 1.6; }
+.wonder-experiment label { display: block; margin-top: 14px; font-size: 11px; color: var(--dim); }
+.wonder-experiment select { display: block; width: 100%; margin-top: 6px; padding: 10px; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 7px; }
+.wonder-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.wonder-actions .btn { min-height: 44px; }
+.wonder-hint { margin-top: 12px; font-size: 11px; line-height: 1.6; color: var(--dim); }
+.wonder-message { margin-top: 10px; color: var(--gold); font-size: 12px; line-height: 1.5; }

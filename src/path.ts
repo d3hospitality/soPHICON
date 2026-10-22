@@ -42,6 +42,8 @@ export interface Move {
   reason?: string;
   philId?: string;
   philName?: string;
+  origin?: 'wonder';
+  wonderId?: string;
 }
 
 /** What /api/next-move proposes; nothing is stored until it is kept. */
@@ -118,6 +120,7 @@ async function save(changed: string[] = []): Promise<void> {
 // ─── reads ──────────────────────────────────────────────────────────
 export const goalLimit = (): number => 3;
 export const activeGoals = (): Goal[] => store.goals.filter(g => g.status === 'active').sort((a, b) => a.createdAt - b.createdAt);
+export const moveById = (id: string): Move | undefined => store.moves.find(m => m.id === id);
 export const openMoves = (): Move[] => store.moves.filter(m => m.status === 'open').sort((a, b) => b.createdAt - a.createdAt);
 export const goalById = (id: string | null): Goal | undefined => (id ? store.goals.find(g => g.id === id) : undefined);
 export function recentDone(days = 14): Move[] {

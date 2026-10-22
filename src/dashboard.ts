@@ -18,6 +18,7 @@
 // bridge exists before that.
 // ═══════════════════════════════════════════════════════════════════
 
+import { initWonderCard } from './wonderCard';
 import { spriteImgUrl, spriteLocalFallback } from './spriteSource';
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 import {
@@ -2589,6 +2590,7 @@ function initSyncPanel(): void {
 
 // ─── PUBLIC ENTRY ─────────────────────────────────────────────────
 export async function initDashboard(b: EvenAppBridge, base: string): Promise<void> {
+  initWonderCard();
   if (!document.getElementById('philosopher-sample-entry')) {
     const card = document.createElement('div');
     card.id = 'philosopher-sample-entry';

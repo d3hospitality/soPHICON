@@ -1,11 +1,12 @@
 {
   "name": "sophicon",
   "version": "0.1.0",
-  "description": "enkiRIDION — Philosophy on Glass for Even Realities G2 (soPHICON platform)",
+  "description": "enkiRIDION \u2014 Philosophy on Glass for Even Realities G2 (soPHICON platform)",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:wonder": "node --test tests/wonder.test.mjs tests/wonder-glass.test.mjs"
   },
   "dependencies": {
     "@evenrealities/even_hub_sdk": "file:vendor/even_hub_sdk-0.0.14"
