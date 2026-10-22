@@ -55,3 +55,21 @@ Aphorica now supports public topics, followed channels, reviewed voice/text thou
 Proofs: `/Users/d3hospitality/Documents/ObsidianVaults/.codex-artifacts/aphorica-social-20261022/` (`web-live.png`, `web-mobile.png`, `beta-1180.png`).
 
 Final production pairing check passed: browser email/password sign-in preserved the pairing destination, explicit confirmation claimed the request, and polling issued a scoped device token that read the correct completed account. Saved `pairing-live.png`. Disposable UI account, drafts, unlocks and pairing request were removed; test servers stopped.
+
+
+## Follow-up: first-class app navigation — 1.18.1 Beta
+
+Aphorica is now directly discoverable throughout the website and is a dedicated bottom tab in the Even phone companion. Even Hub confirms **1.18.1 Beta** for the existing two-person group; public remains 1.16.0. On glasses, use **Home → Aphorica**.
+
+- Website header and mobile navigation expose Aphorica to visitors and signed-in users. Wonder, demo and My day include a direct entry card.
+- Phone tab supports live topics/feed, following and recommendations, votes, replies, private shared drafts, title/body dictation, edit/review/explicit publication, reports, private Enki reflections and the real activity globe. Website retains additional management tools. All access remains free.
+- Account changes discard stale private responses. Leaving the panel stops recording, including a microphone permission request resolved after navigation.
+- Source: web `f93631d`; isolated release `873c274`; development synchronization `c8c81a7`. Release branch remains named `release/aphorica-1.18.0`. Unfinished quote-audio work remains excluded from the package.
+- Website production: `dpl_57HJ72YBG5EvG7r3j3LKhHjaW1bg`, https://enkispeaks-n68q02hll-ops-7287s-projects.vercel.app, verified before promotion to enkiridion.com. Previous web deployment `dpl_7h1uLM3FuJjCq5GAkxJ6LqgLUw69` remains the rollback target. API/database unchanged by this follow-up.
+- Package: `/Users/d3hospitality/Desktop/enkiRIDION-1.18.1/enkiridion.ehpk`; SHA-256 `9e0339ab0294c74cbdd00af4f02288d30ecb321a70fd2ccf129e93d5df58f599`; portal size 3.5 MB. Build requires the existing generated `vendor/even_hub_sdk-0.0.14/dist` (ignored, not committed).
+- Verification: TypeScript, production builds, four phone workflow tests, two glasses tests and five Wonder tests pass. Website access/capability checks pass. Live public web and phone layouts inspected at 390×844. No physical G2 microphone/locked-phone test was performed. Existing bundle/lint warnings remain.
+- Proofs: `companion-1181.png`, `web-nav-live.png`, `beta-1181.png` in the existing workspace proof directory.
+
+**Mail setup left prepared at the user's request:** verified Resend domain `auth.polygot.live`; sending-only key creation and Supabase SMTP forms prepared. No new key created and no SMTP configuration saved. Public email confirmation/recovery delivery is still unverified.
+
+Follow-up: the existing Even store listing still contains obsolete Sage trial/$20 concept copy. It was inspected but not edited or published in this beta-only follow-up. Public store build and review state were left unchanged.
