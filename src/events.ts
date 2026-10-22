@@ -36,7 +36,7 @@ import {
   buildQuoteViewPage,
   homeListItems, BROWSABLE_TRADITIONS, SPEAK_INDEX, TALK_ENKI_INDEX, SPEAK_TRADITIONS,
   buildSageGatePage, buildDailyCardPage, rarityLine, speakStatusLine,
-  APHORICA_INDEX, PHILOSOPHIES_INDEX, POLYGOT_INDEX, PRACTICE_INDEX, buildTraditionsPage,
+  APHORICA_INDEX, PHILOSOPHIES_INDEX, POLYGOT_INDEX, PRACTICE_INDEX, WONDER_INDEX, buildTraditionsPage,
   buildAphoricaPage, buildAphoricaReadPage,
   buildSpeakTraditionPage, buildSpeakPhilosopherPage,
   buildSpeakConversationPage,
@@ -1815,10 +1815,10 @@ async function handleClick(bridge: EvenAppBridge, idx: number, baseUrl: string):
         lastNavigationTime = Date.now();
         await pushLogoToGlasses(bridge, baseUrl);
         log("> Philosophers", "success");
-      } else if (idx === PRACTICE_INDEX) {
+      } else if (idx === PRACTICE_INDEX || idx === WONDER_INDEX) {
         currentPage = "practice";
         practiceGlass = new PracticeGlass(bridge, () => goHome(bridge, baseUrl));
-        await practiceGlass.open();
+        await practiceGlass.open(idx === WONDER_INDEX);
         lastNavigationTime = Date.now();
       } else if (idx === POLYGOT_INDEX) {
         await openPolyGotTour(bridge);

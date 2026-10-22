@@ -18,6 +18,7 @@
 // bridge exists before that.
 // ═══════════════════════════════════════════════════════════════════
 
+import { initWonderCard } from './wonderCard';
 import { spriteImgUrl, spriteLocalFallback } from './spriteSource';
 import { enableQuoteAudio, playQuoteAudio, stopQuoteAudio, onQuoteAudioStatus } from './quoteAudio';
 import { EvenAppBridge } from '@evenrealities/even_hub_sdk';
@@ -2593,6 +2594,7 @@ function initSyncPanel(): void {
 
 // ─── PUBLIC ENTRY ─────────────────────────────────────────────────
 export async function initDashboard(b: EvenAppBridge, base: string): Promise<void> {
+  initWonderCard();
   let quoteAudioFeedback: Element | null = null;
   $('quote-audio-enable')?.addEventListener('click', () => { void enableQuoteAudio(); });
   $('quote-audio-stop')?.addEventListener('click', stopQuoteAudio);

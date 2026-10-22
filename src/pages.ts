@@ -87,6 +87,7 @@ export function homeListItems(): string[] {
     // PolyGot, D3's language app for the same glasses: a short tour on
     // this lens (src/polygotTour.ts). A brand name, so not translated.
     'My day',
+    'Wonder',
     'Try PolyGot',
     ...(supportEnabled() ? [`● ${tGlass('g.support')}`] : []),
   ];
@@ -96,10 +97,11 @@ export const SPEAK_INDEX = 1;
 export const PHILOSOPHIES_INDEX = 2;
 export const APHORICA_INDEX = 3;
 export const PRACTICE_INDEX = 4;
-export const POLYGOT_INDEX = 5;
+export const WONDER_INDEX = 5;
+export const POLYGOT_INDEX = 6;
 /** Home index of the Support row, or -1 when the surface is gated off —
  *  -1 never matches a real click index, so callers need no extra guard. */
-export const SUPPORT_INDEX = supportEnabled() ? 6 : -1;
+export const SUPPORT_INDEX = supportEnabled() ? 7 : -1;
 
 /** Traditions on the Philosophers (talk) list. Primordial is Enki alone,
  *  and Enki has his own row on home, so it is not a list entry here. */
