@@ -40,7 +40,7 @@ export function initSocialCompanion() {
   } catch {}
   async function render(message = "") {
     const handle = await linkedHandle();
-    card.innerHTML = `<div class="card-body"><h2>A world of thought, on glass.</h2><p>${handle ? `Linked as @${escape(handle)}. Aphorica, conversations and saved thoughts are free.` : "Create a free account with any email. Copy one link, connect in your browser, then return here."}</p>${!handle ? `<button class="btn primary" id="social-pair-start">${pending ? "Copy my pairing link" : "Connect my account"}</button>${pending ? `<label>Hold to copy<input id="social-pair-link" readonly value="${escape(pending.url)}" style="width:100%;color:#d8bd72;background:#171813;border:1px solid #4c472e;padding:10px;margin-top:10px"/></label><p>Code: ${escape(pending.code.slice(0, 4) + "-" + pending.code.slice(4))}. Expires ${new Date(pending.expires_at).toLocaleTimeString()}.</p>` : ""}` : ""}<p role="status">${escape(message)}</p><button class="btn" id="social-open-web">Copy Aphorica web link</button><p class="muted">On glasses: Home → Aphorica → New thought. Dictate, review, then publish.</p></div>`;
+    card.innerHTML = `<div class="card-body"><h2>A world of thought, on glass.</h2><p>${handle ? `Linked as @${escape(handle)}. Aphorica, conversations and saved thoughts are free.` : "Create a free account with any email. Copy one link, connect in your browser, then return here."}</p>${!handle ? `<button class="btn primary" id="social-pair-start">${pending ? "Copy my pairing link" : "Connect my account"}</button>${pending ? `<label>Hold to copy<input id="social-pair-link" readonly value="${escape(pending.url)}" style="width:100%;color:#d8bd72;background:#171813;border:1px solid #4c472e;padding:10px;margin-top:10px"/></label><p>Code: ${escape(pending.code.slice(0, 4) + "-" + pending.code.slice(4))}. Expires ${new Date(pending.expires_at).toLocaleTimeString()}.</p>` : ""}` : ""}<p role="status">${escape(message)}</p><button class="btn primary" id="social-open-app">Open Aphorica</button><button class="btn" id="social-open-web">Copy website link</button><p class="muted">On glasses: Home → Aphorica → New thought. Dictate, review, then publish.</p></div>`;
     card
       .querySelector("#social-pair-start")
       ?.addEventListener("click", async () => {
@@ -68,6 +68,9 @@ export function initSocialCompanion() {
           await render((e as Error).message);
         }
       });
+    card.querySelector("#social-open-app")?.addEventListener("click", () => {
+      document.querySelector<HTMLButtonElement>('.tab-btn[data-tab="aphorica"]')?.click();
+    });
     card
       .querySelector("#social-open-web")
       ?.addEventListener("click", async () => {
@@ -118,27 +121,4 @@ export function initSocialCompanion() {
   window.addEventListener("focus", () => {
     if (pending) void poll();
   });
-  const commons = document.querySelector('[data-seg-panel="commons"]');
-  if (commons) {
-    commons.innerHTML =
-      '<section class="card"><div class="card-body"><h2>Aphorica · everyone has a voice</h2><p>Choose topics, share 800-character thoughts and respond to one another. Open Aphorica on your glasses to dictate and publish.</p><div id="social-phone-feed"></div><a class="btn" style="color:#ddc475" href="https://enkiridion.com/aphorica" target="_blank" rel="noopener">Open the full web app ↗</a></div></section>';
-    void (async () => {
-      try {
-        const r = await fetch(
-          "https://sophicon-api.vercel.app/api/social?limit=5",
-          { headers: await authHeaders() },
-        );
-        const d = await r.json();
-        const host = document.getElementById("social-phone-feed");
-        if (host)
-          host.innerHTML =
-            (d.posts || [])
-              .map(
-                (p: any) =>
-                  `<article style="padding:15px 0;border-top:1px solid #34372e"><small>@${escape(p.username)}</small><h3 style="color:#d8bd72">${escape(p.title)}</h3><p>${escape(p.body)}</p><small>↑ ${p.upvotes - p.downvotes}</small></article>`,
-              )
-              .join("") || "<p>There is room for your first thought.</p>";
-      } catch {}
-    })();
-  }
 }

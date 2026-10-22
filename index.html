@@ -41,6 +41,7 @@
     <nav class="tab-bar" role="tablist">
 <button class="tab-btn active" data-tab="home" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.6 12 3l9 7.6V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="tab.home">Today</span></button>
 <button class="tab-btn" data-tab="speak" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span data-i18n="tab.speak">Talk</span></button>
+<button class="tab-btn" data-tab="aphorica" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0Z"/><path d="M7 10h10M7 14h6"/></svg><span>Aphorica</span></button>
 <button class="tab-btn" data-tab="philosophers" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v5l-2 4H7zM14 7h4v5l-2 4h-2z"/></svg><span data-i18n="tab.quotes">Quotes</span></button>
 <button class="tab-btn" data-tab="journal" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6C10 5 6 5 4 6v13c2-1 6-1 8 0 2-1 6-1 8 0V6c-2-1-6-1-8 0zM12 6v13"/></svg><span data-i18n="tab.journal">Journal</span></button>
 <button class="tab-btn" data-tab="debug" role="tab" id="tab-debug" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4zM8 9l3 3-3 3M13 15h4"/></svg><span data-i18n="tab.debug">Debug</span></button>
@@ -130,14 +131,14 @@
         </div>
       </div>
 
-      <!-- One post from the Commons; the rest is under Quotes → Commons. -->
+      <!-- One thought from Aphorica; open its dedicated tab for the community. -->
       <div class="card">
         <div class="card-header">
-          From the Commons
+          From Aphorica
           <button class="link-btn card-header-link" id="aph-home-all">See all</button>
         </div>
         <ul class="aph-list" id="aph-home-list">
-          <li class="muted" style="padding:8px 2px;">Loading the Commons…</li>
+          <li class="muted" style="padding:8px 2px;">Loading Aphorica…</li>
         </ul>
       </div>
 
@@ -157,37 +158,13 @@
     <!-- QUOTES — the philosophers' quotes, and the Commons (aphorisms
          people post; read + vote here, compose on enkiridion.com). -->
     <div class="tab-panel" data-panel="philosophers">
-      <div class="seg" role="tablist" aria-label="Quotes">
-        <button class="seg-btn active" data-seg="phil" role="tab">Philosophers</button>
-        <button class="seg-btn" data-seg="commons" role="tab">Commons</button>
-      </div>
       <div data-seg-panel="phil">
         <p class="library-line muted"><span id="stat-quotes">—</span> quotes from <span id="stat-phils">—</span> philosophers in <span id="stat-trads">—</span> traditions</p>
         <div id="phil-groups"></div>
       </div>
-      <div data-seg-panel="commons" hidden>
-        <div class="card">
-          <div class="card-header">
-            The Commons
-            <span class="badge" id="aph-count">—</span>
-          </div>
-          <div class="card-body">
-          <div class="aph-toolbar">
-            <button class="btn sm aph-sort active" data-sort="hot" id="aph-sort-hot">Hot</button>
-            <button class="btn sm aph-sort" data-sort="new" id="aph-sort-new">New</button>
-            <span class="aph-hint muted" id="aph-hint"></span>
-          </div>
-          <ul class="aph-list" id="aph-list"></ul>
-          <div class="muted" id="aph-empty" style="display:none">
-            Nothing here yet. The commons awaits its first aphorism.
-          </div>
-          <a class="aph-compose" href="https://enkiridion.com/aphorica?src=g2" target="_blank" rel="noopener">
-            Compose your own on enkiridion.com →
-          </a>
-          </div>
-        </div>
-      </div>
     </div>
+
+    <div class="tab-panel" data-panel="aphorica" id="aphorica-phone"></div>
 
     <!-- TALK — talk from the phone; what happens on the glasses shows
          up in the same thread. -->
